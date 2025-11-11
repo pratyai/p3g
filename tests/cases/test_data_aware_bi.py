@@ -7,10 +7,13 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 def test_data_aware_bi():
     """
-    Data-Aware (B[i])
-    for i = 1...N: if (B[i] > 0) then A[i] = A[i-1]
+    Test case for a Data-Aware loop: for i = 1...N: if (B[i] > 0) then A[i] = A[i-1].
+    This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
+    meaning there exists a data configuration that forces sequential execution.
+    If all B[i] > 0, then A[i] = A[i-1] always executes, creating a sequential dependency.
+    The SMT query should return SAT, indicating DOFS (sequential).
     """
-    print("--- Running Test: Data-Aware (B[i]) ---")
+    print("\n--- Running Test: Data-Aware (B[i]) (Expected: DOFS/Sequential) ---")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
@@ -57,9 +60,14 @@ def test_data_aware_bi():
     print_p3g_structure(b.root_graph)
 
     loop_end = N
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end)
+    print(f"Generating SMT query for N (symbolic) with no extra assertions.")
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    print("\n--- Generated SMT Query (data_aware_bi) ---")
+    print(smt_query)
+    print("-------------------------------------------")
 
-    # EXPECT: unsat (False) - No universal counterexample exists
-    result = solve_smt_string(smt_query, "data_aware_bi")
-    assert result
-    print("\nVerdict: Sequential (DOFS). All checks PASSED.")
+    # EXPECT: sat (True) - A data configuration exists (e.g., all B[i] > 0)
+    # that forces sequential execution (A[i] = A[i-1] always executes).
+    result = solve_smt_string(smt_query, "data_aware_bi_check")
+    assert result, "Expected data-aware loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    print("\nVerdict: PASSED. Data-aware loop is DOFS (Sequential) as expected.")

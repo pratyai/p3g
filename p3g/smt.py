@@ -15,7 +15,6 @@ from p3g.p3g import (
 
 # Define __all__ for 'from p3g_smt import *'
 __all__ = [
-    'generate_smt_for_disprove_dofs',
     'generate_smt_for_prove_exists_data_forall_iter_isdep'
 ]
 
@@ -125,7 +124,7 @@ def _equal_indices(idx1, idx2):
     if is_idx1_tuple and is_idx2_tuple:
         # Both are multi-dimensional: indices must be tuples of the same length
         if len(idx1) != len(idx2):
-            return FALSE() # Different dimensions, cannot be equal
+            return FALSE()  # Different dimensions, cannot be equal
 
         # Create a conjunction (AND) of equality checks for each dimension
         equalities = [Equals(_get_index_from_access(i1), _get_index_from_access(i2)) for i1, i2 in zip(idx1, idx2)]
@@ -225,170 +224,47 @@ def find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
             find_data_symbols(node.nested_graph, collected_symbols)
 
 
-def generate_smt_for_disprove_dofs(loop_node: Loop,
-                                   loop_end: PysmtFormula,
-                                   extra_assertions: List[
-                                       PysmtFormula] = None) -> str:  # MODIFIED: Accept extra_assertions
-    """
-    Generates the SMT-LIB query string for disproving Data-Oblivious
-    Full Sequentiality (Φ_¬DOFS).
-    """
-
-    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
-    # root_graph = loop_node.builder.root_graph # No longer needed directly here
-
-    all_data_nodes: Set[Data] = set()
-    _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes) # Collect from the entire graph
-
-    builder.assertions.append("; --- Data Definitions ---")
-    for node in all_data_nodes: # Iterate over all collected Data nodes
-        sym = Symbol(f"DATA!{node.name}", INT)
-        id_to_symbol_map[node.array_id] = sym
-        defn = Equals(sym, Int(node.array_id))
-        builder.add_assertion(defn, f"Define DATA!{node.name}")
-
-    k = loop_node.loop_var  # Use the loop's internal iteration variable
-    j = Plus(k, Int(1))  # Define j relative to k
-
-    # NEW BLOCK: Add human-provided assertions
-    if extra_assertions:
-        builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
-        for idx, assertion in enumerate(extra_assertions):
-            builder.add_assertion(assertion, f"Human Assertion #{idx}")
-
-    builder.assertions.append("\n; --- Loop Bounds ---")
-    loop_start, loop_end = loop_node.start, loop_node.end
-
-    builder.add_assertion(
-        GE(loop_end, Plus(loop_start, Int(1))),
-        "Loop runs at least two adjacent iterations"
-    )
-    builder.add_assertion(GE(k, loop_start), "Iteration 'k' lower bound")
-    builder.add_assertion(LE(j, loop_end), "Iteration 'k+1' upper bound")
-
-    path_model_fn = create_path_model_fn(loop_node)
-    paths_k = path_model_fn(k)
-    paths_j = path_model_fn(j)
-
-    builder.assertions.append("\n; --- Dependency Logic Definitions ---")
-
-    let_bindings_tuples = []
-    dep_var_names = []
-
-    data_symbols_to_quantify = set()
-    find_data_symbols(loop_node.nested_graph, data_symbols_to_quantify)
-
-    for idx_k, (pred_k, W_k, R_k) in enumerate(paths_k):
-        for idx_j, (pred_j, W_j, R_j) in enumerate(paths_j):
-            waw = _intersect_to_formula(W_k, W_j, id_to_symbol_map)
-            raw = _intersect_to_formula(W_k, R_j, id_to_symbol_map)
-            war = _intersect_to_formula(R_k, W_j, id_to_symbol_map)
-
-            waw_var = f"p{idx_k}p{idx_j}_waw"
-            raw_var = f"p{idx_k}p{idx_j}_raw"
-            war_var = f"p{idx_k}p{idx_j}_war"
-
-            waw_str = builder._serialize(waw)
-            raw_str = builder._serialize(raw)
-            war_str = builder._serialize(war)
-
-            path_pair_conflict_str = f"(or {waw_var} {raw_var} {war_var})"
-
-            conflict_let_str = (
-                f"(let (({waw_var} {waw_str})\n"
-                f"        ({raw_var} {raw_str})\n"
-                f"        ({war_var} {war_str}))\n"
-                f"   {path_pair_conflict_str})"
-            )
-
-            pred_k_str = builder._serialize(pred_k)
-            pred_j_str = builder._serialize(pred_j)
-
-            full_path_dependency_str = (
-                f"(and {pred_k_str}\n"
-                f"     {pred_j_str}\n"
-                f"     {conflict_let_str})"
-            )
-
-            dep_var_name = f"p{idx_k}p{idx_j}_dep"
-
-            let_bindings_tuples.append(
-                (dep_var_name, full_path_dependency_str, f"p{idx_k}(k) <-> p{idx_j}(j) dependency"))
-            dep_var_names.append(dep_var_name)
-
-    main_body_str = "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
-
-    let_body_str = (
-            f"(let (\n" +
-            "\n".join([f"  ; {c}\n  ({n} {f})\n" for n, f, c in let_bindings_tuples]) +
-            f")\n" +
-            f"  ; Main formula\n" +
-            f"  (not {main_body_str})\n" +
-            ")"
-    )
-
-    builder.assertions.append("\n; Find a universal counterexample (for all data configs)")
-
-    quantifier_vars = []
-    for sym in data_symbols_to_quantify:
-        # Exclude the SMT solver's iteration variables (which are now k and j)
-        if sym == k or sym == j:
-            continue
-
-        # Exclude free variables from loop bound formulas
-        # These are considered constants for the SMT solver, not universally quantified.
-        for free_var_in_bound in _get_free_variables_recursive(loop_node.start):
-            if sym == free_var_in_bound: continue
-        for free_var_in_bound in _get_free_variables_recursive(loop_node.end):
-            if sym == free_var_in_bound: continue
-
-        # Exclude loop bound variables
-        # Note: loop_node.start and loop_node.end might be complex formulas,
-        # so direct equality check might not be sufficient if they are not simple Symbols.
-        # For now, we assume they are simple Symbols or Ints.
-        if sym == loop_node.start or sym == loop_end:
-            continue
-
-        # Exclude symbols that are already defined as DATA! symbols
-        # (these are handled by id_to_symbol_map and are not universally quantified here)
-        # This check is implicitly handled by the fact that DATA! symbols are not in data_symbols_to_quantify
-        # in the first place, as data_symbols_to_quantify only contains free variables from formulas.
-        builder.declarations.add(sym)
-        if sym.get_type().is_array_type():
-            q_type = f"(Array {sym.get_type().index_type} {sym.get_type().elem_type})"
-        elif sym.get_type().is_function_type():
-            param_types = " ".join([str(p) for p in sym.get_type().param_types])
-            return_type = sym.get_type().return_type
-            q_type = f"({param_types}) {return_type}"
-        elif sym.get_type().is_int_type():  # Explicitly handle INT type
-            q_type = f"{sym.get_type()}"
-        else:
-            q_type = f"{sym.get_type()}"  # Fallback
-
-        quantifier_vars.append(f"({sym.symbol_name()} {q_type})")
-
-    if quantifier_vars:
-        builder.assertions.append("(assert (forall (")
-        builder.assertions.extend([f"  {q}" for q in quantifier_vars])
-        builder.assertions.append(") ; End of quantified variables")
-        for line in let_body_str.split('\n'):
-            builder.assertions.append(f"  {line}")
-        builder.assertions.append("))")  # Close forall and assert
-    else:
-        # No data symbols, just assert the 'let' block
-        builder.assertions.append(f"(assert {let_body_str})")
-
-    return builder.build_query()
-
-
 def generate_smt_for_prove_exists_data_forall_iter_isdep(
         loop_node: Loop,
         loop_end: PysmtFormula,
         extra_assertions: List[PysmtFormula] = None,
-        verbose: bool = True) -> str:  # MODIFIED: Accept extra_assertions
+        verbose: bool = True) -> str:
     """
-    Generates the SMT-LIB query string for disproving Data-Oblivious
-    Full Sequentiality (Φ_¬DOFS).
+    Generates an SMT-LIB query string to prove Data-Oblivious Full Sequentiality (Φ_DOFS)
+    for a given loop.
+
+    A loop is considered Data-Oblivious Full Sequential (DOFS) if there exists *at least one*
+    specific assignment of values to its symbolic data arrays (a "data configuration")
+    such that a data dependency is guaranteed to exist between *every* pair of adjacent
+    iterations (k and k+1) within the loop's execution range.
+    In simpler terms, a DOFS loop *cannot* be parallelized because there's at least one
+    data scenario where dependencies always force sequential execution.
+
+    The SMT query is constructed to find such a "sequentializing" data configuration.
+
+    Interpretation of SMT Solver Results:
+    - If the SMT solver returns `SAT` (Satisfiable), it means the query's assertion is true:
+      it has found a data configuration for which a dependency exists between
+      iterations `k` and `k+1` for all valid `k`.
+      Therefore, the loop is **DOFS (Sequential)**.
+    - If the SMT solver returns `UNSAT` (Unsatisfiable), it means the query's assertion is false:
+      no such "sequentializing" data configuration exists. This implies that for *every*
+      data configuration, there is at least one pair of adjacent iterations (k, k+1)
+      that does *not* have a dependency.
+      Therefore, the loop is **not DOFS (Parallel)**.
+
+    Args:
+        loop_node: The P3G Loop node for which to generate the SMT query.
+        loop_end: A PysmtFormula representing the upper bound of the loop.
+                  This is used to define the valid range for loop iterations `k` and `k+1`.
+        extra_assertions: An optional list of additional PysmtFormula assertions
+                          to include in the SMT query. These can be used to
+                          constrain symbolic variables (e.g., array sizes,
+                          specific data values) for more targeted analysis.
+        verbose: If True, prints the generated SMT query to stdout.
+
+    Returns:
+        A string containing the SMT-LIB query.
     """
 
     k = loop_node.loop_var  # Use the loop's internal iteration variable
@@ -438,10 +314,10 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     # root_graph = loop_node.builder.root_graph # No longer needed directly here
 
     all_data_nodes: Set[Data] = set()
-    _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes) # Collect from the entire graph
+    _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes)  # Collect from the entire graph
 
     builder.assertions.append("; --- Data Definitions ---")
-    for node in all_data_nodes: # Iterate over all collected Data nodes
+    for node in all_data_nodes:  # Iterate over all collected Data nodes
         sym = Symbol(f"DATA!{node.name}", INT)
         id_to_symbol_map[node.array_id] = sym
         defn = Equals(sym, Int(node.array_id))
@@ -543,7 +419,7 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     # No existential quantifiers, just assert the inner forall
     builder.assertions.append(f"(assert {inner_forall_str})")
 
-    smt_query =  builder.build_query()
+    smt_query = builder.build_query()
     if verbose:
         print(f"""
 {smt_query}

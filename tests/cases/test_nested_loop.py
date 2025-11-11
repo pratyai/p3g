@@ -7,11 +7,15 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 def test_nested_loop():
     """
-    Nested Loop (Outer Seq, Inner Par)
+    Test case for a Nested Loop:
     for i = 1...N:
       for j = 1...M: A[i, j] = A[i-1, j] + B[i, j]
+
+    The outer loop (over 'i') has a true data dependency (A[i,j] depends on A[i-1,j]),
+    making it Data-Oblivious Full Sequential (DOFS).
+    The inner loop (over 'j') has no self-dependency, making it Not DOFS (parallelizable).
     """
-    print("--- Running Test: Nested Loop (Outer Seq, Inner Par) ---")
+    print("\n--- Running Test: Nested Loop (Expected: Outer DOFS/Sequential, Inner Not DOFS/Parallel) ---")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     M = b.add_symbol("M", INT)
@@ -61,20 +65,30 @@ def test_nested_loop():
     loop_end_outer = N
     loop_end_inner = M
 
-    # --- 1. Check Inner Loop (Expected: Parallel/SAT) ---
-    print("\n-- 1. Checking Inner Loop (L_inner) for Parallelism --")
-    smt_query_inner = generate_smt_for_prove_exists_data_forall_iter_isdep(L_inner_node, loop_end_inner)
+    # --- 1. Check Inner Loop (L_inner) ---
+    print("\n-- 1. Checking Inner Loop (L_inner) for Parallelism (Expected: Not DOFS/Parallel) --")
+    # The inner loop has no self-dependencies on 'j'.
+    # This means it is Not DOFS (parallelizable).
+    smt_query_inner = generate_smt_for_prove_exists_data_forall_iter_isdep(L_inner_node, loop_end_inner, verbose=False)
+    print("\n--- Generated SMT Query (nested_loop_inner) ---")
+    print(smt_query_inner)
+    print("-----------------------------------------------")
 
-    # EXPECT: sat (True) - L_inner has no self-dependencies on j
-    result_inner = solve_smt_string(smt_query_inner, "nested_loop_inner")
-    assert not result_inner
-    print("\nInner Loop Verdict: Not fully sequential (DOFS).")
+    # EXPECT: unsat (False) - Inner loop has no self-dependencies on j
+    result_inner = solve_smt_string(smt_query_inner, "nested_loop_inner_check")
+    assert not result_inner, "Expected inner loop to be Not DOFS (parallel) but SMT solver returned SAT."
+    print("\nInner Loop Verdict: PASSED. Not fully sequential (DOFS) as expected.")
 
-    # --- 2. Check Outer Loop (Expected: Sequential/UNSAT) ---
-    print("\n-- 2. Checking Outer Loop (L_outer) for Parallelism --")
-    smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end_outer)
+    # --- 2. Check Outer Loop (L_outer) ---
+    print("\n-- 2. Checking Outer Loop (L_outer) for Parallelism (Expected: DOFS/Sequential) --")
+    # The outer loop has a dependency A[i, j] <- A[i-1, j].
+    # This means it is Data-Oblivious Full Sequential (DOFS).
+    smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end_outer, verbose=False)
+    print("\n--- Generated SMT Query (nested_loop_outer) ---")
+    print(smt_query_outer)
+    print("-----------------------------------------------")
 
-    # EXPECT: unsat (False) - L_outer has dependency A[i] <- A[i-1]
-    result_outer = solve_smt_string(smt_query_outer, "nested_loop_outer")
-    assert result_outer
-    print("\nOuter Loop Verdict: Sequential (DOFS). All checks PASSED.")
+    # EXPECT: sat (True) - Outer loop has dependency A[i] <- A[i-1]
+    result_outer = solve_smt_string(smt_query_outer, "nested_loop_outer_check")
+    assert result_outer, "Expected outer loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    print("\nOuter Loop Verdict: PASSED. Sequential (DOFS) as expected. All checks PASSED.")

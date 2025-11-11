@@ -10,6 +10,11 @@ from pysmt.shortcuts import (
 PysmtFormula = FNode
 PysmtSymbol = FNode
 
+# Type aliases
+ReadSet = List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]
+WriteSet = List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]
+PathModel = List[Tuple[PysmtFormula, WriteSet, ReadSet]]
+
 # Define __all__ for 'from p3g import *'
 __all__ = [
     'Node', 'Edge', 'Graph', 'Data', 'Compute', 'Structure',

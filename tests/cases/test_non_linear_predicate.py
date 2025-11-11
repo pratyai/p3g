@@ -8,13 +8,18 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 def test_non_linear_predicate():
     """
-    Non-linear Predicate
+    Test case for a loop with a Non-linear Predicate:
     for i=0:N {
-      if i*i <= N: A[i] = B[i] + C[i]
-      else: A[i] = A[i-1] + C[i]
+      if i*i <= N: A[i] = B[i] + C[i]  // Parallel part
+      else: A[i] = A[i-1] + C[i]       // Sequential part
     }
+    This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
+    meaning there exists a data configuration (a value for N) that forces sequential execution.
+    For example, if N is chosen such that `k*k > N` for all `k` in the loop range,
+    then the sequential branch (`A[i] = A[i-1] + C[i]`) is always taken.
+    The SMT query should return SAT, indicating DOFS (sequential).
     """
-    print("--- Running Test: Non-linear Predicate ---")
+    print("\n--- Running Test: Non-linear Predicate (Expected: DOFS/Sequential) ---")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
@@ -62,9 +67,14 @@ def test_non_linear_predicate():
     print_p3g_structure(b.root_graph)
 
     loop_end = N
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end)
+    print(f"Generating SMT query for N (symbolic).")
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    print("\n--- Generated SMT Query (non_linear_predicate) ---")
+    print(smt_query)
+    print("--------------------------------------------------")
 
-    # EXPECT: sat (True) - Universal counterexample (e.g., N=100, k=2) exists
-    result = solve_smt_string(smt_query, "non_linear_predicate")
-    assert result
-    print("\nVerdict: Not fully sequential (DOFS). All checks PASSED.")
+    # EXPECT: sat (True) - A data configuration (value for N) exists that forces
+    # sequential execution across all adjacent iterations.
+    result = solve_smt_string(smt_query, "non_linear_predicate_check")
+    assert result, "Expected non-linear predicate loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    print("\nVerdict: PASSED. Non-linear Predicate loop is DOFS (Sequential) as expected.")

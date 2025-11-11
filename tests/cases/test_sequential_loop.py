@@ -7,10 +7,15 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 def test_sequential_loop():
     """
-    Sequential Loop
-    for i = 2...N: A[i] = A[i-1] + B[i]
+    Test case for a Sequential Loop: for i = 2...N: A[i] = A[i-1] + B[i].
+    This loop has a Read-After-Write (RAW) dependency: A[i] reads A[i-1],
+    which was written in the previous iteration. This dependency exists for all
+    iterations in the loop range.
+    Therefore, the loop is inherently sequential.
+    This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
+    meaning the SMT query should return SAT, indicating DOFS (sequential).
     """
-    print("--- Running Test: Sequential Loop ---")
+    print("\n--- Running Test: Sequential Loop (Expected: DOFS/Sequential) ---")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
@@ -34,9 +39,14 @@ def test_sequential_loop():
     print_p3g_structure(b.root_graph)
 
     loop_end = N
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end)
+    print(f"Generating SMT query for N (symbolic).")
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    print("\n--- Generated SMT Query (sequential_loop) ---")
+    print(smt_query)
+    print("---------------------------------------------")
 
-    # EXPECT: unsat (False) - No universal counterexample exists
-    result = solve_smt_string(smt_query, "sequential_loop")
-    assert result
-    print("\nVerdict: Sequential (DOFS). All checks PASSED.")
+    # EXPECT: sat (True) - A data configuration exists that forces sequential execution
+    # across all adjacent iterations due to the RAW dependency.
+    result = solve_smt_string(smt_query, "sequential_loop_check")
+    assert result, "Expected sequential loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    print("\nVerdict: PASSED. Sequential Loop is DOFS (Sequential) as expected.")

@@ -7,10 +7,16 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 def test_indirect_read_gather():
     """
-    Indirect Read (Gather) - Parallel
-    for i = 1...N: A[i] = B[ IDX[i] ]
+    Test case for Indirect Read (Gather) operation: for i = 1...N: A[i] = B[ IDX[i] ].
+    This operation is generally parallelizable because writes to A[i] are independent
+    of previous A values, and reads from B are indirect.
+    There is no inherent data dependency between adjacent iterations that would force
+    sequential execution for all data configurations.
+    This test expects the loop to be Not Data-Oblivious Full Sequential (Not DOFS),
+    meaning it is parallelizable.
+    The SMT query should return UNSAT, indicating Not DOFS (parallel).
     """
-    print("--- Running Test: Indirect Read (Gather) ---")
+    print("\n--- Running Test: Indirect Read (Gather) (Expected: Not DOFS/Parallel) ---")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
@@ -40,9 +46,14 @@ def test_indirect_read_gather():
     print_p3g_structure(b.root_graph)
 
     loop_end = N
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end)
+    print(f"Generating SMT query for N (symbolic).")
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    print("\n--- Generated SMT Query (indirect_read_gather) ---")
+    print(smt_query)
+    print("--------------------------------------------------")
 
-    # EXPECT: sat (True) - Universal counterexample (any N, k) exists
-    result = solve_smt_string(smt_query, "indirect_read_gather")
-    assert not result
-    print("\nVerdict: Not fully sequential (DOFS). All checks PASSED.")
+    # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
+    # across all adjacent iterations.
+    result = solve_smt_string(smt_query, "indirect_read_gather_check")
+    assert not result, "Expected indirect read (gather) to be Not DOFS (parallel) but SMT solver returned SAT."
+    print("\nVerdict: PASSED. Indirect Read (Gather) is Not DOFS (Parallel) as expected.")

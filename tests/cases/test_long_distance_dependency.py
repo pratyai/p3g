@@ -7,10 +7,16 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 def test_long_distance_dependency():
     """
-    Loop with long-distance dependency (parallel from DOFS perspective)
-    for i = 2...N: A[i] = A[max(i-10, 0)] + B[i]
+    Test case for a loop with long-distance dependency: for i = 2...N: A[i] = A[max(i-10, 0)] + B[i].
+    The dependency is A[i] <- A[max(i-10, 0)]. Due to the 'max(i-10, 0)' term,
+    A[i] typically depends on a value far removed from A[i-1].
+    This means there is no inherent data dependency between *adjacent* iterations (k and k+1)
+    that would force sequential execution for all data configurations.
+    This test expects the loop to be Not Data-Oblivious Full Sequential (Not DOFS),
+    meaning it is parallelizable.
+    The SMT query should return UNSAT, indicating Not DOFS (parallel).
     """
-    print("--- Running Test: Loop with long-distance dependency ---")
+    print("\n--- Running Test: Loop with long-distance dependency (Expected: Not DOFS/Parallel) ---")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
@@ -62,9 +68,14 @@ def test_long_distance_dependency():
     print_p3g_structure(b.root_graph)
 
     loop_end = N
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end)
+    print(f"Generating SMT query for N (symbolic).")
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    print("\n--- Generated SMT Query (long_distance_dependency) ---")
+    print(smt_query)
+    print("----------------------------------------------------")
 
-    # EXPECT: sat (True) - No dependency between adjacent iterations.
-    result = solve_smt_string(smt_query, "long_distance_dependency")
-    assert not result
-    print("\nVerdict: Not fully sequential (DOFS). All checks PASSED.")
+    # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
+    # across all adjacent iterations due to the long-distance dependency.
+    result = solve_smt_string(smt_query, "long_distance_dependency_check")
+    assert not result, "Expected long-distance dependency loop to be Not DOFS (parallel) but SMT solver returned SAT."
+    print("\nVerdict: PASSED. Long-distance dependency loop is Not DOFS (Parallel) as expected.")

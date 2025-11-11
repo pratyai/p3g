@@ -17,7 +17,8 @@ def test_cholesky_sequential():
     # L[i,j] = (A[i,j] - sum_{k=0}^{j-1} L[i,k] * L[j,k]) / L[j,j]
     # This test models a simplified dependency pattern found in such kernels.
     """
-    print("--- Running Test: Cholesky Decomposition-like Kernel ---")
+    print("\n--- Running Test: Cholesky Decomposition-like Kernel (Simplified) ---")
+    print("Expected: Inner Loop DOFS (Sequential), Outer Loop Not DOFS (Parallel)")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     L_root = b.add_data("L", is_output=True)
@@ -45,6 +46,8 @@ def test_cholesky_sequential():
             L_local_inner = b.add_data("L", is_output=True)
 
             # L[i, j] = L[i, j-1] + L[j-1, j-1]
+            # This models a RAW dependency on L[i, j-1] within the inner loop.
+            # It also models a WAR/WAW dependency on L[j-1, j-1] across outer loop iterations.
             # Using tuples for 2D indexing
             read1 = (L_local_inner, (i, Minus(j, Int(1))))
             read2 = (L_local_inner, (Minus(j, Int(1)), Minus(j, Int(1))))
@@ -57,25 +60,38 @@ def test_cholesky_sequential():
 
     print_p3g_structure(b.root_graph)
 
-    # --- 1. Check Inner Loop (Expected: Sequential/UNSAT) ---
-    print("\n-- 1. Checking Inner Loop (L_inner) for Parallelism --")
-    # The inner loop end 'i' is a free variable for this check.
-    smt_query_inner = generate_smt_for_prove_exists_data_forall_iter_isdep(inner_loop_node, outer_loop_node.loop_var)
+    # --- 1. Check Inner Loop (L_inner) ---
+    print("\n-- 1. Checking Inner Loop (L_inner) for Parallelism (Expected: DOFS/Sequential) --")
+    # The inner loop has a dependency L[i,j] <- L[i,j-1].
+    # This means it is fully sequential (DOFS).
+    # The inner loop end 'i' is a symbolic variable for this check.
+    smt_query_inner = generate_smt_for_prove_exists_data_forall_iter_isdep(inner_loop_node, outer_loop_node.loop_var, verbose=False)
+    print("\n--- Generated SMT Query (cholesky_inner) ---")
+    print(smt_query_inner)
+    print("--------------------------------------------")
 
-    # EXPECT: unsat (False) - Inner loop has dependency L[i,j] <- L[i,j-1]
+    # EXPECT: sat (True) - Inner loop has dependency L[i,j] <- L[i,j-1]
     result_inner = solve_smt_string(smt_query_inner, "cholesky_inner")
-    assert result_inner
-    print("\nInner Loop Verdict: Sequential (DOFS).")
+    assert result_inner, "Expected inner loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    print("\nInner Loop Verdict: PASSED. Sequential (DOFS) as expected.")
 
-    # --- 2. Check Outer Loop (Expected: Sequential/UNSAT) ---
-    print("\n-- 2. Checking Outer Loop (L_outer) for Parallelism --")
-    smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isdep(outer_loop_node, N)
+    # --- 2. Check Outer Loop (L_outer) ---
+    print("\n-- 2. Checking Outer Loop (L_outer) for Parallelism (Expected: Not DOFS/Parallel) --")
+    # The outer loop has a dependency through L[j-1,j-1] (e.g., when j=i, L[i,i] depends on L[i-1,i-1]).
+    # However, this dependency is not *always* present for *all* adjacent iterations (k, k+1)
+    # for a *single* data configuration.
+    # For example, if N is large enough, and we pick a data configuration where L[j-1,j-1]
+    # is always distinct for different j, then the outer loop might appear parallel.
+    # The current model implies that for N >= 3, the outer loop is parallelizable.
+    smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isdep(outer_loop_node, N, verbose=False)
+    print("\n--- Generated SMT Query (cholesky_outer) ---")
+    print(smt_query_outer)
+    print("--------------------------------------------")
 
-    # EXPECT: unsat (False) - Outer loop has dependency through L[j-1,j-1]
-    # e.g., when j=i, L[i,i] depends on L[i-1,i-1]
+    # EXPECT: unsat (False) - Outer loop is Not DOFS (Parallel)
     result_outer = solve_smt_string(smt_query_outer, "cholesky_outer")
-    assert not result_outer
-    print("\nOuter Loop Verdict: Sequential (DOFS). All checks PASSED.")
+    assert not result_outer, "Expected outer loop to be Not DOFS (parallel) but SMT solver returned SAT."
+    print("\nOuter Loop Verdict: PASSED. Not DOFS (Parallel) as expected. All checks PASSED.")
 
 
 def test_cholesky_full_kernel():
@@ -88,8 +104,11 @@ def test_cholesky_full_kernel():
           sum_val = sum_val + L[i,k] * L[j,k]
         // L[i,j] = (A[i,j] - sum_val) / L[j,j]
         // (Simplified to L[i,j] = A[i,j] - sum_val for P3G modeling)
+
+    This test expects the full Cholesky kernel to be Data-Oblivious Full Sequential (DOFS),
+    meaning there exists a data configuration that forces sequential execution.
     """
-    print("--- Running Test: Full Cholesky Kernel ---")
+    print("\n--- Running Test: Full Cholesky Kernel (Expected: DOFS/Sequential) ---")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
 
@@ -172,12 +191,16 @@ def test_cholesky_full_kernel():
 
     print_p3g_structure(b.root_graph)
 
-    # --- Check Outer Loop (Expected: Sequential/UNSAT) ---
-    print("\n-- Checking Full Cholesky Kernel (L_outer) for Parallelism --")
-    smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isdep(outer_loop_node, N)
+    # --- Check Outer Loop (L_outer) ---
+    print("\n-- Checking Full Cholesky Kernel (L_outer) for Parallelism (Expected: DOFS/Sequential) --")
+    # The full Cholesky kernel is known to be highly sequential due to dependencies
+    # across all three nested loops.
+    smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isdep(outer_loop_node, N, verbose=False)
+    print("\n--- Generated SMT Query (cholesky_full_kernel) ---")
+    print(smt_query_outer)
+    print("---------------------------------------------------")
 
-    # EXPECT: unsat (False) - Full Cholesky is highly sequential
+    # EXPECT: sat (True) - Full Cholesky is highly sequential
     result_outer = solve_smt_string(smt_query_outer, "cholesky_full_kernel")
-    assert\
-        result_outer
-    print("\nFull Cholesky Kernel Verdict: Sequential (DOFS). All checks PASSED.")
+    assert result_outer, "Expected full Cholesky kernel to be DOFS (sequential) but SMT solver returned UNSAT."
+    print("\nFull Cholesky Kernel Verdict: PASSED. Sequential (DOFS) as expected. All checks PASSED.")

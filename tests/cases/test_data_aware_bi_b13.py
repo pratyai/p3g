@@ -7,10 +7,14 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 def test_data_aware_bi_b13():
     """
-    Data-Aware (B[i] - B[13])
-    for i = 1...N: if (B[i] - B[13] > 0) then A[i] = A[i-1]
+    Test case for a Data-Aware loop: for i = 1...N: if (B[i] - B[13] > 0) then A[i] = A[i-1].
+    This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
+    meaning there exists a data configuration that forces sequential execution.
+    For example, if B[i] = 1 for all i, and B[13] = 0, then B[i] - B[13] > 0 is always true,
+    and the loop becomes A[i] = A[i-1], which is sequential.
+    The SMT query should return SAT, indicating DOFS (sequential).
     """
-    print("--- Running Test: Data-Aware (B[i] - B[13]) ---")
+    print("\n--- Running Test: Data-Aware (B[i] - B[13]) (Expected: DOFS/Sequential) ---")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     B_val = Symbol("B_val", ArrayType(INT, INT))
@@ -64,20 +68,31 @@ def test_data_aware_bi_b13():
     print_p3g_structure(b.root_graph)
 
     loop_end = N
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end)
+    print(f"Generating SMT query for N (symbolic) with no extra assertions.")
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    print("\n--- Generated SMT Query (data_aware_bi_b13) ---")
+    print(smt_query)
+    print("-----------------------------------------------")
 
-    # EXPECT: sat (True) - Universal counterexample (k=12, N=13) exists
-    result = solve_smt_string(smt_query, "data_aware_bi_b13")
-    assert result
-    print("\nVerdict: Not fully sequential (DOFS). All checks PASSED.")
+    # EXPECT: sat (True) - A data configuration exists that forces sequential execution.
+    # The SMT solver will find a suitable N and values for B such that the condition
+    # (B[i] - B[13] > 0) is always true for all relevant i, making the loop sequential.
+    result = solve_smt_string(smt_query, "data_aware_bi_b13_check")
+    assert result, "Expected data-aware loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    print("\nVerdict: PASSED. Data-aware loop is DOFS (Sequential) as expected.")
 
 
 def test_data_aware_bi_b13_high_N():
     """
-    Data-Aware (B[i] - B[13])
-    for i = 1...N: if (B[i] - B[13] > 0) then A[i] = A[i-1]
+    Test case for a Data-Aware loop: for i = 1...N: if (B[i] - B[13] > 0) then A[i] = A[i-1].
+    This test adds an assertion N >= 15.
+    When N >= 15, the loop includes k=13. For k=13, the condition B[13] - B[13] > 0 is false,
+    meaning the assignment A[13] = A[12] is skipped.
+    Since there's at least one iteration (k=13) where the dependency is not guaranteed,
+    the loop is Not Data-Oblivious Full Sequential (Not DOFS), meaning it is parallelizable.
+    The SMT query should return UNSAT, indicating Not DOFS (parallel).
     """
-    print("--- Running Test: Data-Aware (B[i] - B[13]) ---")
+    print("\n--- Running Test: Data-Aware (B[i] - B[13]) High N (Expected: Not DOFS/Parallel) ---")
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
@@ -131,10 +146,15 @@ def test_data_aware_bi_b13_high_N():
     print_p3g_structure(b.root_graph)
 
     loop_end = N
+    print(f"Generating SMT query for N (symbolic) with extra assertion: N >= 15.")
     smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
-        loop_node, loop_end, extra_assertions=[GE(N, Int(15))])
+        loop_node, loop_end, extra_assertions=[GE(N, Int(15))], verbose=False)
+    print("\n--- Generated SMT Query (data_aware_bi_b13_high_N) ---")
+    print(smt_query)
+    print("-----------------------------------------------------")
 
-    # EXPECT: sat (True) - Universal counterexample (k=12, N=13) exists
-    result = solve_smt_string(smt_query, "data_aware_bi_b13")
-    assert not result
-    print("\nVerdict: Not fully sequential (DOFS). All checks PASSED.")
+    # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
+    # across all adjacent iterations when N >= 15, because the dependency is skipped for k=13.
+    result = solve_smt_string(smt_query, "data_aware_bi_b13_high_N_check")
+    assert not result, "Expected data-aware loop to be Not DOFS (parallel) but SMT solver returned SAT."
+    print("\nVerdict: PASSED. Data-aware loop is Not DOFS (Parallel) as expected for N >= 15.")

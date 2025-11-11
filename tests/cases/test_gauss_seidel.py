@@ -7,8 +7,10 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 def test_gauss_seidel_red_black():
     """
-    Gauss-Seidel with Red-Black ordering (1D)
+    Test case for Gauss-Seidel with Red-Black ordering (1D).
     This models the two parallel passes of the algorithm.
+    Both Red and Black passes are expected to be Not Data-Oblivious Full Sequential (Not DOFS),
+    meaning they are parallelizable.
 
     // Red Pass (odd indices - parallel)
     for i = 1, 3, 5, ...:
@@ -18,11 +20,11 @@ def test_gauss_seidel_red_black():
     for i = 2, 4, 6, ...:
         A[i] = A[i-1] + A[i+1]
     """
-    print("--- Running Test: Gauss-Seidel Red-Black ---")
+    print("\n--- Running Test: Gauss-Seidel Red-Black (Expected: Both Passes Not DOFS/Parallel) ---")
 
     # --- 1. Red Pass Analysis ---
     # Modeled as: for k = 0..N/2-1, i = 2*k+1
-    print("\n-- 1. Checking Red Pass for Parallelism --")
+    print("\n-- 1. Checking Red Pass for Parallelism (Expected: Not DOFS/Parallel) --")
     b_red = GraphBuilder()
     N_red = b_red.add_symbol("N", INT)
     A_red = b_red.add_data("A", is_output=True)
@@ -47,18 +49,22 @@ def test_gauss_seidel_red_black():
 
     print_p3g_structure(b_red.root_graph)
 
-    smt_query_red = generate_smt_for_prove_exists_data_forall_iter_isdep(red_loop_node, loop_end_red_k)
+    print(f"Generating SMT query for Red Pass (N symbolic).")
+    smt_query_red = generate_smt_for_prove_exists_data_forall_iter_isdep(red_loop_node, loop_end_red_k, verbose=False)
+    print("\n--- Generated SMT Query (gauss_seidel_red) ---")
+    print(smt_query_red)
+    print("-----------------------------------------------")
 
-    # EXPECT: sat (True) - Red pass is parallel.
+    # EXPECT: unsat (False) - Red pass is parallel.
     # Writes are to odd indices (2k+1), reads are from even indices (2k, 2k+2).
-    # No dependency between iterations.
+    # No dependency between iterations for any data configuration.
     result_red = solve_smt_string(smt_query_red, "gauss_seidel_red")
-    assert not result_red
-    print("\nRed Pass Verdict: Not fully sequential (DOFS).")
+    assert not result_red, "Expected Red Pass to be Not DOFS (parallel) but SMT solver returned SAT."
+    print("\nRed Pass Verdict: PASSED. Not fully sequential (DOFS) as expected.")
 
     # --- 2. Black Pass Analysis ---
     # Modeled as: for k = 0..N/2-2, i = 2*k+2
-    print("\n-- 2. Checking Black Pass for Parallelism --")
+    print("\n-- 2. Checking Black Pass for Parallelism (Expected: Not DOFS/Parallel) --")
     b_black = GraphBuilder()
     N_black = b_black.add_symbol("N", INT)
     A_black = b_black.add_data("A", is_output=True)
@@ -83,11 +89,15 @@ def test_gauss_seidel_red_black():
 
     print_p3g_structure(b_black.root_graph)
 
-    smt_query_black = generate_smt_for_prove_exists_data_forall_iter_isdep(black_loop_node, loop_end_black_k)
+    print(f"Generating SMT query for Black Pass (N symbolic).")
+    smt_query_black = generate_smt_for_prove_exists_data_forall_iter_isdep(black_loop_node, loop_end_black_k, verbose=False)
+    print("\n--- Generated SMT Query (gauss_seidel_black) ---")
+    print(smt_query_black)
+    print("-------------------------------------------------")
 
-    # EXPECT: sat (True) - Black pass is parallel.
+    # EXPECT: unsat (False) - Black pass is parallel.
     # Writes are to even indices (2k+2), reads are from odd indices (2k+1, 2k+3).
-    # No dependency between iterations.
+    # No dependency between iterations for any data configuration.
     result_black = solve_smt_string(smt_query_black, "gauss_seidel_black")
-    assert not result_black
-    print("\nBlack Pass Verdict: Not fully sequential (DOFS). All checks PASSED.")
+    assert not result_black, "Expected Black Pass to be Not DOFS (parallel) but SMT solver returned SAT."
+    print("\nBlack Pass Verdict: PASSED. Not fully sequential (DOFS) as expected. All checks PASSED.")
