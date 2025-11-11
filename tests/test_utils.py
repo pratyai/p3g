@@ -1,0 +1,154 @@
+import io
+import os
+import sys
+
+from p3g.p3g import Graph, Compute, Branch, Loop, Map, Reduce, Data, WriteSet, ReadSet
+from pysmt.exceptions import SolverReturnedUnknownResultError
+from pysmt.shortcuts import Solver
+from pysmt.smtlib.parser import SmtLibParser
+
+# --- Solver Configuration ---
+SOLVER_NAME = "z3"  # Can be 'z3', 'cvc5', etc.
+OUTPUT_DIR = "tmp/smt"
+
+
+# --- Graph Printing Utility ---
+
+def _aggregate_accesses(graph: Graph) -> tuple[WriteSet, ReadSet]:
+    """
+    Recursively collects all unique (array_id, subset) Write and Read access pairs
+    from all Compute nodes within the graph and its nested structures.
+    """
+    aggregated_writes = []
+    aggregated_reads = []
+
+    for node in graph.nodes:
+        if isinstance(node, Compute):
+            # Base case: Collect accesses from Compute node
+            aggregated_writes.extend(node.get_write_set())
+            aggregated_reads.extend(node.get_read_set())
+
+        elif isinstance(node, Branch):
+            # Recursive case: Traverse branches
+            for _, nested_graph in node.branches:
+                w, r = _aggregate_accesses(nested_graph)
+                aggregated_writes.extend(w)
+                aggregated_reads.extend(r)
+
+        elif isinstance(node, (Loop, Map, Reduce)):
+            # Recursive case: Traverse nested loop/map body
+            w, r = _aggregate_accesses(node.nested_graph)
+            aggregated_writes.extend(w)
+            aggregated_reads.extend(r)
+
+    # Note: We return duplicates; distinctness relies on the consumer (human reader).
+    return aggregated_writes, aggregated_reads
+
+
+def print_p3g_structure(graph: Graph, indent=0):
+    """Recursively prints the P3G structure."""
+
+    # Print Graph Header/Name and Symbols
+    s_indent = '  ' * indent
+    print(f"{s_indent}### {graph.name} ### (Symbols: {list(graph.symbols.keys())})")
+
+    # 1. Print Data/Atomic Nodes (only at the root level for brevity)
+    if indent == 0:
+        data_nodes = [n for n in graph.nodes if isinstance(n, Data)]
+        if data_nodes:
+            print(
+                f"{s_indent}  Data Nodes (IDs): {', '.join([f'{d.name} ({d.array_id}, Out: {d.is_output})' for d in data_nodes])}")
+
+    # 2. Print Control/Structure and Compute Nodes
+    for node in graph.nodes:
+        if isinstance(node, Compute):
+            # Show Compute nodes as part of the dataflow
+            writes = ', '.join([f"{e.dst.name}[{e.subset}]" for e in node.out_edges if isinstance(e.dst, Data)])
+            reads = ', '.join([f"{e.src.name}[{e.subset}]" for e in node.in_edges if isinstance(e.src, Data)])
+            print(f"{s_indent}  COMPUTE ({node.name}): Reads={reads}, Writes={writes}")
+
+        elif isinstance(node, (Loop, Map, Reduce)):
+            # Aggregate and print accesses for the structure node itself
+            writes, reads = _aggregate_accesses(node.nested_graph)
+
+            # Format access sets for printing (converting back from ID to Name is complex,
+            # so we rely on the ID being printed once at the root)
+            formatted_writes = ', '.join([f"ID {arr_id}[{subset}]" for arr_id, subset in writes])
+            formatted_reads = ', '.join([f"ID {arr_id}[{subset}]" for arr_id, subset in reads])
+
+            print(
+                f"{s_indent}  {node.__class__.__name__} ({node.name}): iter={node.loop_var} in [{node.start}, {node.end}]")
+            print(f"{s_indent}    > Aggregated Reads: {formatted_reads}")
+            print(f"{s_indent}    > Aggregated Writes: {formatted_writes}")
+            print_p3g_structure(node.nested_graph, indent + 1)
+
+        elif isinstance(node, Branch):
+            # Handle branches
+            print(f"{s_indent}  BRANCH ({node.name})")
+            for pred, nested_graph in node.branches:
+                print(f"{s_indent}    - IF: {pred}")
+                print_p3g_structure(nested_graph, indent + 2)
+
+
+# --- End of Graph Printing Utility ---
+
+
+def solve_smt_string(smt_string: str, case_name: str) -> bool:
+    """
+    Saves the SMT query to a file and runs an in-memory pysmt solver
+    (e.g., z3, cvc5) on the parsed string.
+    Returns True for 'sat', False for 'unsat'.
+    Raises Exception for 'unknown'.
+    """
+    filename = os.path.join(OUTPUT_DIR, f"{case_name}.smt2")
+
+    # 1. Write the SMT string to the file (for inspection)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(filename, 'w') as f:
+        f.write(smt_string)
+    print(f"SMT query saved to {filename}")
+
+    # 2. Parse the SMT-LIB string into pysmt formulas
+    parser = SmtLibParser()
+    script = parser.get_script(io.StringIO(smt_string))
+
+    # 3. Run the solver using the pysmt API
+    try:
+        with Solver(name=SOLVER_NAME) as s:
+            # Setting aggressive options to resolve 'unknown' faster
+            s.set_option(":quant_inst_max", 5000)
+            s.set_option(":timeout", 60000)
+
+            # Feed all commands from the SMT-LIB script into the solver
+            for cmd in script.commands:
+                if cmd.name == "assert":
+                    s.add_assertion(cmd.args[0])
+                elif cmd.name == "declare-fun":
+                    pass  # Handled by parser
+                elif cmd.name == "check-sat":
+                    break  # We'll call this
+                else:
+                    pass  # Skip other commands
+
+            # 4. Solve the assertions using check_sat()
+            result: bool = s.check_sat()
+
+            # 5. Parse and report the output
+            if result:
+                print(f"Solver result: sat")
+                model = s.get_model()
+                print("--- Model ---")
+                print(model)
+                print("-------------")
+                return True
+            else:
+                print(f"Solver result: unsat")
+                return False
+
+    except SolverReturnedUnknownResultError as e:
+        # Re-throw the unknown exception
+        raise e
+    except Exception as e:
+        print(f"Error: Solver '{SOLVER_NAME}' failed or is not installed.")
+        print(f"Full error: {e}")
+        sys.exit(1)
