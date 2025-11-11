@@ -101,3 +101,48 @@ def test_gauss_seidel_red_black():
     result_black = solve_smt_string(smt_query_black, "gauss_seidel_black")
     assert not result_black, "Expected Black Pass to be Not DOFS (parallel) but SMT solver returned SAT."
     print("\nBlack Pass Verdict: PASSED. Not fully sequential (DOFS) as expected. All checks PASSED.")
+
+
+def test_gauss_seidel_traditional():
+    """
+    Test case for the Traditional 1D Gauss-Seidel loop.
+    for i = 1 to N-1:
+      A[i] = A[i-1] + A[i+1]
+
+    This loop is inherently sequential because A[i] depends on A[i-1],
+    which was just computed in the current iteration. This creates a
+    Read-After-Write (RAW) dependency between adjacent iterations.
+    Therefore, this test expects the loop to be Data-Oblivious Full Sequential (DOFS),
+    meaning the SMT query should return SAT.
+    """
+    print("\n--- Running Test: Traditional Gauss-Seidel (Expected: DOFS/Sequential) ---")
+    b = GraphBuilder()
+    N = b.add_symbol("N", INT)
+    A = b.add_data("A", is_output=True)
+
+    loop_node = None
+    with b.add_loop("L1", "k", Int(1), Minus(N, Int(1)),
+                    reads=[(A, (Int(0), N))],
+                    writes=[(A, (Int(1), Minus(N, Int(1))))]) as L1:
+        k = L1.loop_var
+        loop_node = L1
+
+        # A[i] = A[i-1] + A[i+1]
+        b.add_compute("T1",
+                      reads=[(A, Minus(k, Int(1))), (A, Plus(k, Int(1)))],
+                      writes=[(A, k)]
+                      )
+
+    print_p3g_structure(b.root_graph)
+
+    loop_end = Minus(N, Int(1))
+    print(f"Generating SMT query for Traditional Gauss-Seidel (N symbolic).")
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    print("\n--- Generated SMT Query (gauss_seidel_traditional) ---")
+    print(smt_query)
+    print("-----------------------------------------------------")
+
+    # EXPECT: sat (True) - Traditional Gauss-Seidel is sequential due to RAW dependency.
+    result = solve_smt_string(smt_query, "gauss_seidel_traditional")
+    assert result, "Expected Traditional Gauss-Seidel to be DOFS (sequential) but SMT solver returned UNSAT."
+    print("\nVerdict: PASSED. Traditional Gauss-Seidel is DOFS (Sequential) as expected.")
