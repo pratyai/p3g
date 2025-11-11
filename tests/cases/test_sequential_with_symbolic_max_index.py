@@ -1,7 +1,7 @@
-from pysmt.shortcuts import INT, Int, Minus, GT, LE, Symbol
+from pysmt.shortcuts import INT, Int, Minus, GT, LE
 
 from p3g.p3g import GraphBuilder
-from p3g.smt import generate_smt_for_disprove_dofs
+from p3g.smt import generate_smt_for_prove_exists_data_forall_iter_isdep
 from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
@@ -18,11 +18,15 @@ def test_sequential_with_symbolic_max_index():
     B = b.add_data("B")
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(2), N) as L1:
+    with b.add_loop("L1", "k", Int(2), N,
+                    reads=[(A, (Int(0), N)), (B, (Int(2), N))],
+                    writes=[(A, (Int(2), N))]) as L1:
         k = L1.loop_var
         loop_node = L1
 
-        with b.add_branch("B1") as B1:
+        with b.add_branch("B1",
+                          reads=[(A, Minus(k, w)), (A, Int(0)), (B, k)],
+                          writes=[(A, k)]) as B1:
             # if k - w > 0
             P1 = GT(Minus(k, w), Int(0))
             with B1.add_path(P1):
@@ -44,9 +48,9 @@ def test_sequential_with_symbolic_max_index():
     print_p3g_structure(b.root_graph)
 
     loop_end = N
-    smt_query = generate_smt_for_disprove_dofs(loop_node, loop_end)
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end)
 
     # EXPECT: unsat (False) - A dependency can exist (e.g., w=1), so no universal counterexample.
     result = solve_smt_string(smt_query, "sequential_with_symbolic_max_index")
-    assert not result
+    assert result
     print("\nVerdict: Sequential (DOFS). All checks PASSED.")

@@ -1,8 +1,9 @@
-from typing import List, Dict, Tuple, Callable, Set
+import itertools
+from typing import List, Dict, Tuple, Callable, Set, Union, Optional
 
 from pysmt.formula import FNode  # Correct import
 from pysmt.shortcuts import (
-    Symbol, INT, And, TRUE, substitute
+    Symbol, INT, And, TRUE, substitute, simplify, Or
 )
 
 # --- Pysmt Type Aliases for Clarity ---
@@ -29,9 +30,6 @@ class Node:
     """
 
     def __init__(self, name: str):
-        # FIX: The superclass of Node (which is object) takes no arguments.
-        # super().__init__(name) <-- REMOVE 'name'
-        super().__init__()
         self.name = name
         self.in_edges: List['Edge'] = []
         self.out_edges: List['Edge'] = []
@@ -43,10 +41,10 @@ class Node:
 class Edge:
     """
     Represents a dataflow edge (E) in the P3G.
-    It carries a symbolic subset annotation (a pysmt formula).
+    It carries a symbolic subset annotation (a pysmt formula or a range tuple).
     """
 
-    def __init__(self, src: Node, dst: Node, subset: PysmtFormula):
+    def __init__(self, src: Node, dst: Node, subset: Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]):
         self.src = src
         self.dst = dst
         self.subset = subset
@@ -75,7 +73,7 @@ class Graph:
     def add_node(self, node: Node):
         self.nodes.append(node)
 
-    def add_edge(self, src: Node, dst: Node, subset: PysmtFormula) -> Edge:
+    def add_edge(self, src: Node, dst: Node, subset: Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]) -> Edge:
         edge = Edge(src, dst, subset)
         self.edges.append(edge)
         return edge
@@ -112,7 +110,7 @@ class Compute(Node):
     def __init__(self, name: str):
         super().__init__(name)
 
-    def get_read_set(self) -> List[Tuple[int, PysmtFormula]]:
+    def get_read_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -122,7 +120,7 @@ class Compute(Node):
                 read_set.append((edge.src.array_id, edge.subset))
         return read_set
 
-    def get_write_set(self) -> List[Tuple[int, PysmtFormula]]:
+    def get_write_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -162,6 +160,26 @@ class Map(Structure):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.builder.graph_stack.pop()
 
+    def get_read_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+        """
+        Generates the ReadSet by inspecting incoming edges from Data nodes.
+        """
+        read_set = []
+        for edge in self.in_edges:
+            if isinstance(edge.src, Data):
+                read_set.append((edge.src.array_id, edge.subset))
+        return read_set
+
+    def get_write_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+        """
+        Generates the WriteSet by inspecting outgoing edges to Data nodes.
+        """
+        write_set = []
+        for edge in self.out_edges:
+            if isinstance(edge.dst, Data):
+                write_set.append((edge.dst.array_id, edge.subset))
+        return write_set
+
 
 class Loop(Structure):
     """A sequential Loop node."""
@@ -179,6 +197,26 @@ class Loop(Structure):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.builder.graph_stack.pop()
+
+    def get_read_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+        """
+        Generates the ReadSet by inspecting incoming edges from Data nodes.
+        """
+        read_set = []
+        for edge in self.in_edges:
+            if isinstance(edge.src, Data):
+                read_set.append((edge.src.array_id, edge.subset))
+        return read_set
+
+    def get_write_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+        """
+        Generates the WriteSet by inspecting outgoing edges to Data nodes.
+        """
+        write_set = []
+        for edge in self.out_edges:
+            if isinstance(edge.dst, Data):
+                write_set.append((edge.dst.array_id, edge.subset))
+        return write_set
 
 
 class Branch(Structure):
@@ -205,6 +243,35 @@ class Branch(Structure):
         """No action needed on exit."""
         pass
 
+    def get_read_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+        """
+        Generates the ReadSet by inspecting incoming edges from Data nodes.
+        """
+        read_set = []
+        for edge in self.in_edges:
+            if isinstance(edge.src, Data):
+                read_set.append((edge.src.array_id, edge.subset))
+        return read_set
+
+    def get_write_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+        """
+        Generates the WriteSet by inspecting outgoing edges to Data nodes.
+        """
+        write_set = []
+        for edge in self.out_edges:
+            if isinstance(edge.dst, Data):
+                write_set.append((edge.dst.array_id, edge.subset))
+        return write_set
+
+    def get_predicate_read_set(self) -> ReadSet:
+        """
+        Extracts the ReadSet from the predicates of this Branch node.
+        """
+        all_predicate_reads: ReadSet = []
+        for (predicate, _) in self.branches:
+            all_predicate_reads.extend(_extract_reads_from_formula(predicate, self.builder))
+        return all_predicate_reads
+
 
 class Reduce(Structure):
     """A parallel Reduce node."""
@@ -224,6 +291,26 @@ class Reduce(Structure):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.builder.graph_stack.pop()
+
+    def get_read_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+        """
+        Generates the ReadSet by inspecting incoming edges from Data nodes.
+        """
+        read_set = []
+        for edge in self.in_edges:
+            if isinstance(edge.src, Data):
+                read_set.append((edge.src.array_id, edge.subset))
+        return read_set
+
+    def get_write_set(self) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+        """
+        Generates the WriteSet by inspecting outgoing edges to Data nodes.
+        """
+        write_set = []
+        for edge in self.out_edges:
+            if isinstance(edge.dst, Data):
+                write_set.append((edge.dst.array_id, edge.subset))
+        return write_set
 
 
 # --- Context Manager for Branch Paths ---
@@ -256,12 +343,12 @@ class GraphBuilder:
 
         self._data_id_map: Dict[str, int] = {}
         self._next_data_id: int = 10001
-        self.data_nodes: Dict[str, Data] = {}
+        self._pysmt_array_sym_to_array_id: Dict[PysmtSymbol, int] = {}
 
     def _get_data_id(self, name: str) -> int:
         """
         Gets or creates a unique integer ID for a data container,
-        starting from 10001.
+        representing the underlying storage.
         """
         if name not in self._data_id_map:
             self._data_id_map[name] = self._next_data_id
@@ -277,65 +364,136 @@ class GraphBuilder:
         """Adds a symbol to the root graph."""
         return self.root_graph.add_symbol(name, type)
 
-    def add_data(self, name: str, is_output: bool = False) -> Data:
+    def add_data(self, name: str, is_output: bool = False, pysmt_array_sym: Optional[PysmtSymbol] = None) -> Data:
         """
-        Adds a Data node to the root graph, assigning it a
-        unique internal ID.
+        Adds a Data node to the *current* graph. This node represents a
+        local reference to a named data container.
         """
+        # The array_id represents the underlying unique data container.
         array_id = self._get_data_id(name)
+
+        # Create a new Data node instance for the current graph context.
         data_node = Data(name, array_id, is_output)
-        self.root_graph.add_node(data_node)
+
+        # Add the new node to the current graph.
+        self.current_graph.add_node(data_node)
+
+        # If an associated PysmtSymbol for the array content is provided, map it to the array_id.
+        if pysmt_array_sym:
+            self._pysmt_array_sym_to_array_id[pysmt_array_sym] = array_id
+
+        # The 'is_output' flag applies globally to the root graph.
         if is_output:
             self.root_graph.outputs.add(data_node)
-        self.data_nodes[name] = data_node
+
         return data_node
 
+    def add_edge(self, src: Node, dst: Node, subset: Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]) -> Edge:
+        """Adds a generic edge to the *current* graph."""
+        return self.current_graph.add_edge(src, dst, subset)
+
+    def add_reads_and_writes(self, node: Node,
+                             reads: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]],
+                             writes: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]):
+        """
+        Adds dataflow edges for a given node based on its read and write sets.
+
+        This helper function encapsulates the common logic for creating incident edges
+        for Compute and Structure nodes. It creates:
+        1. Incoming edges from Data nodes to the `node` for all data in `reads` and `writes`.
+           (This implies that data that is written is also considered "read" for the purpose of
+           establishing an incoming dependency edge, as per the P3G model's interpretation
+           of hierarchical edges).
+        2. Outgoing edges from the `node` to Data nodes for all data in `writes`.
+
+        Args:
+            node: The target Node (Compute or Structure) for which to add edges.
+            reads: A list of (Data node, subset) tuples representing data read by the node.
+            writes: A list of (Data node, subset) tuples representing data written by the node.
+        """
+        for data_node, subset in itertools.chain(reads, writes):
+            self.add_edge(data_node, node, subset)
+
+        for data_node, subset in writes:
+            self.add_edge(node, data_node, subset)
+
     def add_compute(self, name: str,
-                    reads: List[Tuple[Data, PysmtFormula]],
-                    writes: List[Tuple[Data, PysmtFormula]]) -> Compute:
+                    reads: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]],
+                    writes: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]) -> Compute:
         """
         Adds a Compute node and its access edges to the *current* graph.
         """
         compute_node = Compute(name)
         self.current_graph.add_node(compute_node)
-
-        for data_node, subset in reads:
-            # Check if the subset is a tuple of formulas
-            if isinstance(subset, tuple):
-                # Store the subset as-is (tuple of formulas)
-                self.current_graph.add_edge(data_node, compute_node, subset)
-            else:
-                # Store the subset as a single formula
-                self.current_graph.add_edge(data_node, compute_node, subset)
-
-        for data_node, subset in writes:
-            # Check if the subset is a tuple of formulas
-            if isinstance(subset, tuple):
-                # Store the subset as-is (tuple of formulas)
-                self.current_graph.add_edge(compute_node, data_node, subset)
-            else:
-                # Store the subset as a single formula
-                self.current_graph.add_edge(compute_node, data_node, subset)
+        self.add_reads_and_writes(compute_node, reads, writes)
 
         return compute_node
 
-    def add_loop(self, name: str, loop_var_name: str, start: PysmtFormula, end: PysmtFormula) -> Loop:
-        """Adds a sequential Loop to the *current* graph."""
+    def add_loop(self, name: str, loop_var_name: str, start: PysmtFormula, end: PysmtFormula,
+                 reads: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]],
+                 writes: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]) -> Loop:
+        """
+        Adds a sequential Loop and its dataflow edges to the *current* graph.
+        """
         loop_node = Loop(name, self, loop_var_name, start, end)
         self.current_graph.add_node(loop_node)
+        self.add_reads_and_writes(loop_node, reads, writes)
+
         return loop_node
 
-    def add_map(self, name: str, loop_var_name: str, start: PysmtFormula, end: PysmtFormula) -> Map:
+    def add_map(self, name: str, loop_var_name: str, start: PysmtFormula, end: PysmtFormula,
+                reads: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]],
+                writes: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]) -> Map:
         """Adds a parallel Map to the *current* graph."""
         map_node = Map(name, self, loop_var_name, start, end)
         self.current_graph.add_node(map_node)
+        self.add_reads_and_writes(map_node, reads, writes)
+
         return map_node
 
-    def add_branch(self, name: str) -> Branch:
+    def add_branch(self, name: str,
+                   reads: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]],
+                   writes: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]) -> Branch:
         """Adds a Branch to the *current* graph."""
         branch_node = Branch(name, self)
         self.current_graph.add_node(branch_node)
+        self.add_reads_and_writes(branch_node, reads, writes)
+
         return branch_node
+
+    def add_reduce(self, name: str, loop_var_name: str, start: PysmtFormula, end: PysmtFormula,
+                   wcr: PysmtFormula,
+                   reads: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]],
+                   writes: List[Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]) -> Reduce:
+        """Adds a parallel Reduce to the *current* graph."""
+        reduce_node = Reduce(name, self, loop_var_name, start, end, wcr)
+        self.current_graph.add_node(reduce_node)
+        self.add_reads_and_writes(reduce_node, reads, writes)
+
+        return reduce_node
+
+
+def _extract_reads_from_formula(formula: PysmtFormula, builder: 'GraphBuilder') -> ReadSet:
+    """
+    Recursively extracts read accesses (array_id, subset) from a PysmtFormula,
+    specifically looking for Select operations.
+    """
+    reads: ReadSet = []
+
+    if formula.is_select():
+        array_sym = formula.arg(0)  # This is the PysmtSymbol for the array (e.g., B_val)
+        index_expr = formula.arg(1)
+
+        # Use the mapping from GraphBuilder to get the array_id
+        if array_sym in builder._pysmt_array_sym_to_array_id:
+            array_id = builder._pysmt_array_sym_to_array_id[array_sym]
+            reads.append((array_id, index_expr))
+
+    # Recursively check arguments
+    for arg in formula.args():
+        reads.extend(_extract_reads_from_formula(arg, builder))
+
+    return reads
 
 
 # ===================================================================
@@ -343,8 +501,8 @@ class GraphBuilder:
 # ===================================================================
 
 # Type aliases
-ReadSet = List[Tuple[int, PysmtFormula]]
-WriteSet = List[Tuple[int, PysmtFormula]]
+ReadSet = List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]
+WriteSet = List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]
 PathModel = List[Tuple[PysmtFormula, WriteSet, ReadSet]]
 
 
@@ -365,25 +523,44 @@ def create_path_model_fn(loop_node: Loop) -> Callable[[PysmtSymbol], PathModel]:
         all_paths: PathModel = []
 
         for node in graph.nodes:
-            if isinstance(node, Compute):
-                # Base case: A compute node defines an access path
-                W_set = node.get_write_set()
-                R_set = node.get_read_set()
-                all_paths.append((current_predicate, W_set, R_set))
+            # Collect accesses from Compute nodes
+            if isinstance(node, Compute):  # Only for Compute nodes
+                W_set_node = node.get_write_set()
+                R_set_node = node.get_read_set()
+                if W_set_node or R_set_node:
+                    all_paths.append((current_predicate, W_set_node, R_set_node))
 
+            # Recursively traverse nested graphs
             elif isinstance(node, Branch):
-                # Recursive case: Enter a branch and merge results
+                # Add the ReadSet from the branch's predicates
+                P_R_set_branch = node.get_predicate_read_set()
+                if P_R_set_branch:
+                    # Predicate reads are unconditional for the branch decision
+                    all_paths.append((current_predicate, [], P_R_set_branch))
+
+                # Handle the ReadSet and WriteSet of the Branch node itself (from add_branch call)
+                W_set_branch = node.get_write_set()
+                R_set_branch = node.get_read_set()
+                if W_set_branch or R_set_branch:
+                    # These accesses are conditional on *any* path within the branch being taken.
+                    # So, we need to form a disjunction of all internal branch predicates.
+                    branch_internal_predicates = [pred for (pred, _) in node.branches]
+                    if branch_internal_predicates:
+                        # The predicate for these summary accesses is current_predicate AND (P1 OR P2 OR ...)
+                        summary_predicate = simplify(And(current_predicate, Or(branch_internal_predicates)))
+                        all_paths.append((summary_predicate, W_set_branch, R_set_branch))
+                    else:
+                        # If there are no internal paths, these accesses are effectively unconditional
+                        # (or the branch is empty, which is unusual).
+                        # In this case, current_predicate is correct.
+                        all_paths.append((current_predicate, W_set_branch, R_set_branch))
+
                 for (predicate, nested_graph) in node.branches:
-                    new_predicate = And(current_predicate, predicate)
+                    new_predicate = simplify(And(current_predicate, predicate))
                     branch_paths = _traverse(nested_graph, new_predicate)
                     all_paths.extend(branch_paths)
-
-            elif isinstance(node, (Loop, Map)):
-                # MODIFICATION: Recursive case: Enter a nested loop/map and flatten accesses.
-                # All accesses within the nested loop/map occur under the current predicate.
+            elif isinstance(node, (Loop, Map, Reduce)):
                 nested_paths = _traverse(node.nested_graph, current_predicate)
-
-                # The access sets of the inner computation are inherited by the outer loop's path model.
                 all_paths.extend(nested_paths)
 
         return all_paths

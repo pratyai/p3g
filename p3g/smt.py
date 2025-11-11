@@ -8,15 +8,15 @@ from pysmt.shortcuts import (
 from pysmt.smtlib.printers import SmtPrinter
 
 # --- Import P3G model classes ---
-from .p3g import (
+from p3g.p3g import (
     Graph, Loop, Data, Compute, Branch, Map, PysmtFormula, PysmtSymbol,
-    ReadSet, WriteSet, create_path_model_fn
+    ReadSet, WriteSet, create_path_model_fn, Reduce
 )
 
 # Define __all__ for 'from p3g_smt import *'
 __all__ = [
-    'generate_smt_for_disprove_ddfs',
-    'generate_smt_for_disprove_dofs'
+    'generate_smt_for_disprove_dofs',
+    'generate_smt_for_prove_exists_data_forall_iter_isdep'
 ]
 
 
@@ -46,7 +46,9 @@ class _StringSmtBuilder:
 
     def _get_decl_str(self, symbol: PysmtSymbol) -> str:
         """Gets the (declare-fun ...) string for a symbol."""
-        if symbol.get_type().is_function_type():
+        if symbol.get_type().is_int_type():  # Explicitly handle INT type first
+            return f"(declare-fun {symbol.symbol_name()} () Int)"
+        elif symbol.get_type().is_function_type():
             param_types = " ".join([str(p) for p in symbol.get_type().param_types])
             return_type = symbol.get_type().return_type
             return f"(declare-fun {symbol.symbol_name()} ({param_types}) {return_type})"
@@ -100,27 +102,42 @@ class _StringSmtBuilder:
         return "\n".join(header) + "\n" + body + footer
 
 
+def _get_index_from_access(access_expr: PysmtFormula) -> PysmtFormula:
+    """Helper to extract the index from a Select or Store operation."""
+    if isinstance(access_expr, tuple):
+        pass
+    if access_expr.is_select():
+        return access_expr.arg(1)
+    elif access_expr.is_store():
+        return access_expr.arg(1)
+    else:
+        return access_expr  # It's already an index expression
+
+
 def _equal_indices(idx1, idx2):
     """
     Creates a pysmt formula asserting index equality.
     Handles single indices and multi-dimensional index tuples/lists.
     """
-    if isinstance(idx1, (tuple, list)):
-        # Multi-dimensional: indices must be tuples of the same length
-        if not isinstance(idx2, (tuple, list)) or len(idx1) != len(idx2):
-            # This should technically never happen if graph construction is correct,
-            # but we treat it as an impossible conflict (FALSE) if index structures don't match.
-            return FALSE()
+    is_idx1_tuple = isinstance(idx1, (tuple, list))
+    is_idx2_tuple = isinstance(idx2, (tuple, list))
 
-            # Create a conjunction (AND) of equality checks for each dimension
-        # E.g., (i, j) == (i-1, j) becomes (i == i-1) AND (j == j)
-        equalities = [Equals(i1, i2) for i1, i2 in zip(idx1, idx2)]
+    if is_idx1_tuple and is_idx2_tuple:
+        # Both are multi-dimensional: indices must be tuples of the same length
+        if len(idx1) != len(idx2):
+            return FALSE() # Different dimensions, cannot be equal
+
+        # Create a conjunction (AND) of equality checks for each dimension
+        equalities = [Equals(_get_index_from_access(i1), _get_index_from_access(i2)) for i1, i2 in zip(idx1, idx2)]
         if not equalities:
-            return TRUE()  # Should not happen for arrays
+            return TRUE()  # Should not happen for arrays, but handle empty tuples
         return And(equalities)
+    elif not is_idx1_tuple and not is_idx2_tuple:
+        # Both are single dimension
+        return Equals(_get_index_from_access(idx1), _get_index_from_access(idx2))
     else:
-        # Single dimension
-        return Equals(idx1, idx2)
+        # One is single dimension, the other is multi-dimension. Cannot be equal.
+        return FALSE()
 
 
 def _intersect_to_formula(set_a: ReadSet, set_b: WriteSet,
@@ -163,95 +180,49 @@ def _get_free_variables_recursive(formula_or_tuple: [PysmtFormula, tuple, list])
         return get_free_variables(formula_or_tuple)
 
 
-def generate_smt_for_disprove_ddfs(loop_node: Loop,
-                                   loop_end: PysmtFormula) -> str:
-    """
-    Generates the SMT-LIB query string for disproving Data-Dependent
-    Full Sequentiality (Φ_¬DDFS).
-    """
-
-    builder = _StringSmtBuilder()
-
-    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
-    root_graph = loop_node.builder.root_graph
-
-    builder.assertions.append("; --- Data Definitions ---")
-    for node in root_graph.nodes:
+def _collect_all_data_nodes(graph: Graph, collected_data_nodes: Set[Data]):
+    """Recursively collects all Data nodes from the graph and its nested structures."""
+    for node in graph.nodes:
         if isinstance(node, Data):
-            sym = Symbol(f"DATA!{node.name}", INT)
-            id_to_symbol_map[node.array_id] = sym
-            defn = Equals(sym, Int(node.array_id))
-            builder.add_assertion(defn, f"Define DATA!{node.name}")
+            collected_data_nodes.add(node)
+        elif isinstance(node, Branch):
+            for _, nested_graph in node.branches:
+                _collect_all_data_nodes(nested_graph, collected_data_nodes)
+        elif isinstance(node, (Loop, Map, Reduce)):
+            _collect_all_data_nodes(node.nested_graph, collected_data_nodes)
 
-    k = Symbol('k', INT)
-    j = Plus(k, Int(1))
 
-    builder.assertions.append("\n; --- Loop Bounds ---")
-    loop_start = loop_node.start
-    builder.add_assertion(
-        GE(loop_end, Plus(loop_start, Int(1))),
-        "Loop runs at least two adjacent iterations"
-    )
-    builder.add_assertion(GE(k, loop_start), "Iteration 'k' lower bound")
-    builder.add_assertion(LE(j, loop_end), "Iteration 'k+1' upper bound")
+def find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
+    """
+    Recursively traverses the given P3G graph and collects all free PysmtSymbol
+    objects found within the access patterns (subsets) of Compute nodes and
+    predicates of Branch nodes.
 
-    path_model_fn = create_path_model_fn(loop_node)
-    paths_k = path_model_fn(k)
-    paths_j = path_model_fn(j)
+    These collected symbols represent variables that influence data access
+    or control flow, such as array indices, loop bounds, or symbolic constants
+    used in predicates.
 
-    builder.assertions.append("\n; --- Dependency Logic Definitions ---")
+    The function adds all discovered free symbols to the `collected_symbols` set,
+    regardless of their Pysmt type (e.g., INT, ArrayType, FunctionType).
 
-    let_bindings_tuples = []  # List[Tuple[str, str, str]]
-    dep_var_names = []
-
-    for idx_k, (pred_k, W_k, R_k) in enumerate(paths_k):
-        for idx_j, (pred_j, W_j, R_j) in enumerate(paths_j):
-            waw = _intersect_to_formula(W_k, W_j, id_to_symbol_map)
-            raw = _intersect_to_formula(W_k, R_j, id_to_symbol_map)
-            war = _intersect_to_formula(R_k, W_j, id_to_symbol_map)
-
-            waw_var = f"p{idx_k}p{idx_j}_waw"
-            raw_var = f"p{idx_k}p{idx_j}_raw"
-            war_var = f"p{idx_k}p{idx_j}_war"
-
-            waw_str = builder._serialize(waw)
-            raw_str = builder._serialize(raw)
-            war_str = builder._serialize(war)
-
-            path_pair_conflict_str = f"(or {waw_var} {raw_var} {war_var})"
-
-            conflict_let_str = (
-                f"(let (({waw_var} {waw_str})\n"
-                f"        ({raw_var} {raw_str})\n"
-                f"        ({war_var} {war_str}))\n"
-                f"   {path_pair_conflict_str})"
-            )
-
-            pred_k_str = builder._serialize(pred_k)
-            pred_j_str = builder._serialize(pred_j)
-
-            full_path_dependency_str = (
-                f"(and {pred_k_str}\n"
-                f"     {pred_j_str}\n"
-                f"     {conflict_let_str})"
-            )
-
-            dep_var_name = f"p{idx_k}p{idx_j}_dep"
-
-            let_bindings_tuples.append(
-                (dep_var_name, full_path_dependency_str, f"p{idx_k}(k) <-> p{idx_j}(j) dependency"))
-            dep_var_names.append(dep_var_name)
-
-    main_body_str = "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
-    final_formula_str = f"(not {main_body_str})"
-
-    builder.add_let_assertion(
-        let_bindings_tuples,
-        final_formula_str,
-        main_comment="Find a counterexample (NO dependency)"
-    )
-
-    return builder.build_query()
+    Args:
+        graph: The P3G graph (or sub-graph) to traverse.
+        collected_symbols: A mutable set to which discovered PysmtSymbol objects
+                           will be added.
+    """
+    for node in graph.nodes:
+        if isinstance(node, Compute):
+            access_sets = node.get_read_set() + node.get_write_set()
+            for arr_id, subset in access_sets:
+                for free_var in _get_free_variables_recursive(subset):
+                    collected_symbols.add(free_var)
+        elif isinstance(node, Branch):
+            for pred, g in node.branches:
+                for free_var in _get_free_variables_recursive(pred):
+                    collected_symbols.add(free_var)
+                find_data_symbols(g, collected_symbols)
+        elif isinstance(node, (Loop, Map)):
+            find_data_symbols(node.nested_graph, collected_symbols)
 
 
 def generate_smt_for_disprove_dofs(loop_node: Loop,
@@ -263,21 +234,21 @@ def generate_smt_for_disprove_dofs(loop_node: Loop,
     Full Sequentiality (Φ_¬DOFS).
     """
 
-    builder = _StringSmtBuilder()
-
     id_to_symbol_map: Dict[int, PysmtSymbol] = {}
-    root_graph = loop_node.builder.root_graph
+    # root_graph = loop_node.builder.root_graph # No longer needed directly here
+
+    all_data_nodes: Set[Data] = set()
+    _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes) # Collect from the entire graph
 
     builder.assertions.append("; --- Data Definitions ---")
-    for node in root_graph.nodes:
-        if isinstance(node, Data):
-            sym = Symbol(f"DATA!{node.name}", INT)
-            id_to_symbol_map[node.array_id] = sym
-            defn = Equals(sym, Int(node.array_id))
-            builder.add_assertion(defn, f"Define DATA!{node.name}")
+    for node in all_data_nodes: # Iterate over all collected Data nodes
+        sym = Symbol(f"DATA!{node.name}", INT)
+        id_to_symbol_map[node.array_id] = sym
+        defn = Equals(sym, Int(node.array_id))
+        builder.add_assertion(defn, f"Define DATA!{node.name}")
 
-    k = Symbol('k', INT)
-    j = Plus(k, Int(1))
+    k = loop_node.loop_var  # Use the loop's internal iteration variable
+    j = Plus(k, Int(1))  # Define j relative to k
 
     # NEW BLOCK: Add human-provided assertions
     if extra_assertions:
@@ -286,8 +257,7 @@ def generate_smt_for_disprove_dofs(loop_node: Loop,
             builder.add_assertion(assertion, f"Human Assertion #{idx}")
 
     builder.assertions.append("\n; --- Loop Bounds ---")
-    loop_start = loop_node.start
-    N = loop_end  # Use loop_end to represent symbolic N for bounds check. This is imperfect but works for simple N.
+    loop_start, loop_end = loop_node.start, loop_node.end
 
     builder.add_assertion(
         GE(loop_end, Plus(loop_start, Int(1))),
@@ -306,28 +276,7 @@ def generate_smt_for_disprove_dofs(loop_node: Loop,
     dep_var_names = []
 
     data_symbols_to_quantify = set()
-    loop_bound_symbols = get_free_variables(loop_end)
-
-    def find_data_symbols(graph: Graph):
-        for node in graph.nodes:
-            if isinstance(node, Compute):
-                access_sets = node.get_read_set() + node.get_write_set()
-                for arr_id, subset in access_sets:
-                    # MODIFIED: Use recursive helper
-                    for free_var in _get_free_variables_recursive(subset):
-                        if free_var not in loop_bound_symbols and (free_var.get_type().is_array_type() or free_var.get_type().is_function_type() or (free_var.get_type().is_int_type() and free_var.symbol_name() not in ['k', 'j', 'k1', 'k2'])):
-                            data_symbols_to_quantify.add(free_var)
-            elif isinstance(node, Branch):
-                for pred, g in node.branches:
-                    # MODIFIED: Use recursive helper
-                    for free_var in _get_free_variables_recursive(pred):
-                        if free_var not in loop_bound_symbols and (free_var.get_type().is_array_type() or free_var.get_type().is_function_type() or (free_var.get_type().is_int_type() and free_var.symbol_name() not in ['k', 'j', 'k1', 'k2'])):
-                            data_symbols_to_quantify.add(free_var)
-                    find_data_symbols(g)
-            elif isinstance(node, (Loop, Map)):
-                find_data_symbols(node.nested_graph)
-
-    find_data_symbols(loop_node.nested_graph)
+    find_data_symbols(loop_node.nested_graph, data_symbols_to_quantify)
 
     for idx_k, (pred_k, W_k, R_k) in enumerate(paths_k):
         for idx_j, (pred_j, W_j, R_j) in enumerate(paths_j):
@@ -382,18 +331,42 @@ def generate_smt_for_disprove_dofs(loop_node: Loop,
 
     quantifier_vars = []
     for sym in data_symbols_to_quantify:
+        # Exclude the SMT solver's iteration variables (which are now k and j)
+        if sym == k or sym == j:
+            continue
+
+        # Exclude free variables from loop bound formulas
+        # These are considered constants for the SMT solver, not universally quantified.
+        for free_var_in_bound in _get_free_variables_recursive(loop_node.start):
+            if sym == free_var_in_bound: continue
+        for free_var_in_bound in _get_free_variables_recursive(loop_node.end):
+            if sym == free_var_in_bound: continue
+
+        # Exclude loop bound variables
+        # Note: loop_node.start and loop_node.end might be complex formulas,
+        # so direct equality check might not be sufficient if they are not simple Symbols.
+        # For now, we assume they are simple Symbols or Ints.
+        if sym == loop_node.start or sym == loop_end:
+            continue
+
+        # Exclude symbols that are already defined as DATA! symbols
+        # (these are handled by id_to_symbol_map and are not universally quantified here)
+        # This check is implicitly handled by the fact that DATA! symbols are not in data_symbols_to_quantify
+        # in the first place, as data_symbols_to_quantify only contains free variables from formulas.
         builder.declarations.add(sym)
         if sym.get_type().is_array_type():
             q_type = f"(Array {sym.get_type().index_type} {sym.get_type().elem_type})"
-        elif sym.get_type().is_int_type() or sym.get_type().is_real_type():
-            q_type = str(sym.get_type())
-        else:  # FunctionType
+        elif sym.get_type().is_function_type():
             param_types = " ".join([str(p) for p in sym.get_type().param_types])
             return_type = sym.get_type().return_type
             q_type = f"({param_types}) {return_type}"
+        elif sym.get_type().is_int_type():  # Explicitly handle INT type
+            q_type = f"{sym.get_type()}"
+        else:
+            q_type = f"{sym.get_type()}"  # Fallback
 
         quantifier_vars.append(f"({sym.symbol_name()} {q_type})")
-        
+
     if quantifier_vars:
         builder.assertions.append("(assert (forall (")
         builder.assertions.extend([f"  {q}" for q in quantifier_vars])
@@ -406,3 +379,173 @@ def generate_smt_for_disprove_dofs(loop_node: Loop,
         builder.assertions.append(f"(assert {let_body_str})")
 
     return builder.build_query()
+
+
+def generate_smt_for_prove_exists_data_forall_iter_isdep(
+        loop_node: Loop,
+        loop_end: PysmtFormula,
+        extra_assertions: List[PysmtFormula] = None,
+        verbose: bool = True) -> str:  # MODIFIED: Accept extra_assertions
+    """
+    Generates the SMT-LIB query string for disproving Data-Oblivious
+    Full Sequentiality (Φ_¬DOFS).
+    """
+
+    k = loop_node.loop_var  # Use the loop's internal iteration variable
+    j = Plus(k, Int(1))  # Define j relative to k
+
+    data_symbols_to_quantify = set()
+    find_data_symbols(loop_node.nested_graph, data_symbols_to_quantify)
+
+    existential_quantifier_vars = []
+    for sym in data_symbols_to_quantify:
+        # Exclude free variables from loop bound formulas
+        # These are considered constants for the SMT solver, not universally quantified.
+        for free_var_in_bound in _get_free_variables_recursive(loop_node.start):
+            if sym == free_var_in_bound: continue
+        for free_var_in_bound in _get_free_variables_recursive(loop_node.end):
+            if sym == free_var_in_bound: continue
+
+        # Exclude loop bound variables
+        # Note: loop_node.start and loop_node.end might be complex formulas,
+        # so direct equality check might not be sufficient if they are not simple Symbols.
+        # For now, we assume they are simple Symbols or Ints.
+        if sym == loop_node.start or sym == loop_end:
+            continue
+
+        # Exclude the SMT solver's iteration variables (which are now k and j)
+        if sym == k or sym == j:
+            continue
+
+        # Exclude symbols that are already defined as DATA! symbols
+        # (these are handled by id_to_symbol_map and are not universally quantified here)
+        # This check is implicitly handled by the fact that DATA! symbols are not in data_symbols_to_quantify
+        # in the first place, as data_symbols_to_quantify only contains free variables from formulas.
+        existential_quantifier_vars.append(sym)  # Store the PysmtSymbol directly
+
+    universal_quantifier_vars = [f"({k.symbol_name()} {k.get_type()})"]
+
+    builder = _StringSmtBuilder()
+
+    # Declare existential quantifiers
+    for sym in existential_quantifier_vars:
+        builder.declarations.add(sym)
+
+    # Declare universal quantifiers (k)
+    builder.declarations.add(k)
+
+    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
+    # root_graph = loop_node.builder.root_graph # No longer needed directly here
+
+    all_data_nodes: Set[Data] = set()
+    _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes) # Collect from the entire graph
+
+    builder.assertions.append("; --- Data Definitions ---")
+    for node in all_data_nodes: # Iterate over all collected Data nodes
+        sym = Symbol(f"DATA!{node.name}", INT)
+        id_to_symbol_map[node.array_id] = sym
+        defn = Equals(sym, Int(node.array_id))
+        builder.add_assertion(defn, f"Define DATA!{node.name}")
+
+    # NEW BLOCK: Add human-provided assertions
+    if extra_assertions:
+        builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
+        for idx, assertion in enumerate(extra_assertions):
+            builder.add_assertion(assertion, f"Human Assertion #{idx}")
+
+    builder.assertions.append("\n; --- Loop Bounds ---")
+    loop_start, loop_end = loop_node.start, loop_node.end
+
+    builder.add_assertion(
+        GE(loop_end, Plus(loop_start, Int(1))),
+        "Loop runs at least two adjacent iterations"
+    )
+
+    path_model_fn = create_path_model_fn(loop_node)
+    paths_k = path_model_fn(k)
+    paths_j = path_model_fn(j)
+
+    builder.assertions.append("\n; --- Dependency Logic Definitions ---")
+    # builder.add_assertion(GE(k, loop_start), "Iteration 'k' lower bound")
+    # builder.add_assertion(LE(j, loop_end), "Iteration 'k+1' upper bound")
+    loop_runs_at_least_two_iterations = GE(loop_end, Plus(loop_start, Int(1)))
+    k_lower_bound = GE(k, loop_start)
+    j_upper_bound = LE(j, loop_end)
+
+    let_bindings_tuples = []
+    dep_var_names = []
+
+    for idx_k, (pred_k, W_k, R_k) in enumerate(paths_k):
+        for idx_j, (pred_j, W_j, R_j) in enumerate(paths_j):
+            waw = _intersect_to_formula(W_k, W_j, id_to_symbol_map)
+            raw = _intersect_to_formula(W_k, R_j, id_to_symbol_map)
+            war = _intersect_to_formula(R_k, W_j, id_to_symbol_map)
+
+            waw_var = f"p{idx_k}p{idx_j}_waw"
+            raw_var = f"p{idx_k}p{idx_j}_raw"
+            war_var = f"p{idx_k}p{idx_j}_war"
+
+            waw_str = builder._serialize(waw)
+            raw_str = builder._serialize(raw)
+            war_str = builder._serialize(war)
+
+            path_pair_conflict_str = f"(or {waw_var} {raw_var} {war_var})"
+
+            conflict_let_str = f"""
+(let (
+    ({waw_var} {waw_str})
+    ({raw_var} {raw_str})
+    ({war_var} {war_str})
+    ) {path_pair_conflict_str})
+"""
+
+            pred_k_str = builder._serialize(pred_k)
+            pred_j_str = builder._serialize(pred_j)
+
+            full_path_dependency_str = f"""
+(and {pred_k_str} {pred_j_str} {conflict_let_str})
+"""
+
+            dep_var_name = f"p{idx_k}p{idx_j}_dep"
+
+            let_bindings_tuples.append(
+                (dep_var_name, full_path_dependency_str, f"p{idx_k}(k) <-> p{idx_j}(j) dependency"))
+            dep_var_names.append(dep_var_name)
+
+    main_body_str = "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
+
+    let_bindings = "\n".join([f"; {c}\n({n} {f})" for n, f, c in let_bindings_tuples])
+
+    loop_bound_str = f"""(and
+    {builder._serialize(loop_runs_at_least_two_iterations)}
+    {builder._serialize(k_lower_bound)}
+    {builder._serialize(LE(Plus(k, Int(1)), loop_end))}
+)"""
+    # Construct the inner forall (k)
+    inner_forall_str = f"""(forall ({" ".join(universal_quantifier_vars)}) ; End of universal variables
+    (=> {loop_bound_str}
+    (let (
+        {let_bindings}
+        )
+        ; Main formula
+        {main_body_str}
+    )
+))"""
+
+    # if existential_quantifier_vars:
+    #     builder.assertions.append("(assert (exists (")
+    #     builder.assertions.extend([f"  ({sym.symbol_name()} {sym.get_type()})" for sym in existential_quantifier_vars])
+    #     builder.assertions.append(") ; End of existential variables")
+    #     for line in inner_forall_str.split('\n'):
+    #         builder.assertions.append(f"  {line}")
+    #     builder.assertions.append("))")  # Close exists and assert
+    # else:
+    # No existential quantifiers, just assert the inner forall
+    builder.assertions.append(f"(assert {inner_forall_str})")
+
+    smt_query =  builder.build_query()
+    if verbose:
+        print(f"""
+{smt_query}
+""")
+    return smt_query

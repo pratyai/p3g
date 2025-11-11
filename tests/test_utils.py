@@ -2,6 +2,8 @@ import io
 import os
 import sys
 
+from z3 import Z3Exception
+
 from p3g.p3g import Graph, Compute, Branch, Loop, Map, Reduce, Data, WriteSet, ReadSet
 from pysmt.exceptions import SolverReturnedUnknownResultError
 from pysmt.shortcuts import Solver
@@ -68,23 +70,33 @@ def print_p3g_structure(graph: Graph, indent=0):
             print(f"{s_indent}  COMPUTE ({node.name}): Reads={reads}, Writes={writes}")
 
         elif isinstance(node, (Loop, Map, Reduce)):
-            # Aggregate and print accesses for the structure node itself
-            writes, reads = _aggregate_accesses(node.nested_graph)
-
-            # Format access sets for printing (converting back from ID to Name is complex,
-            # so we rely on the ID being printed once at the root)
-            formatted_writes = ', '.join([f"ID {arr_id}[{subset}]" for arr_id, subset in writes])
-            formatted_reads = ', '.join([f"ID {arr_id}[{subset}]" for arr_id, subset in reads])
+            # Print accesses for the structure node itself (hierarchical edges)
+            node_writes = ', '.join([f"{e.dst.name}[{e.subset}]" for e in node.out_edges if isinstance(e.dst, Data)])
+            node_reads = ', '.join([f"{e.src.name}[{e.subset}]" for e in node.in_edges if isinstance(e.src, Data)])
 
             print(
                 f"{s_indent}  {node.__class__.__name__} ({node.name}): iter={node.loop_var} in [{node.start}, {node.end}]")
-            print(f"{s_indent}    > Aggregated Reads: {formatted_reads}")
-            print(f"{s_indent}    > Aggregated Writes: {formatted_writes}")
+            if node_reads:
+                print(f"{s_indent}    > Node Reads: {node_reads}")
+            if node_writes:
+                print(f"{s_indent}    > Node Writes: {node_writes}")
+
             print_p3g_structure(node.nested_graph, indent + 1)
 
         elif isinstance(node, Branch):
-            # Handle branches
+            # Print accesses for the Branch node itself
+            node_writes = ', '.join([f"{e.dst.name}[{e.subset}]" for e in node.out_edges if isinstance(e.dst, Data)])
+            node_reads = ', '.join([f"{e.src.name}[{e.subset}]" for e in node.in_edges if isinstance(e.src, Data)])
+            predicate_reads = ', '.join([f"ID {arr_id}[{subset}]" for arr_id, subset in node.get_predicate_read_set()])
+
             print(f"{s_indent}  BRANCH ({node.name})")
+            if node_reads:
+                print(f"{s_indent}    > Node Reads: {node_reads}")
+            if node_writes:
+                print(f"{s_indent}    > Node Writes: {node_writes}")
+            if predicate_reads:
+                print(f"{s_indent}    > Predicate Reads: {predicate_reads}")
+
             for pred, nested_graph in node.branches:
                 print(f"{s_indent}    - IF: {pred}")
                 print_p3g_structure(nested_graph, indent + 2)
@@ -138,7 +150,13 @@ def solve_smt_string(smt_string: str, case_name: str) -> bool:
                 print(f"Solver result: sat")
                 model = s.get_model()
                 print("--- Model ---")
-                print(model)
+                try:
+                    print(model)
+                except (NotImplementedError, Z3Exception) as e:
+                    print(f"Cannot print model (sometime it's library's fault): {e}")
+                print("Note: The model only displays concrete values for symbols it could determine. "
+                      "For arrays or other symbols without a concrete assignment, their values are not shown here. "
+                      "You can query specific symbols by name if needed.")
                 print("-------------")
                 return True
             else:
