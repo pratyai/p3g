@@ -13,12 +13,6 @@ from p3g.p3g import (
     ReadSet, WriteSet, create_path_model_fn, Reduce
 )
 
-# Define __all__ for 'from p3g_smt import *'
-__all__ = [
-    'generate_smt_for_prove_exists_data_forall_iter_isdep'
-]
-
-
 # --- SMT String Generation (unchanged) ---
 
 class _StringSmtBuilder:
@@ -64,31 +58,6 @@ class _StringSmtBuilder:
         self.assertions.append(f"\n; {comment}")
         self.assertions.append(f"(assert {smt_str})")
 
-    def add_let_assertion(self,
-                          let_bindings: List[Tuple[str, str, str]],
-                          main_formula_str: str,
-                          main_comment: str):
-        """
-        Adds a single, complex assertion using a multi-line,
-        indented 'let' block, built from raw strings.
-
-        let_bindings is a list of (name, formula_string, comment)
-        """
-        self.assertions.append(f"\n; {main_comment}")
-        self.assertions.append("(assert (let (")
-
-        for (name, formula_str, comment) in let_bindings:
-            if comment:
-                self.assertions.append(f"  ; {comment}")
-
-            self.assertions.append(f"  ({name} {formula_str})")
-            self.assertions.append("")  # Add a blank line
-
-        self.assertions.append(")")  # Close let bindings
-        self.assertions.append(f"  ; Main formula")
-        self.assertions.append(f"  {main_formula_str}")
-        self.assertions.append("))")  # Close let and assert
-
     def build_query(self) -> str:
         """Assembles and returns the final SMT-LIB query string."""
         header = []
@@ -103,8 +72,6 @@ class _StringSmtBuilder:
 
 def _get_index_from_access(access_expr: PysmtFormula) -> PysmtFormula:
     """Helper to extract the index from a Select or Store operation."""
-    if isinstance(access_expr, tuple):
-        pass
     if access_expr.is_select():
         return access_expr.arg(1)
     elif access_expr.is_store():
@@ -191,7 +158,7 @@ def _collect_all_data_nodes(graph: Graph, collected_data_nodes: Set[Data]):
             _collect_all_data_nodes(node.nested_graph, collected_data_nodes)
 
 
-def find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
+def _find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
     """
     Recursively traverses the given P3G graph and collects all free PysmtSymbol
     objects found within the access patterns (subsets) of Compute nodes and
@@ -219,9 +186,58 @@ def find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
             for pred, g in node.branches:
                 for free_var in _get_free_variables_recursive(pred):
                     collected_symbols.add(free_var)
-                find_data_symbols(g, collected_symbols)
+                _find_data_symbols(g, collected_symbols)
         elif isinstance(node, (Loop, Map)):
-            find_data_symbols(node.nested_graph, collected_symbols)
+            _find_data_symbols(node.nested_graph, collected_symbols)
+
+
+def _get_existential_quantifier_vars(
+        loop_node: Loop,
+        loop_end: PysmtFormula,
+        k: PysmtSymbol) -> List[PysmtSymbol]:
+    """
+    Identifies and collects PysmtSymbol objects that need to be existentially
+    quantified in the SMT query for DOFS analysis. These are typically data
+    symbols that the solver can assign values to in order to find a
+    sequentializing data configuration.
+
+    Args:
+        loop_node: The P3G Loop node being analyzed.
+        loop_end: The upper bound of the loop.
+        k: The PysmtSymbol representing the current iteration variable.
+
+    Returns:
+        A list of PysmtSymbol objects to be existentially quantified.
+    """
+    data_symbols_to_quantify = set()
+    _find_data_symbols(loop_node.nested_graph, data_symbols_to_quantify)
+
+    existential_quantifier_vars = []
+    for sym in data_symbols_to_quantify:
+        # Exclude free variables from loop bound formulas
+        # These are considered constants for the SMT solver, not universally quantified.
+        for free_var_in_bound in _get_free_variables_recursive(loop_node.start):
+            if sym == free_var_in_bound: continue
+        for free_var_in_bound in _get_free_variables_recursive(loop_node.end):
+            if sym == free_var_in_bound: continue
+
+        # Exclude loop bound variables
+        # Note: loop_node.start and loop_node.end might be complex formulas,
+        # so direct equality check might not be sufficient if they are not simple Symbols.
+        # For now, we assume they are simple Symbols or Ints.
+        if sym == loop_node.start or sym == loop_end:
+            continue
+
+        # Exclude the SMT solver's iteration variables
+        if sym == k:
+            continue
+
+        # Exclude symbols that are already defined as DATA! symbols
+        # (these are handled by id_to_symbol_map and are not universally quantified here)
+        # This check is implicitly handled by the fact that DATA! symbols are not in data_symbols_to_quantify
+        # in the first place, as data_symbols_to_quantify only contains free variables from formulas.
+        existential_quantifier_vars.append(sym)  # Store the PysmtSymbol directly
+    return existential_quantifier_vars
 
 
 def generate_smt_for_prove_exists_data_forall_iter_isdep(
@@ -268,36 +284,7 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     """
 
     k = loop_node.loop_var  # Use the loop's internal iteration variable
-    j = Plus(k, Int(1))  # Define j relative to k
-
-    data_symbols_to_quantify = set()
-    find_data_symbols(loop_node.nested_graph, data_symbols_to_quantify)
-
-    existential_quantifier_vars = []
-    for sym in data_symbols_to_quantify:
-        # Exclude free variables from loop bound formulas
-        # These are considered constants for the SMT solver, not universally quantified.
-        for free_var_in_bound in _get_free_variables_recursive(loop_node.start):
-            if sym == free_var_in_bound: continue
-        for free_var_in_bound in _get_free_variables_recursive(loop_node.end):
-            if sym == free_var_in_bound: continue
-
-        # Exclude loop bound variables
-        # Note: loop_node.start and loop_node.end might be complex formulas,
-        # so direct equality check might not be sufficient if they are not simple Symbols.
-        # For now, we assume they are simple Symbols or Ints.
-        if sym == loop_node.start or sym == loop_end:
-            continue
-
-        # Exclude the SMT solver's iteration variables (which are now k and j)
-        if sym == k or sym == j:
-            continue
-
-        # Exclude symbols that are already defined as DATA! symbols
-        # (these are handled by id_to_symbol_map and are not universally quantified here)
-        # This check is implicitly handled by the fact that DATA! symbols are not in data_symbols_to_quantify
-        # in the first place, as data_symbols_to_quantify only contains free variables from formulas.
-        existential_quantifier_vars.append(sym)  # Store the PysmtSymbol directly
+    existential_quantifier_vars = _get_existential_quantifier_vars(loop_node, loop_end, k)
 
     universal_quantifier_vars = [f"({k.symbol_name()} {k.get_type()})"]
 
@@ -339,16 +326,16 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
 
     path_model_fn = create_path_model_fn(loop_node)
     paths_k = path_model_fn(k)
-    paths_j = path_model_fn(j)
+    paths_j = path_model_fn(Plus(k, Int(1)))
 
     builder.assertions.append("\n; --- Dependency Logic Definitions ---")
     # builder.add_assertion(GE(k, loop_start), "Iteration 'k' lower bound")
     # builder.add_assertion(LE(j, loop_end), "Iteration 'k+1' upper bound")
     loop_runs_at_least_two_iterations = GE(loop_end, Plus(loop_start, Int(1)))
     k_lower_bound = GE(k, loop_start)
-    j_upper_bound = LE(j, loop_end)
+    j_upper_bound = LE(Plus(k, Int(1)), loop_end)
 
-    let_bindings_tuples = []
+    let_bindings_list = []
     dep_var_names = []
 
     for idx_k, (pred_k, W_k, R_k) in enumerate(paths_k):
@@ -384,13 +371,15 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
 
             dep_var_name = f"p{idx_k}p{idx_j}_dep"
 
-            let_bindings_tuples.append(
-                (dep_var_name, full_path_dependency_str, f"p{idx_k}(k) <-> p{idx_j}(j) dependency"))
+            let_bindings_list.append(f"; p{idx_k}(k) <-> p{idx_j}(j) dependency")
+            let_bindings_list.append(f"({dep_var_name} {full_path_dependency_str})")
+            let_bindings_list.append("") # Add a blank line for readability
+
             dep_var_names.append(dep_var_name)
 
     main_body_str = "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
 
-    let_bindings = "\n".join([f"; {c}\n({n} {f})" for n, f, c in let_bindings_tuples])
+    let_bindings = "\n".join(let_bindings_list)
 
     loop_bound_str = f"""(and
     {builder._serialize(loop_runs_at_least_two_iterations)}
@@ -408,14 +397,6 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     )
 ))"""
 
-    # if existential_quantifier_vars:
-    #     builder.assertions.append("(assert (exists (")
-    #     builder.assertions.extend([f"  ({sym.symbol_name()} {sym.get_type()})" for sym in existential_quantifier_vars])
-    #     builder.assertions.append(") ; End of existential variables")
-    #     for line in inner_forall_str.split('\n'):
-    #         builder.assertions.append(f"  {line}")
-    #     builder.assertions.append("))")  # Close exists and assert
-    # else:
     # No existential quantifiers, just assert the inner forall
     builder.assertions.append(f"(assert {inner_forall_str})")
 
