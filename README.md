@@ -4,7 +4,7 @@
 
 P3G is a prototype tool for analyzing loops in a simple imperative language to determine their potential for parallelization. It represents loop structures using a graph-based intermediate representation (P3G) and uses an SMT solver (like Z3) to formally verify the presence or absence of data dependencies.
 
-The primary analysis performed is for **Data-Oblivious Full Sequentiality (DOFS)**. A loop is considered sequential from a DOFS perspective if a data dependency is proven to exist between adjacent iterations for all possible data inputs. If a counterexample can be found (i.e., a scenario where no dependency exists between adjacent iterations), the loop is considered "not fully sequential" and a candidate for parallelization.
+The primary analysis performed is for **Data-Oblivious Full Sequentiality (DOFS)**. A loop is considered sequential from a DOFS perspective if a data dependency is proven to exist between adjacent iterations for all possible data inputs. If the SMT query is unsatisfiable (UNSAT), it proves that for any data configuration, at least one pair of adjacent iterations remains independent, making the loop "not fully sequential" and a candidate for parallelization.
 
 ## Features
 
