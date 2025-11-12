@@ -16,7 +16,10 @@ from pysmt.smtlib.parser import SmtLibParser
 from pysmt.walkers import IdentityDagWalker
 
 from p3g.p3g import GraphBuilder
-from p3g.smt import generate_smt_for_prove_exists_data_forall_iter_isdep
+from p3g.smt import (
+    generate_smt_for_prove_exists_data_forall_iter_isdep,
+    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+)
 
 
 # Helper to create a simple P3G loop for testing
@@ -270,3 +273,159 @@ class TestProveExistsDataForallIterIsdep:
 
         assert "; Human Assertion #0" in smt_query
         assert "(assert (<= 10 N))" in smt_query
+
+
+class TestProveExistsDataForallLoopBoundsIterIsdep:
+    def test_simple_loop_with_symbolic_bounds(self):
+        builder = GraphBuilder()
+        i = builder.add_symbol("i")
+        N = builder.add_symbol("N")  # N is a symbolic loop bound
+        A = builder.add_data("A")
+        B = builder.add_data("B")
+
+        with builder.add_loop(
+            "loop1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
+            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
+
+        smt_query_string = (
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(loop)
+        )
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        expected_declarations = {"N", "DATA!A", "DATA!B", "i"}
+        declared_symbols = {
+            cmd.args[0].symbol_name()
+            for cmd in inspector.declarations
+            if cmd.name == "declare-fun"
+        }
+        assert declared_symbols.issuperset(expected_declarations)
+
+        # Check for quantifiers
+        # We expect a single forall quantifier for the iteration variable 'i' AND 'N'
+        assert len(inspector.quantifiers) == 1
+        quantifier_type, q_vars, q_body = inspector.quantifiers[0]
+        assert quantifier_type == "forall"
+        assert len(q_vars) == 2  # Now includes N
+        assert Symbol("i", INT) in q_vars
+        assert Symbol("N", INT) in q_vars
+
+        # Check the body of the quantified formula (main assertion)
+        # It should contain the loop bounds and the dependency logic
+        # The structure is (=> loop_bounds (let (...) (or ...)))
+        main_assertion_body = q_body
+        assert main_assertion_body.is_implies()  # (=> A B)
+        loop_bounds_formula = main_assertion_body.arg(0)
+        dependency_let_formula = main_assertion_body.arg(1)
+
+        # Check loop bounds
+        assert loop_bounds_formula.is_and()
+        assert (
+            GE(N, Plus(Int(0), Int(1))) in loop_bounds_formula.args()
+        )  # (<= (+ 0 1) N)
+        assert GE(Symbol("i", INT), Int(0)) in loop_bounds_formula.args()  # (<= 0 i)
+        assert (
+            LE(Plus(Symbol("i", INT), Int(1)), N) in loop_bounds_formula.args()
+        )  # (<= (+ i 1) N)
+
+        # Ensure no "not" for the main dependency
+        assert not any(a.is_not() for a in inspector.assertions)
+
+    def test_symbolic_lower_bound(self):
+        builder = GraphBuilder()
+        i = builder.add_symbol("i")
+        M = builder.add_symbol("M")  # M is a symbolic lower bound
+        N = builder.add_symbol("N")  # N is a symbolic upper bound
+        A = builder.add_data("A")
+        B = builder.add_data("B")
+
+        with builder.add_loop(
+            "loop1", "i", M, N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
+            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
+
+        smt_query_string = (
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(loop)
+        )
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        expected_declarations = {"M", "N", "DATA!A", "DATA!B", "i"}
+        declared_symbols = {
+            cmd.args[0].symbol_name()
+            for cmd in inspector.declarations
+            if cmd.name == "declare-fun"
+        }
+        assert declared_symbols.issuperset(expected_declarations)
+
+        # Check for quantifiers
+        # We expect a single forall quantifier for the iteration variable 'i', 'M' and 'N'
+        assert len(inspector.quantifiers) == 1
+        quantifier_type, q_vars, q_body = inspector.quantifiers[0]
+        assert quantifier_type == "forall"
+        assert len(q_vars) == 3  # Now includes M and N
+        assert Symbol("i", INT) in q_vars
+        assert Symbol("M", INT) in q_vars
+        assert Symbol("N", INT) in q_vars
+
+        # Check loop bounds in the formula
+        main_assertion_body = q_body
+        loop_bounds_formula = main_assertion_body.arg(0)
+        assert loop_bounds_formula.is_and()
+        assert (
+            GE(N, Plus(M, Int(1))) in loop_bounds_formula.args()
+        )  # (<= (+ M 1) N)
+        assert GE(Symbol("i", INT), M) in loop_bounds_formula.args()  # (<= M i)
+        assert (
+            LE(Plus(Symbol("i", INT), Int(1)), N) in loop_bounds_formula.args()
+        )  # (<= (+ i 1) N)
+
+    def test_complex_symbolic_bounds(self):
+        builder = GraphBuilder()
+        i = builder.add_symbol("i")
+        N = builder.add_symbol("N")
+        offset = builder.add_symbol("offset")
+        A = builder.add_data("A")
+        B = builder.add_data("B")
+
+        # Loop from 'offset' to 'N + 5'
+        with builder.add_loop(
+            "loop1", "i", offset, Plus(N, Int(5)), reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
+            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
+
+        smt_query_string = (
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(loop)
+        )
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        expected_declarations = {"N", "offset", "DATA!A", "DATA!B", "i"}
+        declared_symbols = {
+            cmd.args[0].symbol_name()
+            for cmd in inspector.declarations
+            if cmd.name == "declare-fun"
+        }
+        assert declared_symbols.issuperset(expected_declarations)
+
+        # Check for quantifiers
+        assert len(inspector.quantifiers) == 1
+        quantifier_type, q_vars, q_body = inspector.quantifiers[0]
+        assert quantifier_type == "forall"
+        assert len(q_vars) == 3  # Includes i, N, and offset
+        assert Symbol("i", INT) in q_vars
+        assert Symbol("N", INT) in q_vars
+        assert Symbol("offset", INT) in q_vars
+
+        # Check loop bounds in the formula
+        main_assertion_body = q_body
+        loop_bounds_formula = main_assertion_body.arg(0)
+        assert loop_bounds_formula.is_and()
+        assert (
+            GE(Plus(N, Int(5)), Plus(offset, Int(1))) in loop_bounds_formula.args()
+        )  # (<= (+ offset 1) (+ N 5))
+        assert GE(Symbol("i", INT), offset) in loop_bounds_formula.args()  # (<= offset i)
+        assert (
+            LE(Plus(Symbol("i", INT), Int(1)), Plus(N, Int(5))) in loop_bounds_formula.args()
+        )  # (<= (+ i 1) (+ N 5))

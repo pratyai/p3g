@@ -1,7 +1,7 @@
-from pysmt.shortcuts import INT, Int, Minus, GE
+from pysmt.shortcuts import Int, GE
 
-from p3g.p3g import GraphBuilder
 from p3g.smt import generate_smt_for_prove_exists_data_forall_iter_isdep
+from tests.cases.graph_definitions import build_array_reversal_graph
 from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
@@ -16,37 +16,11 @@ def test_array_reversal():
     The SMT query should return SAT, indicating DOFS (sequential).
     """
     print("\n--- Running Test: Array Reversal (Expected: DOFS/Sequential) ---")
-    b = GraphBuilder()
-    N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-
-    loop_node = None
-    with b.add_loop(
-        "L1",
-        "k",
-        Int(0),
-        Minus(N, Int(1)),
-        reads=[(A_root, (Int(0), Minus(N, Int(1))))],
-        writes=[(A_root, (Int(0), Minus(N, Int(1))))],
-    ) as L1:
-        k = L1.loop_var
-        loop_node = L1
-
-        idx_rev = Minus(Minus(N, Int(1)), k)
-
-        # Get local references to the data containers for this scope
-        A_local = b.add_data("A", is_output=True)
-
-        b.add_compute(
-            "T1_swap",
-            reads=[(A_local, k), (A_local, idx_rev)],
-            writes=[(A_local, k), (A_local, idx_rev)],
-        )
+    b_root_graph, loop_node, N, A_root = build_array_reversal_graph()
 
     # Print constructed P3G
-    print_p3g_structure(b.root_graph)
+    print_p3g_structure(b_root_graph)
 
-    loop_end = Minus(N, Int(1))
     print(f"Generating SMT query for N (symbolic) with no extra assertions.")
     smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
         loop_node, verbose=False
@@ -79,37 +53,11 @@ def test_array_reversal_high_N():
     print(
         "\n--- Running Test: Array Reversal (Expected: Not DOFS/Parallel for N >= 3) ---"
     )
-    b = GraphBuilder()
-    N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-
-    loop_node = None
-    with b.add_loop(
-        "L1",
-        "k",
-        Int(0),
-        Minus(N, Int(1)),
-        reads=[(A_root, (Int(0), Minus(N, Int(1))))],
-        writes=[(A_root, (Int(0), Minus(N, Int(1))))],
-    ) as L1:
-        k = L1.loop_var
-        loop_node = L1
-
-        idx_rev = Minus(Minus(N, Int(1)), k)
-
-        # Get local references to the data containers for this scope
-        A_local = b.add_data("A", is_output=True)
-
-        b.add_compute(
-            "T1_swap",
-            reads=[(A_local, k), (A_local, idx_rev)],
-            writes=[(A_local, k), (A_local, idx_rev)],
-        )
+    b_root_graph, loop_node, N, A_root = build_array_reversal_graph()
 
     # Print constructed P3G
-    print_p3g_structure(b.root_graph)
+    print_p3g_structure(b_root_graph)
 
-    loop_end = Minus(N, Int(1))
     print(f"Generating SMT query for N (symbolic) with extra assertion: N >= 3.")
     smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
         loop_node, extra_assertions=[GE(N, Int(3))], verbose=False

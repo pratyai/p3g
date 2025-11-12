@@ -1,7 +1,5 @@
-from pysmt.shortcuts import Symbol, INT, Int, Minus
-
-from p3g.p3g import GraphBuilder
 from p3g.smt import generate_smt_for_prove_exists_data_forall_iter_isdep
+from tests.cases.graph_definitions import build_nested_loop_outer_dofs_graph, build_nested_loop_inner_dofs_graph
 from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
@@ -18,67 +16,10 @@ def test_nested_loop_outer_dofs():
     print(
         "\n--- Running Test: Nested Loop (Expected: Outer DOFS/Sequential, Inner Not DOFS/Parallel) ---"
     )
-    b = GraphBuilder()
-    N = b.add_symbol("N", INT)
-    M = b.add_symbol("M", INT)
-    # Declare the existence of the data containers at the root level
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
-
-    loop_node = None
-    L_inner_node = None
-
-    # Outer Loop (Sequential: A[i, j] depends on A[i-1, j])
-    with b.add_loop(
-        "L_outer",
-        "i",
-        Int(1),
-        N,
-        reads=[
-            (A_root, (Int(1), N)),
-            (B_root, (Int(1), N)),
-        ],  # Outer loop accesses A[1..N, ...] and B[1..N, ...]
-        writes=[(A_root, (Int(1), N))],
-    ) as L_outer:  # Outer loop writes A[1..N, ...]
-        i_sym = L_outer.loop_var
-        loop_node = L_outer  # The highest level loop node for the SMT check
-
-        # Get local references to the data containers for this scope
-        A_local_outer = b.add_data("A", is_output=True)
-        B_local_outer = b.add_data("B")
-
-        # Inner Loop (Parallel: no dependency across j)
-        with b.add_loop(
-            "L_inner",
-            "j",
-            Int(1),
-            M,
-            reads=[
-                (A_local_outer, (Int(1), M)),
-                (B_local_outer, (Int(1), M)),
-            ],  # Inner loop accesses A[..., 1..M] and B[..., 1..M]
-            writes=[(A_local_outer, (Int(1), M))],
-        ) as L_inner:  # Inner loop writes A[..., 1..M]
-            j_sym = L_inner.loop_var
-            L_inner_node = L_inner
-
-            # Get local references to the data containers for this scope
-            A_local_inner = b.add_data("A", is_output=True)
-            B_local_inner = b.add_data("B")
-
-            # The innermost computation (A[i, j] = A[i-1, j] + B[i, j])
-            # Use Tuple for 2D indexing
-            reads_A = (A_local_inner, (Minus(i_sym, Int(1)), j_sym))
-            reads_B = (B_local_inner, (i_sym, j_sym))
-            writes_A = (A_local_inner, (i_sym, j_sym))
-
-            b.add_compute("T_comp", reads=[reads_A, reads_B], writes=[writes_A])
+    b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = build_nested_loop_outer_dofs_graph()
 
     # Print constructed P3G
-    print_p3g_structure(b.root_graph)
-
-    loop_end_outer = N
-    loop_end_inner = M
+    print_p3g_structure(b_root_graph)
 
     # --- 1. Check Inner Loop (L_inner) ---
     print(
@@ -140,70 +81,10 @@ def test_nested_loop_inner_dofs():
     print(
         "\n--- Running Test: Nested Loop (Expected: Outer Not DOFS/Parallel, Inner DOFS/Sequential) ---"
     )
-    b = GraphBuilder()
-    N = b.add_symbol("N", INT)
-    M = b.add_symbol("M", INT)
-    # Declare the existence of the data containers at the root level
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
-
-    loop_node = None
-    L_inner_node = None
-
-    # Outer Loop (Parallel: no dependency across i)
-    with b.add_loop(
-        "L_outer",
-        "i",
-        Int(1),
-        N,
-        reads=[
-            (A_root, (Int(1), N)),
-            (B_root, (Int(1), N)),
-        ],  # Outer loop accesses A[1..N, ...] and B[1..N, ...]
-        writes=[(A_root, (Int(1), N))],
-    ) as L_outer:
-        i_sym = L_outer.loop_var
-        loop_node = L_outer  # The highest level loop node for the SMT check
-
-        # Get local references to the data containers for this scope
-        A_local_outer = b.add_data("A", is_output=True)
-        B_local_outer = b.add_data("B")
-
-        # Inner Loop (Sequential: A[i, j] depends on A[i, j-1])
-        with b.add_loop(
-            "L_inner",
-            "j",
-            Int(1),
-            M,
-            reads=[
-                (A_local_outer, (Int(1), M)),
-                (B_local_outer, (Int(1), M)),
-            ],  # Inner loop accesses A[..., 1..M] and B[..., 1..M]
-            writes=[(A_local_outer, (Int(1), M))],
-        ) as L_inner:
-            j_sym = L_inner.loop_var
-            L_inner_node = L_inner
-
-            # Get local references to the data containers for this scope
-            A_local_inner = b.add_data("A", is_output=True)
-            B_local_inner = b.add_data("B")
-
-            # The innermost computation (A[i, j] = A[i, j-1] + B[i, j])
-            # Use Tuple for 2D indexing
-            reads_A = (
-                A_local_inner,
-                (i_sym, Minus(j_sym, Int(1))),
-            )  # Dependency on j-1
-            reads_B = (B_local_inner, (i_sym, j_sym))
-            writes_A = (A_local_inner, (i_sym, j_sym))
-
-            b.add_compute("T_comp", reads=[reads_A, reads_B], writes=[writes_A])
+    b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = build_nested_loop_inner_dofs_graph()
 
     # Print constructed P3G
-    print_p3g_structure(b.root_graph)
-
-    loop_end_outer = N
-    loop_end_inner = M
+    print_p3g_structure(b_root_graph)
 
     # --- 1. Check Inner Loop (L_inner) ---
     print(

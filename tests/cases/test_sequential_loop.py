@@ -1,7 +1,5 @@
-from pysmt.shortcuts import INT, Int, Minus
-
-from p3g.p3g import GraphBuilder
 from p3g.smt import generate_smt_for_prove_exists_data_forall_iter_isdep
+from tests.cases.graph_definitions import build_sequential_loop_graph
 from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
@@ -16,35 +14,11 @@ def test_sequential_loop():
     meaning the SMT query should return SAT, indicating DOFS (sequential).
     """
     print("\n--- Running Test: Sequential Loop (Expected: DOFS/Sequential) ---")
-    b = GraphBuilder()
-    N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
-
-    loop_node = None
-    with b.add_loop(
-        "L1",
-        "k",
-        Int(2),
-        N,
-        reads=[(A_root, (Int(1), Minus(N, Int(1)))), (B_root, (Int(2), N))],
-        writes=[(A_root, (Int(2), N))],
-    ) as L1:
-        k = L1.loop_var
-        loop_node = L1
-        # Get local references to the data containers for this scope
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
-        b.add_compute(
-            "T1",
-            reads=[(A_local, Minus(k, Int(1))), (B_local, k)],
-            writes=[(A_local, k)],
-        )
+    b_root_graph, loop_node, N, A_root, B_root = build_sequential_loop_graph()
 
     # Print constructed P3G
-    print_p3g_structure(b.root_graph)
+    print_p3g_structure(b_root_graph)
 
-    loop_end = N
     print(f"Generating SMT query for N (symbolic).")
     smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
         loop_node, verbose=False

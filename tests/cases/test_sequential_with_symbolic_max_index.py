@@ -1,7 +1,5 @@
-from pysmt.shortcuts import INT, Int, Minus, GT, LE
-
-from p3g.p3g import GraphBuilder
 from p3g.smt import generate_smt_for_prove_exists_data_forall_iter_isdep
+from tests.cases.graph_definitions import build_sequential_with_symbolic_max_index_graph
 from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
@@ -18,42 +16,11 @@ def test_sequential_with_symbolic_max_index():
     print(
         "\n--- Running Test: Sequential Loop with symbolic max(i-w, 0) index (Expected: DOFS/Sequential) ---"
     )
-    b = GraphBuilder()
-    N = b.add_symbol("N", INT)
-    w = b.add_symbol("w", INT)
-    A = b.add_data("A", is_output=True)
-    B = b.add_data("B")
-
-    loop_node = None
-    with b.add_loop(
-        "L1",
-        "k",
-        Int(2),
-        N,
-        reads=[(A, (Int(0), N)), (B, (Int(2), N))],
-        writes=[(A, (Int(2), N))],
-    ) as L1:
-        k = L1.loop_var
-        loop_node = L1
-
-        with b.add_branch(
-            "B1", reads=[(A, Minus(k, w)), (A, Int(0)), (B, k)], writes=[(A, k)]
-        ) as B1:
-            # if k - w > 0
-            P1 = GT(Minus(k, w), Int(0))
-            with B1.add_path(P1):
-                idx = Minus(k, w)
-                b.add_compute("T1_gt", reads=[(A, idx), (B, k)], writes=[(A, k)])
-            # else
-            P2 = LE(Minus(k, w), Int(0))
-            with B1.add_path(P2):
-                idx = Int(0)
-                b.add_compute("T2_le", reads=[(A, idx), (B, k)], writes=[(A, k)])
+    b_root_graph, loop_node, N, w, A, B = build_sequential_with_symbolic_max_index_graph()
 
     # Print constructed P3G
-    print_p3g_structure(b.root_graph)
+    print_p3g_structure(b_root_graph)
 
-    loop_end = N
     print(f"Generating SMT query for N (symbolic) and w (symbolic).")
     smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
         loop_node, verbose=False
