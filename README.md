@@ -93,13 +93,13 @@ The test suite covers a range of loop structures to verify the correctness of th
 
 ### Complex Access Patterns
 - **`test_array_reversal.py`**:
-  - **Loop Logic**:
-  ```
-  for i = 0...N-1:
-    swap(A[i], A[N-1-i])
-  ```
-  - **Description**: For `N=2`, `A[0]` and `A[1]` are swapped, creating a dependency. If `N` is symbolic, the solver can pick `N=2`, making it sequential. When `N >= 3`, indices `k` and `N-1-k` are distinct and do not overlap with `k+1` and `N-1-(k+1)`, making it parallelizable.
-  - **Expected Outcome**: DOFS (Sequential) for general `N` (SMT SAT); Not DOFS (Parallel) for `N >= 3` (SMT UNSAT).
+    - **Loop Logic**:
+      ```
+      for i = 0...N-1:
+        swap(A[i], A[N-1-i])
+      ```
+    - **Description**: For `N=2`, `A[0]` and `A[1]` are swapped, creating a dependency. If `N` is symbolic, the solver can pick `N=2`, making it sequential. When `N >= 3`, indices `k` and `N-1-k` are distinct and do not overlap with `k+1` and `N-1-(k+1)`, making it parallelizable.
+    - **Expected Outcome**: DOFS (Sequential) for general `N` (SMT SAT); Not DOFS (Parallel) for `N >= 3` (SMT UNSAT).
 - **`test_long_distance_dependency.py`**:
   - **Loop Logic**:
   ```
@@ -136,14 +136,14 @@ The test suite covers a range of loop structures to verify the correctness of th
   - **Description**: If all `B[i] > 0`, then `A[i] = A[i-1]` always executes, creating a sequential dependency.
   - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT.
 - **`test_data_aware_bi_b13.py`**:
-  - **Loop Logic**:
-  ```
-  for i = 1...N:
-    if (B[i] - B[13] > 0):
-      A[i] = A[i-1]
-  ```
-  - **Description**: If `B[i]=1` and `B[13]=0`, the condition `B[i] - B[13] > 0` is always true, making the loop sequential. However, if `N >= 15`, the loop includes `k=13`, where `B[13] - B[13] > 0` is false, skipping the dependency and making it parallelizable.
-  - **Expected Outcome**: DOFS (Sequential) for general `N` (SMT SAT); Not DOFS (Parallel) for `N >= 15` (SMT UNSAT).
+    - **Loop Logic**:
+      ```
+      for i = 1...N:
+        if (B[i] - B[13] > 0):
+          A[i] = A[i-1]
+      ```
+    - **Description**: If `B[i]=1` and `B[13]=0`, the condition `B[i] - B[13] > 0` is always true, making the loop sequential. However, if `N >= 15`, the loop includes `k=13`, where `B[13] - B[13] > 0` is false, skipping the dependency and making it parallelizable.
+    - **Expected Outcome**: DOFS (Sequential) for general `N` (SMT SAT); Not DOFS (Parallel) for `N >= 15` (SMT UNSAT).
 - **`test_sequential_with_symbolic_max_index.py`**:
   - **Loop Logic**:
   ```
@@ -167,46 +167,68 @@ The test suite covers a range of loop structures to verify the correctness of th
   - **Description**: Because the parallel branch (`A[i] = B[i] + C[i]`) can always be taken for some `k` (e.g., for `k=0`, `0*0 <= N` is always true for `N >= 0`), there is no data configuration that forces *all* adjacent iterations to be sequential.
   - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT.
 - **`test_nested_loop.py`**:
-  - **Loop Logic**:
-  ```
-  for i = 1...N:
-    for j = 1...M:
-      A[i, j] = A[i-1, j] + B[i, j]
-  ```
-  - **Description**: The outer loop (over `i`) has a true data dependency (`A[i,j]` depends on `A[i-1,j]`), making it DOFS. The inner loop (over `j`) has no self-dependency, making it Not DOFS (parallelizable).
-  - **Expected Outcome**: Outer Loop DOFS (Sequential); Inner Loop Not DOFS (Parallel).
+    - **`test_nested_loop_outer_dofs`**:
+      - **Loop Logic**:
+        ```
+        for i = 1...N:
+          for j = 1...M:
+            A[i, j] = A[i-1, j] + B[i, j]
+        ```
+      - **Description**: The outer loop (over `i`) has a true data dependency (`A[i,j]` depends on `A[i-1,j]`), making it DOFS. The inner loop (over `j`) has no self-dependency, making it Not DOFS (parallelizable).
+      - **Expected Outcome**: Outer Loop DOFS (Sequential); Inner Loop Not DOFS (Parallel).
+    - **`test_nested_loop_inner_dofs`**:
+      - **Loop Logic**:
+        ```
+        for i = 1...N:
+          for j = 1...M:
+            A[i, j] = A[i, j-1] + B[i, j]
+        ```
+      - **Description**: The outer loop (over `i`) has no self-dependency, making it Not DOFS (parallelizable). The inner loop (over `j`) has a true data dependency (`A[i,j]` depends on `A[i,j-1]`), making it DOFS.
+      - **Expected Outcome**: Outer Loop Not DOFS (Parallel); Inner Loop DOFS (Sequential).
 - **`test_cholesky.py`**:
-  - **Loop Logic**:
-    ```
-    // Simplified Cholesky
-    for i = 2...N:
-      for j = 2...i:
-        L[i, j] = L[i, j-1] + L[j-1, j-1]
-
-    // Full Cholesky Kernel (simplified for P3G modeling)
-    for i = 0 to N-1:
-      for j = 0 to i:
-        sum_val = 0
-        for k = 0 to j-1:
-          sum_val = sum_val + L[i,k] * L[j,k]
-        L[i,j] = A[i,j] - sum_val
-    ```
-  - **Description**: The simplified inner loop has a dependency `L[i,j] <- L[i,j-1]`, making it DOFS. The simplified outer loop is Not DOFS. The full Cholesky kernel is highly sequential due to dependencies across all three nested loops.
-  - **Expected Outcome**: Simplified Inner Loop DOFS (Sequential); Simplified Outer Loop Not DOFS (Parallel); Full Cholesky Kernel DOFS (Sequential).
+    - **`test_cholesky_sequential`**:
+      - **Loop Logic**:
+        ```
+        // Simplified Cholesky
+        for i = 2...N:
+          for j = 2...i:
+            L[i, j] = L[i, j-1] + L[j-1, j-1]
+        ```
+      - **Description**: This test models a simplified dependency pattern found in Cholesky-like kernels. It analyzes both the inner and outer loops of this simplified kernel.
+      - **Expected Outcome**: Inner Loop DOFS (Sequential); Outer Loop Not DOFS (Parallel).
+    - **`test_cholesky_full_kernel`**:
+      - **Loop Logic**:
+        ```
+        // Full Cholesky Kernel (simplified for P3G modeling)
+        for i = 0 to N-1:
+          for j = 0 to i:
+            sum_val = 0
+            for k = 0 to j-1:
+              sum_val = sum_val + L[i,k] * L[j,k]
+            L[i,j] = A[i,j] - sum_val
+        ```
+      - **Description**: This test models a more accurate Cholesky Decomposition kernel. It is highly sequential due to dependencies across all three nested loops.
+      - **Expected Outcome**: Full Cholesky Kernel DOFS (Sequential).
 - **`test_gauss_seidel.py`**:
-  - **Loop Logic**:
-    ```
-    // Red Pass (odd indices)
-    for i = 1, 3, 5, ...:
-      A[i] = A[i-1] + A[i+1]
+    - **`test_gauss_seidel_red_black`**:
+      - **Loop Logic**:
+        ```
+        // Red Pass (odd indices)
+        for i = 1, 3, 5, ...:
+          A[i] = A[i-1] + A[i+1]
 
-    // Black Pass (even indices)
-    for i = 2, 4, 6, ...:
-      A[i] = A[i-1] + A[i+1]
-
-    // Traditional 1D Gauss-Seidel
-    for i = 1 to N-1:
-      A[i] = A[i-1] + A[i+1]
-    ```
-  - **Description**: Both Red and Black passes involve writes to odd/even indices and reads from adjacent even/odd indices, respectively. No dependency between iterations for any data configuration, making them parallel. The Traditional 1D Gauss-Seidel loop is inherently sequential due to a Read-After-Write (RAW) dependency where `A[i]` depends on `A[i-1]` from the current iteration.
-  - **Expected Outcome**: Both Red and Black Passes Not DOFS (Parallelizable). SMT query returns UNSAT. Traditional 1D Gauss-Seidel DOFS (Sequential). SMT query returns SAT.
+        // Black Pass (even indices)
+        for i = 2, 4, 6, ...:
+          A[i] = A[i-1] + A[i+1]
+        ```
+      - **Description**: This test covers both Red and Black passes. Both passes involve writes to odd/even indices and reads from adjacent even/odd indices, respectively. No dependency between iterations for any data configuration, making them parallel.
+      - **Expected Outcome**: Both Red and Black Passes Not DOFS (Parallelizable). SMT query returns UNSAT.
+    - **`test_gauss_seidel_traditional`**:
+      - **Loop Logic**:
+        ```
+        // Traditional 1D Gauss-Seidel
+        for i = 1 to N-1:
+          A[i] = A[i-1] + A[i+1]
+        ```
+      - **Description**: This loop is inherently sequential due to a Read-After-Write (RAW) dependency where `A[i]` depends on `A[i-1]` from the current iteration.
+      - **Expected Outcome**: Traditional 1D Gauss-Seidel DOFS (Sequential). SMT query returns SAT.
