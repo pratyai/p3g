@@ -1,6 +1,3 @@
-from pysmt.shortcuts import INT, Int, Minus, Symbol, Plus
-from pysmt.typing import ArrayType
-
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
@@ -10,7 +7,7 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
 class TestProveExistsDataForallIterIsdep:
-    def test_cholesky_sequential(self):
+    def test_cholesky_sequential_dofs(self):
         """
         Cholesky Decomposition-like kernel (fully sequential)
         for i = 2...N:
@@ -37,12 +34,12 @@ class TestProveExistsDataForallIterIsdep:
         smt_query_inner = generate_smt_for_prove_exists_data_forall_iter_isdep(
             inner_loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (cholesky_inner) ---")
+        print("\n--- Generated SMT Query (cholesky_sequential_inner_dofs) ---")
         print(smt_query_inner)
         print("--------------------------------------------")
 
         # EXPECT: sat (True) - Inner loop has dependency L[i,j] <- L[i,j-1]
-        result_inner = solve_smt_string(smt_query_inner, "cholesky_inner")
+        result_inner = solve_smt_string(smt_query_inner, "cholesky_sequential_inner_dofs")
         assert result_inner, (
             "Expected inner loop to be DOFS (sequential) but SMT solver returned UNSAT."
         )
@@ -61,12 +58,12 @@ class TestProveExistsDataForallIterIsdep:
         smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isdep(
             outer_loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (cholesky_outer) ---")
+        print("\n--- Generated SMT Query (cholesky_sequential_outer_dofs) ---")
         print(smt_query_outer)
         print("--------------------------------------------")
 
         # EXPECT: unsat (False) - Outer loop is Not DOFS (Parallel)
-        result_outer = solve_smt_string(smt_query_outer, "cholesky_outer")
+        result_outer = solve_smt_string(smt_query_outer, "cholesky_sequential_outer_dofs")
         assert not result_outer, (
             "Expected outer loop to be Not DOFS (parallel) but SMT solver returned SAT."
         )
@@ -74,7 +71,7 @@ class TestProveExistsDataForallIterIsdep:
             "\nOuter Loop Verdict: PASSED. Not DOFS (Parallel) as expected. All checks PASSED."
         )
 
-    def test_cholesky_full_kernel(self):
+    def test_cholesky_full_kernel_dofs(self):
         """
         More accurate Cholesky Decomposition kernel (fully sequential)
         for i = 0 to N-1:
@@ -112,12 +109,12 @@ class TestProveExistsDataForallIterIsdep:
         smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isdep(
             outer_loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (cholesky_full_kernel) ---")
+        print("\n--- Generated SMT Query (cholesky_full_kernel_dofs) ---")
         print(smt_query_outer)
         print("---------------------------------------------------")
 
         # EXPECT: sat (True) - Full Cholesky is highly sequential
-        result_outer = solve_smt_string(smt_query_outer, "cholesky_full_kernel")
+        result_outer = solve_smt_string(smt_query_outer, "cholesky_full_kernel_dofs")
         assert result_outer, (
             "Expected full Cholesky kernel to be DOFS (sequential) but SMT solver returned UNSAT."
         )
@@ -127,7 +124,7 @@ class TestProveExistsDataForallIterIsdep:
 
 
 class TestProveExistsDataForallLoopBoundsIterIsdep:
-    def test_cholesky_sequential_loop_bounds(self):
+    def test_cholesky_sequential_dofs_forall_bounds(self):
         """
         Cholesky Decomposition-like kernel (fully sequential)
         for i = 2...N:
@@ -152,11 +149,11 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query_inner = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             inner_loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (cholesky_inner_loop_bounds) ---")
+        print("\n--- Generated SMT Query (cholesky_sequential_inner_dofs_forall_bounds) ---")
         print(smt_query_inner)
         print("--------------------------------------------")
 
-        result_inner = solve_smt_string(smt_query_inner, "cholesky_inner_loop_bounds")
+        result_inner = solve_smt_string(smt_query_inner, "cholesky_sequential_inner_dofs_forall_bounds")
         assert result_inner, (
             "Expected inner loop (loop bounds) to be DOFS (sequential) but SMT solver returned UNSAT."
         )
@@ -169,11 +166,11 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query_outer = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             outer_loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (cholesky_outer_loop_bounds) ---")
+        print("\n--- Generated SMT Query (cholesky_sequential_outer_dofs_forall_bounds) ---")
         print(smt_query_outer)
         print("--------------------------------------------")
 
-        result_outer = solve_smt_string(smt_query_outer, "cholesky_outer_loop_bounds")
+        result_outer = solve_smt_string(smt_query_outer, "cholesky_sequential_outer_dofs_forall_bounds")
         assert not result_outer, (
             "Expected outer loop (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
         )
@@ -181,7 +178,7 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
             "\nOuter Loop Verdict: PASSED. Not DOFS (Parallel) as expected. All checks PASSED."
         )
 
-    def test_cholesky_full_kernel_loop_bounds(self):
+    def test_cholesky_full_kernel_dofs_forall_bounds(self):
         """
         More accurate Cholesky Decomposition kernel (fully sequential)
         This test expects the full Cholesky kernel to be Data-Oblivious Full Sequential (DOFS),
@@ -209,11 +206,11 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query_outer = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             outer_loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (cholesky_full_kernel_loop_bounds) ---")
+        print("\n--- Generated SMT Query (cholesky_full_kernel_dofs_forall_bounds) ---")
         print(smt_query_outer)
         print("---------------------------------------------------")
 
-        result_outer = solve_smt_string(smt_query_outer, "cholesky_full_kernel_loop_bounds")
+        result_outer = solve_smt_string(smt_query_outer, "cholesky_full_kernel_dofs_forall_bounds")
         assert result_outer, (
             "Expected full Cholesky kernel (loop bounds) to be DOFS (sequential) but SMT solver returned UNSAT."
         )

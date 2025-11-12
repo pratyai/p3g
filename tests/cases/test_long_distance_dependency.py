@@ -1,5 +1,3 @@
-from pysmt.shortcuts import INT, Int, Minus, GT, LE, Symbol
-
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
@@ -9,7 +7,7 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
 class TestProveExistsDataForallIterIsdep:
-    def test_long_distance_dependency(self):
+    def test_long_distance_dependency_dofs(self):
         """
         Test case for a loop with long-distance dependency: for i = 2...N: A[i] = A[max(i-10, 0)] + B[i].
         The dependency is A[i] <- A[max(i-10, 0)]. Due to the 'max(i-10, 0)' term,
@@ -32,13 +30,13 @@ class TestProveExistsDataForallIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (long_distance_dependency) ---")
+        print("\n--- Generated SMT Query (long_distance_dependency_dofs) ---")
         print(smt_query)
         print("----------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across all adjacent iterations due to the long-distance dependency.
-        result = solve_smt_string(smt_query, "long_distance_dependency_check")
+        result = solve_smt_string(smt_query, "long_distance_dependency_dofs")
         assert not result, (
             "Expected long-distance dependency loop to be Not DOFS (parallel) but SMT solver returned SAT."
         )
@@ -48,7 +46,7 @@ class TestProveExistsDataForallIterIsdep:
 
 
 class TestProveExistsDataForallLoopBoundsIterIsdep:
-    def test_long_distance_dependency_loop_bounds(self):
+    def test_long_distance_dependency_dofs_forall_bounds(self):
         """
         Test case for a loop with long-distance dependency using loop bounds SMT:
         for i = 2...N: A[i] = A[max(i-10, 0)] + B[i].
@@ -68,13 +66,13 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (long_distance_dependency_loop_bounds) ---")
+        print("\n--- Generated SMT Query (long_distance_dependency_dofs_forall_bounds) ---")
         print(smt_query)
         print("----------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across all adjacent iterations due to the long-distance dependency.
-        result = solve_smt_string(smt_query, "long_distance_dependency_loop_bounds_check")
+        result = solve_smt_string(smt_query, "long_distance_dependency_dofs_forall_bounds")
         assert not result, (
             "Expected long-distance dependency loop (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
         )

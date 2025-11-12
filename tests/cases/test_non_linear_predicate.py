@@ -1,5 +1,3 @@
-from pysmt.shortcuts import INT, LE, Times, GT, Minus, Int, GE, Symbol
-
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
@@ -9,7 +7,7 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
 class TestProveExistsDataForallIterIsdep:
-    def test_non_linear_predicate(self):
+    def test_non_linear_predicate_dofs(self):
         """
         Test case for a loop with a Non-linear Predicate:
         for i=0:N {
@@ -33,13 +31,13 @@ class TestProveExistsDataForallIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (non_linear_predicate) ---")
+        print("\n--- Generated SMT Query (non_linear_predicate_dofs) ---")
         print(smt_query)
         print("--------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across all adjacent iterations, as the parallel branch can always be taken.
-        result = solve_smt_string(smt_query, "non_linear_predicate_check")
+        result = solve_smt_string(smt_query, "non_linear_predicate_dofs")
         assert not result, (
             "Expected non-linear predicate loop to be Not DOFS (parallel) but SMT solver returned SAT."
         )
@@ -49,7 +47,7 @@ class TestProveExistsDataForallIterIsdep:
 
 
 class TestProveExistsDataForallLoopBoundsIterIsdep:
-    def test_non_linear_predicate_loop_bounds(self):
+    def test_non_linear_predicate_dofs_forall_bounds(self):
         """
         Test case for a loop with a Non-linear Predicate using loop bounds SMT:
         for i=0:N {
@@ -75,13 +73,13 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (non_linear_predicate_loop_bounds) ---")
+        print("\n--- Generated SMT Query (non_linear_predicate_dofs_forall_bounds) ---")
         print(smt_query)
         print("--------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across all adjacent iterations, as the parallel branch can always be taken.
-        result = solve_smt_string(smt_query, "non_linear_predicate_loop_bounds_check")
+        result = solve_smt_string(smt_query, "non_linear_predicate_dofs_forall_bounds")
         assert not result, (
             "Expected non-linear predicate loop (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
         )

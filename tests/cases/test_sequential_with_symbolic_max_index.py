@@ -1,5 +1,3 @@
-from pysmt.shortcuts import Int, Minus, Symbol, INT, Max, GE
-
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
@@ -9,7 +7,7 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
 class TestProveExistsDataForallIterIsdep:
-    def test_sequential_with_symbolic_max_index(self):
+    def test_sequential_with_symbolic_max_index_dofs(self):
         """
         Test case for a Sequential Loop with max(i-w, 0) index, where w is a symbolic variable.
         for i = 2...N: A[i] = A[max(i-w, 0)] + B[i]
@@ -31,13 +29,13 @@ class TestProveExistsDataForallIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (sequential_with_symbolic_max_index) ---")
+        print("\n--- Generated SMT Query (sequential_with_symbolic_max_index_dofs) ---")
         print(smt_query)
         print("-----------------------------------------------------------------")
 
         # EXPECT: sat (True) - A data configuration (value for w) exists that forces
         # sequential execution across all adjacent iterations.
-        result = solve_smt_string(smt_query, "sequential_with_symbolic_max_index_check")
+        result = solve_smt_string(smt_query, "sequential_with_symbolic_max_index_dofs")
         assert result, (
             "Expected sequential loop with symbolic max index to be DOFS (sequential) but SMT solver returned UNSAT."
         )
@@ -47,7 +45,7 @@ class TestProveExistsDataForallIterIsdep:
 
 
 class TestProveExistsDataForallLoopBoundsIterIsdep:
-    def test_sequential_with_symbolic_max_index_loop_bounds(self):
+    def test_sequential_with_symbolic_max_index_dofs_forall_bounds(self):
         """
         Test case for a Sequential Loop with max(i-w, 0) index, where w is a symbolic variable.
         for i = 2...N: A[i] = A[max(i-w, 0)] + B[i]
@@ -69,13 +67,13 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (sequential_with_symbolic_max_index_loop_bounds) ---")
+        print("\n--- Generated SMT Query (sequential_with_symbolic_max_index_dofs_forall_bounds) ---")
         print(smt_query)
         print("-----------------------------------------------------------------")
 
         # EXPECT: sat (True) - A data configuration (value for w) exists that forces
         # sequential execution across all adjacent iterations.
-        result = solve_smt_string(smt_query, "sequential_with_symbolic_max_index_loop_bounds_check")
+        result = solve_smt_string(smt_query, "sequential_with_symbolic_max_index_dofs_forall_bounds")
         assert result, (
             "Expected sequential loop with symbolic max index (loop bounds) to be DOFS (sequential) but SMT solver returned UNSAT."
         )

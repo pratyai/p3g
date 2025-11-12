@@ -1,5 +1,3 @@
-from pysmt.shortcuts import Int, Minus, Symbol, INT
-
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
@@ -9,7 +7,7 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
 class TestProveExistsDataForallIterIsdep:
-    def test_sequential_loop(self):
+    def test_sequential_loop_dofs(self):
         """
         Test case for a Sequential Loop: for i = 2...N: A[i] = A[i-1] + B[i].
         This loop has a Read-After-Write (RAW) dependency: A[i] reads A[i-1],
@@ -29,13 +27,13 @@ class TestProveExistsDataForallIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (sequential_loop) ---")
+        print("\n--- Generated SMT Query (sequential_loop_dofs) ---")
         print(smt_query)
         print("---------------------------------------------")
 
         # EXPECT: sat (True) - A data configuration exists that forces sequential execution
         # across all adjacent iterations due to the RAW dependency.
-        result = solve_smt_string(smt_query, "sequential_loop_check")
+        result = solve_smt_string(smt_query, "sequential_loop_dofs")
         assert result, (
             "Expected sequential loop to be DOFS (sequential) but SMT solver returned UNSAT."
         )
@@ -43,7 +41,7 @@ class TestProveExistsDataForallIterIsdep:
 
 
 class TestProveExistsDataForallLoopBoundsIterIsdep:
-    def test_sequential_loop_loop_bounds(self):
+    def test_sequential_loop_dofs_forall_bounds(self):
         """
         Test case for a Sequential Loop using loop bounds SMT: for i = 2...N: A[i] = A[i-1] + B[i].
         This loop has a Read-After-Write (RAW) dependency: A[i] reads A[i-1],
@@ -65,13 +63,13 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (sequential_loop_loop_bounds) ---")
+        print("\n--- Generated SMT Query (sequential_loop_dofs_forall_bounds) ---")
         print(smt_query)
         print("---------------------------------------------")
 
         # EXPECT: sat (True) - A data configuration exists that forces sequential execution
         # across all adjacent iterations due to the RAW dependency.
-        result = solve_smt_string(smt_query, "sequential_loop_loop_bounds_check")
+        result = solve_smt_string(smt_query, "sequential_loop_dofs_forall_bounds")
         assert result, (
             "Expected sequential loop (loop bounds) to be DOFS (sequential) but SMT solver returned UNSAT."
         )

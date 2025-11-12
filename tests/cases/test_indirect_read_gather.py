@@ -1,5 +1,3 @@
-from pysmt.shortcuts import Symbol, INT, ArrayType, Int, Select
-
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
@@ -9,7 +7,7 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
 class TestProveExistsDataForallIterIsdep:
-    def test_indirect_read_gather(self):
+    def test_indirect_read_gather_dofs(self):
         """
         Test case for Indirect Read (Gather) operation: for i = 1...N: A[i] = B[ IDX[i] ].
         This operation is generally parallelizable because writes to A[i] are independent
@@ -32,13 +30,13 @@ class TestProveExistsDataForallIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (indirect_read_gather) ---")
+        print("\n--- Generated SMT Query (indirect_read_gather_dofs) ---")
         print(smt_query)
         print("--------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across all adjacent iterations.
-        result = solve_smt_string(smt_query, "indirect_read_gather_check")
+        result = solve_smt_string(smt_query, "indirect_read_gather_dofs")
         assert not result, (
             "Expected indirect read (gather) to be Not DOFS (parallel) but SMT solver returned SAT."
         )
@@ -48,7 +46,7 @@ class TestProveExistsDataForallIterIsdep:
 
 
 class TestProveExistsDataForallLoopBoundsIterIsdep:
-    def test_indirect_read_gather_loop_bounds(self):
+    def test_indirect_read_gather_dofs_forall_bounds(self):
         """
         Test case for Indirect Read (Gather) operation using loop bounds SMT: for i = 1...N: A[i] = B[ IDX[i] ].
         This operation is generally parallelizable because writes to A[i] are independent
@@ -71,13 +69,13 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (indirect_read_gather_loop_bounds) ---")
+        print("\n--- Generated SMT Query (indirect_read_gather_dofs_forall_bounds) ---")
         print(smt_query)
         print("--------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across all adjacent iterations.
-        result = solve_smt_string(smt_query, "indirect_read_gather_loop_bounds_check")
+        result = solve_smt_string(smt_query, "indirect_read_gather_dofs_forall_bounds")
         assert not result, (
             "Expected indirect read (gather) (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
         )

@@ -1,5 +1,3 @@
-from pysmt.shortcuts import Symbol, INT, ArrayType, Int, Select
-
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
@@ -9,7 +7,7 @@ from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
 class TestProveExistsDataForallIterIsdep:
-    def test_indirect_write_scatter(self):
+    def test_indirect_write_scatter_dofs(self):
         """
         Test case for Indirect Write (Scatter) operation: for i = 1...N: A[ IDX[i] ] = B[i].
         This operation is generally sequential because multiple iterations can write to the same
@@ -34,13 +32,13 @@ class TestProveExistsDataForallIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (indirect_write_scatter) ---")
+        print("\n--- Generated SMT Query (indirect_write_scatter_dofs) ---")
         print(smt_query)
         print("---------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across *all* adjacent iterations. This means it's parallelizable.
-        result = solve_smt_string(smt_query, "indirect_write_scatter_check")
+        result = solve_smt_string(smt_query, "indirect_write_scatter_dofs")
         assert not result, (
             "Expected indirect write (scatter) to be Not DOFS (parallel) but SMT solver returned SAT."
         )
@@ -50,7 +48,7 @@ class TestProveExistsDataForallIterIsdep:
 
 
 class TestProveExistsDataForallLoopBoundsIterIsdep:
-    def test_indirect_write_scatter_loop_bounds(self):
+    def test_indirect_write_scatter_dofs_forall_bounds(self):
         """
         Test case for Indirect Write (Scatter) operation using loop bounds SMT: for i = 1...N: A[ IDX[i] ] = B[i].
         This operation is generally sequential because multiple iterations can write to the same
@@ -75,13 +73,13 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (indirect_write_scatter_loop_bounds) ---")
+        print("\n--- Generated SMT Query (indirect_write_scatter_dofs_forall_bounds) ---")
         print(smt_query)
         print("---------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across *all* adjacent iterations. This means it's parallelizable.
-        result = solve_smt_string(smt_query, "indirect_write_scatter_loop_bounds_check")
+        result = solve_smt_string(smt_query, "indirect_write_scatter_dofs_forall_bounds")
         assert not result, (
             "Expected indirect write (scatter) (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
         )
