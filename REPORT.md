@@ -51,6 +51,11 @@ DATA!A == 10001
 DATA!B == 10002
 3 <= N
 True
+
+--- Model (Witness) ---
+N = 3
+DATA!B = 10002
+DATA!A = 10001
 ```
 
 ---
@@ -74,9 +79,13 @@ DOFS (Sequential) for general `N` (SMT SAT); Not DOFS (Parallel) for `N >= 3` (S
 DATA!A == 10001
 2 <= N
 ForAll(k,
-       Or(Not(And(2 <= N, 0 <= k, k <= -2 + N)),
-          2*k == -2 + N,
-          N + -2*k == 2))
+       Or(2*k == -2 + N,
+          N + -2*k == 2,
+          Not(And(2 <= N, 0 <= k, k <= -2 + N))))
+
+--- Model (Witness) ---
+N = 2
+DATA!A = 10001
 ```
 ##### `array_reversal_not_dofs_check.smt2`
 ```
@@ -109,8 +118,8 @@ DATA!A == 10001
 DATA!B == 10002
 3 <= N
 ForAll(k,
-       Or(Not(And(3 <= N, 2 <= k, k <= -1 + N)),
-          And(Not(k <= 10), k <= 9, k == 0),
+       Or(And(Not(k <= 10), k <= 9, k == 0),
+          Not(And(3 <= N, 2 <= k, k <= -1 + N)),
           And(k <= 10, k <= 9, Or(-1 == k, k == 0)),
           And(k <= 10, Not(k <= 9), -1 == k)))
 ```
@@ -186,6 +195,12 @@ DATA!A == 10001
 ForAll(k,
        Or(Not(And(2 <= N, 1 <= k, k <= -1 + N)),
           And(Not(B_val[k] <= 0), Not(B_val[1 + k] <= 0))))
+
+--- Model (Witness) ---
+B_val = K(Int, 2)
+N = 2
+DATA!B = 10002
+DATA!A = 10001
 ```
 
 ---
@@ -209,15 +224,26 @@ DATA!A == 10001
 DATA!B == 10002
 2 <= N
 ForAll(k,
-       Or(And(Not(B_val[k] + -1*B_val[13] <= 0),
-              DATA!A == DATA!B,
-              k == 13),
-          And(Not(B_val[1 + k] + -1*B_val[13] <= 0),
+       Or(And(Not(B_val[1 + k] + -1*B_val[13] <= 0),
               DATA!B == DATA!A,
               12 == k),
-          Not(And(2 <= N, 1 <= k, k <= -1 + N)),
           And(Not(B_val[k] + -1*B_val[13] <= 0),
-              Not(B_val[1 + k] + -1*B_val[13] <= 0))))
+              DATA!A == DATA!B,
+              k == 13),
+          And(Not(B_val[k] + -1*B_val[13] <= 0),
+              Not(B_val[1 + k] + -1*B_val[13] <= 0)),
+          Not(And(2 <= N, 1 <= k, k <= -1 + N))))
+
+--- Model (Witness) ---
+B_val = Lambda(k!0,
+       If(And(2 <= k!0, Not(13 <= k!0)),
+          7720,
+          If(2 <= k!0,
+             If(And(2 <= k!0, 13 <= k!0), 7719, 6),
+             7720)))
+N = 2
+DATA!B = 10002
+DATA!A = 10001
 ```
 ##### `data_aware_bi_b13_high_N_check.smt2`
 ```
@@ -226,15 +252,15 @@ DATA!B == 10002
 15 <= N
 2 <= N
 ForAll(k,
-       Or(Not(And(2 <= N, 1 <= k, k <= -1 + N)),
-          And(Not(B_val[k] + -1*B_val[13] <= 0),
-              Not(B_val[1 + k] + -1*B_val[13] <= 0)),
+       Or(And(Not(B_val[1 + k] + -1*B_val[13] <= 0),
+              DATA!B == DATA!A,
+              12 == k),
+          Not(And(2 <= N, 1 <= k, k <= -1 + N)),
           And(Not(B_val[k] + -1*B_val[13] <= 0),
               DATA!A == DATA!B,
               k == 13),
-          And(Not(B_val[1 + k] + -1*B_val[13] <= 0),
-              DATA!B == DATA!A,
-              12 == k)))
+          And(Not(B_val[k] + -1*B_val[13] <= 0),
+              Not(B_val[1 + k] + -1*B_val[13] <= 0))))
 ```
 
 ---
@@ -257,29 +283,35 @@ DATA!B == 10002
 DATA!A == 10001
 3 <= N
 ForAll(k,
-       Or(And(Not(k + -1*w <= 0),
-              k + -1*w <= -1,
-              Or(w == -1, k == 0)),
-          And(Not(k + -1*w <= -1),
-              Or(w == -1, w == 1, -1 == k)),
-          Not(And(3 <= N, 2 <= k, k <= -1 + N)),
-          w == -1,
-          And(k + -1*w <= 0, Or(w == 1, -1 == k, k == 0)),
-          w == 1,
-          -1 == k,
+       Or(w == -1,
+          And(k + -1*w <= 0, Or(k == 0, w == 1, -1 == k)),
+          And(Not(k + -1*w <= 0),
+              Or(w == -1, k == 0, w == 1)),
           And(Not(k + -1*w <= 0),
               Not(k + -1*w <= -1),
               Or(w == -1, w == 1)),
-          And(Not(k + -1*w <= 0),
-              Or(w == -1, w == 1, k == 0)),
-          And(k + -1*w <= -1, Or(w == -1, -1 == k, k == 0)),
+          Not(And(3 <= N, 2 <= k, k <= -1 + N)),
+          And(k + -1*w <= 0,
+              k + -1*w <= -1,
+              Or(k == 0, -1 == k)),
+          k == 0,
+          And(k + -1*w <= -1, Or(w == -1, k == 0, -1 == k)),
           And(k + -1*w <= 0,
               Not(k + -1*w <= -1),
               Or(w == 1, -1 == k)),
-          And(k + -1*w <= 0,
+          w == 1,
+          -1 == k,
+          And(Not(k + -1*w <= 0),
               k + -1*w <= -1,
-              Or(-1 == k, k == 0)),
-          k == 0))
+              Or(w == -1, k == 0)),
+          And(Not(k + -1*w <= -1),
+              Or(w == -1, w == 1, -1 == k))))
+
+--- Model (Witness) ---
+w = 1
+N = 3
+DATA!B = 10002
+DATA!A = 10001
 ```
 
 ---
@@ -308,9 +340,9 @@ DATA!B == 10002
 DATA!C == 10003
 1 <= N
 ForAll(k,
-       Or(And(k*k <= N, Not((1 + k)*(1 + k) <= N)),
-          Not(And(1 <= N, 0 <= k, k <= -1 + N)),
-          And(Not(k*k <= N), Not((1 + k)*(1 + k) <= N))))
+       Or(And(Not(k*k <= N), Not((1 + k)*(1 + k) <= N)),
+          And(k*k <= N, Not((1 + k)*(1 + k) <= N)),
+          Not(And(1 <= N, 0 <= k, k <= -1 + N))))
 ```
 
 ---
@@ -336,6 +368,11 @@ DATA!B == 10002
 DATA!A == 10001
 2 <= N
 True
+
+--- Model (Witness) ---
+N = 2
+DATA!B = 10002
+DATA!A = 10001
 ```
 ##### `nested_loop_outer_dofs_inner_check.smt2`
 ```
@@ -366,6 +403,11 @@ DATA!A == 10001
 DATA!B == 10002
 2 <= M
 True
+
+--- Model (Witness) ---
+M = 2
+DATA!B = 10002
+DATA!A = 10001
 ```
 ##### `nested_loop_outer_not_dofs_check.smt2`
 ```
@@ -398,6 +440,10 @@ Inner Loop DOFS (Sequential); Outer Loop Not DOFS (Parallel).
 DATA!L == 10001
 3 <= i
 True
+
+--- Model (Witness) ---
+i = 3
+DATA!L = 10001
 ```
 ##### `cholesky_outer.smt2`
 ```
@@ -432,6 +478,12 @@ DATA!A == 10001
 DATA!sum_val == 10003
 2 <= N
 True
+
+--- Model (Witness) ---
+N = 2
+DATA!L = 10002
+DATA!sum_val = 10003
+DATA!A = 10001
 ```
 
 ---
@@ -494,6 +546,10 @@ Traditional 1D Gauss-Seidel DOFS (Sequential). SMT query returns SAT.
 DATA!A == 10001
 3 <= N
 True
+
+--- Model (Witness) ---
+N = 3
+DATA!A = 10001
 ```
 
 ---

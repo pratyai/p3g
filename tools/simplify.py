@@ -45,6 +45,12 @@ def simplify_smt_file(input_file, readable_dir, smt2_dir):
         # --- 4. Generate and save outputs ---
         # Readable output
         readable_output = "\n".join([str(a) for a in simplified_solver.assertions()])
+        if simplified_result == sat:
+            model = simplified_solver.model()
+            readable_output += "\n\n--- Model (Witness) ---\n"
+            for d in model.decls():
+                readable_output += f"{d.name()} = {model[d]}\n"
+
         with open(readable_path, 'w') as f:
             f.write(readable_output)
 
