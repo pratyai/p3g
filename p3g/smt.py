@@ -157,6 +157,79 @@ def _intersect_to_formula(
         return Or(clauses)
 
 
+def _build_dependency_logic_assertions(
+    loop_node: Loop,
+    k: PysmtSymbol,
+    builder: _StringSmtBuilder,
+    id_to_symbol_map: Dict[int, PysmtSymbol],
+) -> (str, str):
+    """
+    Builds the SMT-LIB assertions for the dependency logic between adjacent loop iterations.
+    This includes generating let-bindings for WAW, RAW, WAR conflicts and the main OR body.
+
+    Args:
+        loop_node: The P3G Loop node being analyzed.
+        k: The PysmtSymbol representing the current iteration variable.
+        builder: The _StringSmtBuilder instance to serialize formulas.
+        id_to_symbol_map: A map from array_id to PysmtSymbol for data arrays.
+
+    Returns:
+        A tuple containing (let_bindings_str, main_body_str).
+    """
+    path_model_fn = create_path_model_fn(loop_node)
+    paths_k = path_model_fn(k)
+    paths_j = path_model_fn(Plus(k, Int(1)))
+
+    let_bindings_list = []
+    dep_var_names = []
+
+    for idx_k, (pred_k, W_k, R_k) in enumerate(paths_k):
+        for idx_j, (pred_j, W_j, R_j) in enumerate(paths_j):
+            waw = _intersect_to_formula(W_k, W_j, id_to_symbol_map)
+            raw = _intersect_to_formula(W_k, R_j, id_to_symbol_map)
+            war = _intersect_to_formula(R_k, W_j, id_to_symbol_map)
+
+            waw_var = f"p{idx_k}p{idx_j}_waw"
+            raw_var = f"p{idx_k}p{idx_j}_raw"
+            war_var = f"p{idx_k}p{idx_j}_war"
+
+            waw_str = builder._serialize(waw)
+            raw_str = builder._serialize(raw)
+            war_str = builder._serialize(war)
+
+            path_pair_conflict_str = f"(or {waw_var} {raw_var} {war_var})"
+
+            conflict_let_str = f"""
+(let (
+    ({waw_var} {waw_str})
+    ({raw_var} {raw_str})
+    ({war_var} {war_str})
+    ) {path_pair_conflict_str})
+"""
+
+            pred_k_str = builder._serialize(pred_k)
+            pred_j_str = builder._serialize(pred_j)
+
+            full_path_dependency_str = f"""
+(and {pred_k_str} {pred_j_str} {conflict_let_str})
+"""
+
+            dep_var_name = f"p{idx_k}p{idx_j}_dep"
+
+            let_bindings_list.append(f"; p{idx_k}(k) <-> p{idx_j}(j) dependency")
+            let_bindings_list.append(f"({dep_var_name} {full_path_dependency_str})")
+            let_bindings_list.append("")  # Add a blank line for readability
+
+            dep_var_names.append(dep_var_name)
+
+    main_body_str = (
+        "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
+    )
+
+    let_bindings = "\n".join(let_bindings_list)
+    return let_bindings, main_body_str
+
+
 # Helper for recursive free variable extraction (needed for multi-dimensional access tuples)
 def _get_free_variables_recursive(
     formula_or_tuple: [PysmtFormula, tuple, list],
@@ -350,63 +423,13 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
         "Loop runs at least two adjacent iterations",
     )
 
-    path_model_fn = create_path_model_fn(loop_node)
-    paths_k = path_model_fn(k)
-    paths_j = path_model_fn(Plus(k, Int(1)))
-
     builder.assertions.append("\n; --- Dependency Logic Definitions ---")
-    # builder.add_assertion(GE(k, loop_start), "Iteration 'k' lower bound")
-    # builder.add_assertion(LE(j, loop_end), "Iteration 'k+1' upper bound")
     loop_runs_at_least_two_iterations = GE(loop_end, Plus(loop_start, Int(1)))
     k_lower_bound = GE(k, loop_start)
 
-    let_bindings_list = []
-    dep_var_names = []
-
-    for idx_k, (pred_k, W_k, R_k) in enumerate(paths_k):
-        for idx_j, (pred_j, W_j, R_j) in enumerate(paths_j):
-            waw = _intersect_to_formula(W_k, W_j, id_to_symbol_map)
-            raw = _intersect_to_formula(W_k, R_j, id_to_symbol_map)
-            war = _intersect_to_formula(R_k, W_j, id_to_symbol_map)
-
-            waw_var = f"p{idx_k}p{idx_j}_waw"
-            raw_var = f"p{idx_k}p{idx_j}_raw"
-            war_var = f"p{idx_k}p{idx_j}_war"
-
-            waw_str = builder._serialize(waw)
-            raw_str = builder._serialize(raw)
-            war_str = builder._serialize(war)
-
-            path_pair_conflict_str = f"(or {waw_var} {raw_var} {war_var})"
-
-            conflict_let_str = f"""
-(let (
-    ({waw_var} {waw_str})
-    ({raw_var} {raw_str})
-    ({war_var} {war_str})
-    ) {path_pair_conflict_str})
-"""
-
-            pred_k_str = builder._serialize(pred_k)
-            pred_j_str = builder._serialize(pred_j)
-
-            full_path_dependency_str = f"""
-(and {pred_k_str} {pred_j_str} {conflict_let_str})
-"""
-
-            dep_var_name = f"p{idx_k}p{idx_j}_dep"
-
-            let_bindings_list.append(f"; p{idx_k}(k) <-> p{idx_j}(j) dependency")
-            let_bindings_list.append(f"({dep_var_name} {full_path_dependency_str})")
-            let_bindings_list.append("")  # Add a blank line for readability
-
-            dep_var_names.append(dep_var_name)
-
-    main_body_str = (
-        "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
+    let_bindings, main_body_str = _build_dependency_logic_assertions(
+        loop_node, k, builder, id_to_symbol_map
     )
-
-    let_bindings = "\n".join(let_bindings_list)
 
     loop_bound_str = f"""(and
     {builder._serialize(loop_runs_at_least_two_iterations)}
@@ -433,3 +456,141 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
 {smt_query}
 """)
     return smt_query
+
+
+def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
+    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+) -> str:
+    """
+    Generates an SMT-LIB query string to prove Data-Oblivious Full Sequentiality (Φ_DOFS)
+    for a given loop, with symbolic loop bounds explicitly universally quantified.
+
+    This function is similar to `generate_smt_for_prove_exists_data_forall_iter_isdep`,
+    but it explicitly includes any symbolic variables found in the loop's start and end
+    bounds in the universal quantifier (`forall`) part of the SMT query. This means
+    the solver will attempt to prove the property for *all possible integer values*
+    of these symbolic loop bounds.
+
+    A loop is considered Data-Oblivious Full Sequential (DOFS) if there exists *at least one*
+    specific assignment of values to its symbolic data arrays (a "data configuration")
+    such that a data dependency is guaranteed to exist between *every* pair of adjacent
+    iterations (k and k+1) within the loop's execution range.
+    In simpler terms, a DOFS loop *cannot* be parallelized because there's at least one
+    data scenario where dependencies always force sequential execution.
+
+    The SMT query is constructed to find such a "sequentializing" data configuration.
+
+    Interpretation of SMT Solver Results:
+    - If the SMT solver returns `SAT` (Satisfiable), it means the query's assertion is true:
+      it has found a data configuration for which a dependency exists between
+      iterations `k` and `k+1` for all valid `k` AND for all possible values of
+      the symbolic loop bounds.
+      Therefore, the loop is **DOFS (Sequential)**.
+    - If the SMT solver returns `UNSAT` (Unsatisfiable), it means the query's assertion is false:
+      no such "sequentializing" data configuration exists. This implies that for *every*
+      data configuration, there is at least one pair of adjacent iterations (k, k+1)
+      that does *not* have a dependency.
+      Therefore, the loop is **not DOFS (Parallel)**.
+
+    Args:
+        loop_node: The P3G Loop node for which to generate the SMT query.
+        extra_assertions: An optional list of additional PysmtFormula assertions
+                          to include in the SMT query. These can be used to
+                          constrain symbolic variables (e.g., array sizes,
+                          specific data values) for more targeted analysis.
+        verbose: If True, prints the generated SMT query to stdout.
+
+    Returns:
+        A string containing the SMT-LIB query.
+    """
+
+    k = loop_node.loop_var  # Use the loop's internal iteration variable
+    existential_quantifier_vars = _get_existential_quantifier_vars(loop_node, k)
+
+    # Identify symbolic loop bound variables
+    symbolic_loop_bounds = set()
+    for free_var in _get_free_variables_recursive(loop_node.start):
+        if free_var != k:
+            symbolic_loop_bounds.add(free_var)
+    for free_var in _get_free_variables_recursive(loop_node.end):
+        if free_var != k:
+            symbolic_loop_bounds.add(free_var)
+
+    universal_quantifier_vars = [f"({k.symbol_name()} {k.get_type()})"]
+    for sym in symbolic_loop_bounds:
+        universal_quantifier_vars.append(f"({sym.symbol_name()} {sym.get_type()})")
+
+    builder = _StringSmtBuilder()
+
+    # Declare existential quantifiers
+    for sym in existential_quantifier_vars:
+        builder.declarations.add(sym)
+
+    # Declare universal quantifiers (k and symbolic loop bounds)
+    builder.declarations.add(k)
+    for sym in symbolic_loop_bounds:
+        builder.declarations.add(sym)
+
+    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
+    # root_graph = loop_node.builder.root_graph # No longer needed directly here
+
+    all_data_nodes: Set[Data] = set()
+    _collect_all_data_nodes(
+        loop_node.builder.root_graph, all_data_nodes
+    )  # Collect from the entire graph
+
+    builder.assertions.append("; --- Data Definitions ---")
+    for node in all_data_nodes:  # Iterate over all collected Data nodes
+        sym = Symbol(f"DATA!{node.name}", INT)
+        id_to_symbol_map[node.array_id] = sym
+        defn = Equals(sym, Int(node.array_id))
+        builder.add_assertion(defn, f"Define DATA!{node.name}")
+
+    # NEW BLOCK: Add human-provided assertions
+    if extra_assertions:
+        builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
+        for idx, assertion in enumerate(extra_assertions):
+            builder.add_assertion(assertion, f"Human Assertion #{idx}")
+
+    builder.assertions.append("\n; --- Loop Bounds ---")
+    loop_start, loop_end = loop_node.start, loop_node.end
+
+    builder.add_assertion(
+        GE(loop_end, Plus(loop_start, Int(1))),
+        "Loop runs at least two adjacent iterations",
+    )
+
+    builder.assertions.append("\n; --- Dependency Logic Definitions ---")
+    loop_runs_at_least_two_iterations = GE(loop_end, Plus(loop_start, Int(1)))
+    k_lower_bound = GE(k, loop_start)
+
+    let_bindings, main_body_str = _build_dependency_logic_assertions(
+        loop_node, k, builder, id_to_symbol_map
+    )
+
+    loop_bound_str = f"""(and
+    {builder._serialize(loop_runs_at_least_two_iterations)}
+    {builder._serialize(k_lower_bound)}
+    {builder._serialize(LE(Plus(k, Int(1)), loop_end))}
+)"""
+    # Construct the inner forall (k)
+    inner_forall_str = f"""(forall ({" ".join(universal_quantifier_vars)}) ; End of universal variables
+    (=> {loop_bound_str}
+    (let (
+        {let_bindings}
+        )
+        ; Main formula
+        {main_body_str}
+    )
+))"""
+
+    # No existential quantifiers, just assert the inner forall
+    builder.assertions.append(f"(assert {inner_forall_str})")
+
+    smt_query = builder.build_query()
+    if verbose:
+        print(f"""
+{smt_query}
+""")
+    return smt_query
+

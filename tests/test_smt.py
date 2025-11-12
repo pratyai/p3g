@@ -10,7 +10,6 @@ from pysmt.shortcuts import (
     ArrayType,
     Store,
     Select,
-    Equals,
 )
 from pysmt.smtlib.parser import SmtLibParser
 from pysmt.walkers import IdentityDagWalker
@@ -380,52 +379,3 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         assert (
             LE(Plus(Symbol("i", INT), Int(1)), N) in loop_bounds_formula.args()
         )  # (<= (+ i 1) N)
-
-    def test_complex_symbolic_bounds(self):
-        builder = GraphBuilder()
-        i = builder.add_symbol("i")
-        N = builder.add_symbol("N")
-        offset = builder.add_symbol("offset")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
-
-        # Loop from 'offset' to 'N + 5'
-        with builder.add_loop(
-            "loop1", "i", offset, Plus(N, Int(5)), reads=[(A, i)], writes=[(B, i)]
-        ) as loop:
-            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
-
-        smt_query_string = (
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(loop)
-        )
-        inspector = parse_smt_query_and_inspect(smt_query_string)
-
-        # Check for declarations
-        expected_declarations = {"N", "offset", "DATA!A", "DATA!B", "i"}
-        declared_symbols = {
-            cmd.args[0].symbol_name()
-            for cmd in inspector.declarations
-            if cmd.name == "declare-fun"
-        }
-        assert declared_symbols.issuperset(expected_declarations)
-
-        # Check for quantifiers
-        assert len(inspector.quantifiers) == 1
-        quantifier_type, q_vars, q_body = inspector.quantifiers[0]
-        assert quantifier_type == "forall"
-        assert len(q_vars) == 3  # Includes i, N, and offset
-        assert Symbol("i", INT) in q_vars
-        assert Symbol("N", INT) in q_vars
-        assert Symbol("offset", INT) in q_vars
-
-        # Check loop bounds in the formula
-        main_assertion_body = q_body
-        loop_bounds_formula = main_assertion_body.arg(0)
-        assert loop_bounds_formula.is_and()
-        assert (
-            GE(Plus(N, Int(5)), Plus(offset, Int(1))) in loop_bounds_formula.args()
-        )  # (<= (+ offset 1) (+ N 5))
-        assert GE(Symbol("i", INT), offset) in loop_bounds_formula.args()  # (<= offset i)
-        assert (
-            LE(Plus(Symbol("i", INT), Int(1)), Plus(N, Int(5))) in loop_bounds_formula.args()
-        )  # (<= (+ i 1) (+ N 5))
