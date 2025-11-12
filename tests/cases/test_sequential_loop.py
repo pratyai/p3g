@@ -22,25 +22,33 @@ def test_sequential_loop():
     B_root = b.add_data("B")
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(2), N,
-                    reads=[(A_root, (Int(1), Minus(N, Int(1)))), (B_root, (Int(2), N))],
-                    writes=[(A_root, (Int(2), N))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(2),
+        N,
+        reads=[(A_root, (Int(1), Minus(N, Int(1)))), (B_root, (Int(2), N))],
+        writes=[(A_root, (Int(2), N))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
         # Get local references to the data containers for this scope
         A_local = b.add_data("A", is_output=True)
         B_local = b.add_data("B")
-        b.add_compute("T1",
-                      reads=[(A_local, Minus(k, Int(1))), (B_local, k)],
-                      writes=[(A_local, k)]
-                      )
+        b.add_compute(
+            "T1",
+            reads=[(A_local, Minus(k, Int(1))), (B_local, k)],
+            writes=[(A_local, k)],
+        )
 
     # Print constructed P3G
     print_p3g_structure(b.root_graph)
 
     loop_end = N
     print(f"Generating SMT query for N (symbolic).")
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
+        loop_node, verbose=False
+    )
     print("\n--- Generated SMT Query (sequential_loop) ---")
     print(smt_query)
     print("---------------------------------------------")
@@ -48,5 +56,7 @@ def test_sequential_loop():
     # EXPECT: sat (True) - A data configuration exists that forces sequential execution
     # across all adjacent iterations due to the RAW dependency.
     result = solve_smt_string(smt_query, "sequential_loop_check")
-    assert result, "Expected sequential loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    assert result, (
+        "Expected sequential loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    )
     print("\nVerdict: PASSED. Sequential Loop is DOFS (Sequential) as expected.")

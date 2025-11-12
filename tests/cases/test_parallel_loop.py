@@ -24,9 +24,14 @@ def test_parallel_loop():
     C_root = b.add_data("C")
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(0), N,
-                    reads=[(B_root, (Int(0), N)), (C_root, (Int(0), N))],
-                    writes=[(A_root, (Int(0), N))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(0),
+        N,
+        reads=[(B_root, (Int(0), N)), (C_root, (Int(0), N))],
+        writes=[(A_root, (Int(0), N))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
 
@@ -35,17 +40,16 @@ def test_parallel_loop():
         B_local = b.add_data("B")
         C_local = b.add_data("C")
 
-        b.add_compute("T1",
-                      reads=[(B_local, k), (C_local, k)],
-                      writes=[(A_local, k)]
-                      )
+        b.add_compute("T1", reads=[(B_local, k), (C_local, k)], writes=[(A_local, k)])
 
     # Print constructed P3G
     print_p3g_structure(b.root_graph)
 
     loop_end = Minus(N, Int(1))
     print(f"Generating SMT query for N (symbolic).")
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
+        loop_node, verbose=False
+    )
     print("\n--- Generated SMT Query (parallel_loop) ---")
     print(smt_query)
     print("-------------------------------------------")
@@ -53,5 +57,7 @@ def test_parallel_loop():
     # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
     # across all adjacent iterations, as each iteration is independent.
     result = solve_smt_string(smt_query, "parallel_loop_check")
-    assert not result, "Expected parallel loop to be Not DOFS (parallel) but SMT solver returned SAT."
+    assert not result, (
+        "Expected parallel loop to be Not DOFS (parallel) but SMT solver returned SAT."
+    )
     print("\nVerdict: PASSED. Parallel Loop is Not DOFS (Parallel) as expected.")

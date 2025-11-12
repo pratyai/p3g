@@ -14,7 +14,9 @@ def test_data_aware_bi_b13():
     and the loop becomes A[i] = A[i-1], which is sequential.
     The SMT query should return SAT, indicating DOFS (sequential).
     """
-    print("\n--- Running Test: Data-Aware (B[i] - B[13]) (Expected: DOFS/Sequential) ---")
+    print(
+        "\n--- Running Test: Data-Aware (B[i] - B[13]) (Expected: DOFS/Sequential) ---"
+    )
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     B_val = Symbol("B_val", ArrayType(INT, INT))
@@ -24,9 +26,18 @@ def test_data_aware_bi_b13():
     const_idx = Int(13)
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(1), N,
-                    reads=[(A_root, (Int(0), Minus(N, Int(1)))), (B_root, (Int(1), N)), (B_root, const_idx)],
-                    writes=[(A_root, (Int(1), N))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(1),
+        N,
+        reads=[
+            (A_root, (Int(0), Minus(N, Int(1)))),
+            (B_root, (Int(1), N)),
+            (B_root, const_idx),
+        ],
+        writes=[(A_root, (Int(1), N))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
 
@@ -34,9 +45,16 @@ def test_data_aware_bi_b13():
         A_local = b.add_data("A", is_output=True)
         B_local = b.add_data("B")
 
-        with b.add_branch("B1",
-                          reads=[(A_local, Minus(k, Int(1))), (A_local, k), (B_local, k), (B_local, const_idx)],
-                          writes=[(A_local, k)]) as B1:
+        with b.add_branch(
+            "B1",
+            reads=[
+                (A_local, Minus(k, Int(1))),
+                (A_local, k),
+                (B_local, k),
+                (B_local, const_idx),
+            ],
+            writes=[(A_local, k)],
+        ) as B1:
             val_k = Select(B_val, k)
             val_13 = Select(B_val, const_idx)
 
@@ -45,10 +63,16 @@ def test_data_aware_bi_b13():
                 # Data nodes local to this path's graph
                 A_path1 = b.add_data("A", is_output=True)
                 B_path1 = b.add_data("B")
-                b.add_compute("T1_seq",
-                              reads=[(B_path1, k), (B_path1, const_idx), (A_path1, Minus(k, Int(1))), (A_path1, k)],
-                              writes=[(A_path1, k)]
-                              )
+                b.add_compute(
+                    "T1_seq",
+                    reads=[
+                        (B_path1, k),
+                        (B_path1, const_idx),
+                        (A_path1, Minus(k, Int(1))),
+                        (A_path1, k),
+                    ],
+                    writes=[(A_path1, k)],
+                )
         # with b.add_branch("B2",
         #                   reads=[(B_local, k), (B_local, const_idx)],
         #                   writes=[]) as B2:
@@ -69,7 +93,9 @@ def test_data_aware_bi_b13():
 
     loop_end = N
     print(f"Generating SMT query for N (symbolic) with no extra assertions.")
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
+        loop_node, verbose=False
+    )
     print("\n--- Generated SMT Query (data_aware_bi_b13) ---")
     print(smt_query)
     print("-----------------------------------------------")
@@ -78,7 +104,9 @@ def test_data_aware_bi_b13():
     # The SMT solver will find a suitable N and values for B such that the condition
     # (B[i] - B[13] > 0) is always true for all relevant i, making the loop sequential.
     result = solve_smt_string(smt_query, "data_aware_bi_b13_check")
-    assert result, "Expected data-aware loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    assert result, (
+        "Expected data-aware loop to be DOFS (sequential) but SMT solver returned UNSAT."
+    )
     print("\nVerdict: PASSED. Data-aware loop is DOFS (Sequential) as expected.")
 
 
@@ -92,7 +120,9 @@ def test_data_aware_bi_b13_high_N():
     the loop is Not Data-Oblivious Full Sequential (Not DOFS), meaning it is parallelizable.
     The SMT query should return UNSAT, indicating Not DOFS (parallel).
     """
-    print("\n--- Running Test: Data-Aware (B[i] - B[13]) High N (Expected: Not DOFS/Parallel) ---")
+    print(
+        "\n--- Running Test: Data-Aware (B[i] - B[13]) High N (Expected: Not DOFS/Parallel) ---"
+    )
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
@@ -102,9 +132,18 @@ def test_data_aware_bi_b13_high_N():
     const_idx = Int(13)
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(1), N,
-                    reads=[(A_root, (Int(0), Minus(N, Int(1)))), (B_root, (Int(1), N)), (B_root, const_idx)],
-                    writes=[(A_root, (Int(1), N))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(1),
+        N,
+        reads=[
+            (A_root, (Int(0), Minus(N, Int(1)))),
+            (B_root, (Int(1), N)),
+            (B_root, const_idx),
+        ],
+        writes=[(A_root, (Int(1), N))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
 
@@ -112,9 +151,11 @@ def test_data_aware_bi_b13_high_N():
         A_local = b.add_data("A", is_output=True)
         B_local = b.add_data("B")
 
-        with b.add_branch("B1",
-                          reads=[(A_local, Minus(k, Int(1))), (B_local, k), (B_local, const_idx)],
-                          writes=[(A_local, k)]) as B1:
+        with b.add_branch(
+            "B1",
+            reads=[(A_local, Minus(k, Int(1))), (B_local, k), (B_local, const_idx)],
+            writes=[(A_local, k)],
+        ) as B1:
             val_k = Select(B_val, k)
             val_13 = Select(B_val, const_idx)
 
@@ -123,10 +164,15 @@ def test_data_aware_bi_b13_high_N():
                 # Data nodes local to this path's graph
                 A_path1 = b.add_data("A", is_output=True)
                 B_path1 = b.add_data("B")
-                b.add_compute("T1_seq",
-                              reads=[(B_path1, k), (B_path1, const_idx), (A_path1, Minus(k, Int(1)))],
-                              writes=[(A_path1, k)]
-                              )
+                b.add_compute(
+                    "T1_seq",
+                    reads=[
+                        (B_path1, k),
+                        (B_path1, const_idx),
+                        (A_path1, Minus(k, Int(1))),
+                    ],
+                    writes=[(A_path1, k)],
+                )
 
         # with b.add_branch("B2",
         #                   reads=[(B_local, k), (B_local, const_idx)],
@@ -148,7 +194,8 @@ def test_data_aware_bi_b13_high_N():
     loop_end = N
     print(f"Generating SMT query for N (symbolic) with extra assertion: N >= 15.")
     smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
-        loop_node, loop_end, extra_assertions=[GE(N, Int(15))], verbose=False)
+        loop_node, extra_assertions=[GE(N, Int(15))], verbose=False
+    )
     print("\n--- Generated SMT Query (data_aware_bi_b13_high_N) ---")
     print(smt_query)
     print("-----------------------------------------------------")
@@ -156,5 +203,9 @@ def test_data_aware_bi_b13_high_N():
     # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
     # across all adjacent iterations when N >= 15, because the dependency is skipped for k=13.
     result = solve_smt_string(smt_query, "data_aware_bi_b13_high_N_check")
-    assert not result, "Expected data-aware loop to be Not DOFS (parallel) but SMT solver returned SAT."
-    print("\nVerdict: PASSED. Data-aware loop is Not DOFS (Parallel) as expected for N >= 15.")
+    assert not result, (
+        "Expected data-aware loop to be Not DOFS (parallel) but SMT solver returned SAT."
+    )
+    print(
+        "\nVerdict: PASSED. Data-aware loop is Not DOFS (Parallel) as expected for N >= 15."
+    )

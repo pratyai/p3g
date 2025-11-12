@@ -16,6 +16,7 @@ OUTPUT_DIR = "tmp/smt"
 
 # --- Graph Printing Utility ---
 
+
 def _aggregate_accesses(graph: Graph) -> tuple[WriteSet, ReadSet]:
     """
     Recursively collects all unique (array_id, subset) Write and Read access pairs
@@ -51,7 +52,7 @@ def print_p3g_structure(graph: Graph, indent=0):
     """Recursively prints the P3G structure."""
 
     # Print Graph Header/Name and Symbols
-    s_indent = '  ' * indent
+    s_indent = "  " * indent
     print(f"{s_indent}### {graph.name} ### (Symbols: {list(graph.symbols.keys())})")
 
     # 1. Print Data/Atomic Nodes (only at the root level for brevity)
@@ -59,23 +60,49 @@ def print_p3g_structure(graph: Graph, indent=0):
         data_nodes = [n for n in graph.nodes if isinstance(n, Data)]
         if data_nodes:
             print(
-                f"{s_indent}  Data Nodes (IDs): {', '.join([f'{d.name} ({d.array_id}, Out: {d.is_output})' for d in data_nodes])}")
+                f"{s_indent}  Data Nodes (IDs): {', '.join([f'{d.name} ({d.array_id}, Out: {d.is_output})' for d in data_nodes])}"
+            )
 
     # 2. Print Control/Structure and Compute Nodes
     for node in graph.nodes:
         if isinstance(node, Compute):
             # Show Compute nodes as part of the dataflow
-            writes = ', '.join([f"{e.dst.name}[{e.subset}]" for e in node.out_edges if isinstance(e.dst, Data)])
-            reads = ', '.join([f"{e.src.name}[{e.subset}]" for e in node.in_edges if isinstance(e.src, Data)])
+            writes = ", ".join(
+                [
+                    f"{e.dst.name}[{e.subset}]"
+                    for e in node.out_edges
+                    if isinstance(e.dst, Data)
+                ]
+            )
+            reads = ", ".join(
+                [
+                    f"{e.src.name}[{e.subset}]"
+                    for e in node.in_edges
+                    if isinstance(e.src, Data)
+                ]
+            )
             print(f"{s_indent}  COMPUTE ({node.name}): Reads={reads}, Writes={writes}")
 
         elif isinstance(node, (Loop, Map, Reduce)):
             # Print accesses for the structure node itself (hierarchical edges)
-            node_writes = ', '.join([f"{e.dst.name}[{e.subset}]" for e in node.out_edges if isinstance(e.dst, Data)])
-            node_reads = ', '.join([f"{e.src.name}[{e.subset}]" for e in node.in_edges if isinstance(e.src, Data)])
+            node_writes = ", ".join(
+                [
+                    f"{e.dst.name}[{e.subset}]"
+                    for e in node.out_edges
+                    if isinstance(e.dst, Data)
+                ]
+            )
+            node_reads = ", ".join(
+                [
+                    f"{e.src.name}[{e.subset}]"
+                    for e in node.in_edges
+                    if isinstance(e.src, Data)
+                ]
+            )
 
             print(
-                f"{s_indent}  {node.__class__.__name__} ({node.name}): iter={node.loop_var} in [{node.start}, {node.end}]")
+                f"{s_indent}  {node.__class__.__name__} ({node.name}): iter={node.loop_var} in [{node.start}, {node.end}]"
+            )
             if node_reads:
                 print(f"{s_indent}    > Node Reads: {node_reads}")
             if node_writes:
@@ -85,9 +112,26 @@ def print_p3g_structure(graph: Graph, indent=0):
 
         elif isinstance(node, Branch):
             # Print accesses for the Branch node itself
-            node_writes = ', '.join([f"{e.dst.name}[{e.subset}]" for e in node.out_edges if isinstance(e.dst, Data)])
-            node_reads = ', '.join([f"{e.src.name}[{e.subset}]" for e in node.in_edges if isinstance(e.src, Data)])
-            predicate_reads = ', '.join([f"ID {arr_id}[{subset}]" for arr_id, subset in node.get_predicate_read_set()])
+            node_writes = ", ".join(
+                [
+                    f"{e.dst.name}[{e.subset}]"
+                    for e in node.out_edges
+                    if isinstance(e.dst, Data)
+                ]
+            )
+            node_reads = ", ".join(
+                [
+                    f"{e.src.name}[{e.subset}]"
+                    for e in node.in_edges
+                    if isinstance(e.src, Data)
+                ]
+            )
+            predicate_reads = ", ".join(
+                [
+                    f"ID {arr_id}[{subset}]"
+                    for arr_id, subset in node.get_predicate_read_set()
+                ]
+            )
 
             print(f"{s_indent}  BRANCH ({node.name})")
             if node_reads:
@@ -116,7 +160,7 @@ def solve_smt_string(smt_string: str, case_name: str) -> bool:
 
     # 1. Write the SMT string to the file (for inspection)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with open(filename, 'w') as f:
+    with open(filename, "w") as f:
         f.write(smt_string)
     print(f"SMT query saved to {filename}")
 
@@ -154,9 +198,11 @@ def solve_smt_string(smt_string: str, case_name: str) -> bool:
                     print(model)
                 except (NotImplementedError, Z3Exception) as e:
                     print(f"Cannot print model (sometime it's library's fault): {e}")
-                print("Note: The model only displays concrete values for symbols it could determine. "
-                      "For arrays or other symbols without a concrete assignment, their values are not shown here. "
-                      "You can query specific symbols by name if needed.")
+                print(
+                    "Note: The model only displays concrete values for symbols it could determine. "
+                    "For arrays or other symbols without a concrete assignment, their values are not shown here. "
+                    "You can query specific symbols by name if needed."
+                )
                 print("-------------")
                 return True
             else:

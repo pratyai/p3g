@@ -16,7 +16,9 @@ def test_indirect_read_gather():
     meaning it is parallelizable.
     The SMT query should return UNSAT, indicating Not DOFS (parallel).
     """
-    print("\n--- Running Test: Indirect Read (Gather) (Expected: Not DOFS/Parallel) ---")
+    print(
+        "\n--- Running Test: Indirect Read (Gather) (Expected: Not DOFS/Parallel) ---"
+    )
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
@@ -25,9 +27,14 @@ def test_indirect_read_gather():
     IDX_root = b.add_data("IDX", pysmt_array_sym=IDX_val)
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(1), N,
-                    reads = [(B_root, (Int(0), N)), (IDX_root, (Int(0), N))],
-                    writes = [(A_root, (Int(0), N))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(1),
+        N,
+        reads=[(B_root, (Int(0), N)), (IDX_root, (Int(0), N))],
+        writes=[(A_root, (Int(0), N))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
 
@@ -37,17 +44,20 @@ def test_indirect_read_gather():
 
         read_idx = Select(IDX_val, k)
 
-        b.add_compute("T1_gather",
-                      reads=[(B_local, read_idx), (IDX_local, k)],
-                      writes=[(A_local, k)]
-                      )
+        b.add_compute(
+            "T1_gather",
+            reads=[(B_local, read_idx), (IDX_local, k)],
+            writes=[(A_local, k)],
+        )
 
     # Print constructed P3G
     print_p3g_structure(b.root_graph)
 
     loop_end = N
     print(f"Generating SMT query for N (symbolic).")
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
+        loop_node, verbose=False
+    )
     print("\n--- Generated SMT Query (indirect_read_gather) ---")
     print(smt_query)
     print("--------------------------------------------------")
@@ -55,5 +65,9 @@ def test_indirect_read_gather():
     # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
     # across all adjacent iterations.
     result = solve_smt_string(smt_query, "indirect_read_gather_check")
-    assert not result, "Expected indirect read (gather) to be Not DOFS (parallel) but SMT solver returned SAT."
-    print("\nVerdict: PASSED. Indirect Read (Gather) is Not DOFS (Parallel) as expected.")
+    assert not result, (
+        "Expected indirect read (gather) to be Not DOFS (parallel) but SMT solver returned SAT."
+    )
+    print(
+        "\nVerdict: PASSED. Indirect Read (Gather) is Not DOFS (Parallel) as expected."
+    )

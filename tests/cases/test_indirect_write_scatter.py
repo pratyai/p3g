@@ -19,7 +19,9 @@ def test_indirect_write_scatter():
     The current test expects the loop to be Not DOFS (parallelizable) for *some* data configurations,
     meaning it's not *always* sequential. This implies the SMT solver should return UNSAT.
     """
-    print("\n--- Running Test: Indirect Write (Scatter) (Expected: Not DOFS/Parallel) ---")
+    print(
+        "\n--- Running Test: Indirect Write (Scatter) (Expected: Not DOFS/Parallel) ---"
+    )
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
@@ -28,9 +30,14 @@ def test_indirect_write_scatter():
     IDX_root = b.add_data("IDX", pysmt_array_sym=IDX_val)
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(1), N,
-                    reads=[(B_root, (Int(0), N)), (IDX_root, (Int(0), N))],
-                    writes=[(A_root, (Int(0), N))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(1),
+        N,
+        reads=[(B_root, (Int(0), N)), (IDX_root, (Int(0), N))],
+        writes=[(A_root, (Int(0), N))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
 
@@ -40,17 +47,20 @@ def test_indirect_write_scatter():
 
         write_idx = Select(IDX_val, k)
 
-        b.add_compute("T1_scatter",
-                      reads=[(B_local, k), (IDX_local, k)],
-                      writes=[(A_local, write_idx)]
-                      )
+        b.add_compute(
+            "T1_scatter",
+            reads=[(B_local, k), (IDX_local, k)],
+            writes=[(A_local, write_idx)],
+        )
 
     # Print constructed P3G
     print_p3g_structure(b.root_graph)
 
     loop_end = N
     print(f"Generating SMT query for N (symbolic).")
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
+        loop_node, verbose=False
+    )
     print("\n--- Generated SMT Query (indirect_write_scatter) ---")
     print(smt_query)
     print("---------------------------------------------------")
@@ -58,5 +68,9 @@ def test_indirect_write_scatter():
     # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
     # across *all* adjacent iterations. This means it's parallelizable.
     result = solve_smt_string(smt_query, "indirect_write_scatter_check")
-    assert not result, "Expected indirect write (scatter) to be Not DOFS (parallel) but SMT solver returned SAT."
-    print("\nVerdict: PASSED. Indirect Write (Scatter) is Not DOFS (Parallel) as expected.")
+    assert not result, (
+        "Expected indirect write (scatter) to be Not DOFS (parallel) but SMT solver returned SAT."
+    )
+    print(
+        "\nVerdict: PASSED. Indirect Write (Scatter) is Not DOFS (Parallel) as expected."
+    )

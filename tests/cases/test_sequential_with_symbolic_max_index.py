@@ -15,7 +15,9 @@ def test_sequential_with_symbolic_max_index():
     This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
     meaning the SMT query should return SAT, indicating DOFS (sequential).
     """
-    print("\n--- Running Test: Sequential Loop with symbolic max(i-w, 0) index (Expected: DOFS/Sequential) ---")
+    print(
+        "\n--- Running Test: Sequential Loop with symbolic max(i-w, 0) index (Expected: DOFS/Sequential) ---"
+    )
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     w = b.add_symbol("w", INT)
@@ -23,38 +25,39 @@ def test_sequential_with_symbolic_max_index():
     B = b.add_data("B")
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(2), N,
-                    reads=[(A, (Int(0), N)), (B, (Int(2), N))],
-                    writes=[(A, (Int(2), N))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(2),
+        N,
+        reads=[(A, (Int(0), N)), (B, (Int(2), N))],
+        writes=[(A, (Int(2), N))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
 
-        with b.add_branch("B1",
-                          reads=[(A, Minus(k, w)), (A, Int(0)), (B, k)],
-                          writes=[(A, k)]) as B1:
+        with b.add_branch(
+            "B1", reads=[(A, Minus(k, w)), (A, Int(0)), (B, k)], writes=[(A, k)]
+        ) as B1:
             # if k - w > 0
             P1 = GT(Minus(k, w), Int(0))
             with B1.add_path(P1):
                 idx = Minus(k, w)
-                b.add_compute("T1_gt",
-                              reads=[(A, idx), (B, k)],
-                              writes=[(A, k)]
-                              )
+                b.add_compute("T1_gt", reads=[(A, idx), (B, k)], writes=[(A, k)])
             # else
             P2 = LE(Minus(k, w), Int(0))
             with B1.add_path(P2):
                 idx = Int(0)
-                b.add_compute("T2_le",
-                              reads=[(A, idx), (B, k)],
-                              writes=[(A, k)]
-                              )
+                b.add_compute("T2_le", reads=[(A, idx), (B, k)], writes=[(A, k)])
 
     # Print constructed P3G
     print_p3g_structure(b.root_graph)
 
     loop_end = N
     print(f"Generating SMT query for N (symbolic) and w (symbolic).")
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
+        loop_node, verbose=False
+    )
     print("\n--- Generated SMT Query (sequential_with_symbolic_max_index) ---")
     print(smt_query)
     print("-----------------------------------------------------------------")
@@ -62,5 +65,9 @@ def test_sequential_with_symbolic_max_index():
     # EXPECT: sat (True) - A data configuration (value for w) exists that forces
     # sequential execution across all adjacent iterations.
     result = solve_smt_string(smt_query, "sequential_with_symbolic_max_index_check")
-    assert result, "Expected sequential loop with symbolic max index to be DOFS (sequential) but SMT solver returned UNSAT."
-    print("\nVerdict: PASSED. Sequential Loop with symbolic max(i-w, 0) index is DOFS (Sequential) as expected.")
+    assert result, (
+        "Expected sequential loop with symbolic max index to be DOFS (sequential) but SMT solver returned UNSAT."
+    )
+    print(
+        "\nVerdict: PASSED. Sequential Loop with symbolic max(i-w, 0) index is DOFS (Sequential) as expected."
+    )

@@ -16,16 +16,23 @@ def test_long_distance_dependency():
     meaning it is parallelizable.
     The SMT query should return UNSAT, indicating Not DOFS (parallel).
     """
-    print("\n--- Running Test: Loop with long-distance dependency (Expected: Not DOFS/Parallel) ---")
+    print(
+        "\n--- Running Test: Loop with long-distance dependency (Expected: Not DOFS/Parallel) ---"
+    )
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
     B_root = b.add_data("B")
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(2), N,
-                    reads=[(A_root, (Int(0), N)), (B_root, (Int(2), N))],
-                    writes=[(A_root, (Int(2), N))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(2),
+        N,
+        reads=[(A_root, (Int(0), N)), (B_root, (Int(2), N))],
+        writes=[(A_root, (Int(2), N))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
 
@@ -35,41 +42,41 @@ def test_long_distance_dependency():
 
         idx = Minus(k, Int(10))
 
-        with b.add_branch("B1",
-                          reads=[(A_local, idx), (B_local, k)],
-                          writes=[(A_local, k)]) as B1:
+        with b.add_branch(
+            "B1", reads=[(A_local, idx), (B_local, k)], writes=[(A_local, k)]
+        ) as B1:
             # if k - 10 > 0
             P1 = GT(Minus(k, Int(10)), Int(0))
             with B1.add_path(P1):
                 # Data nodes local to this path's graph
                 A_path1 = b.add_data("A", is_output=True)
                 B_path1 = b.add_data("B")
-                b.add_compute("T1_gt",
-                              reads=[(A_path1, idx), (B_path1, k)],
-                              writes=[(A_path1, k)]
-                              )
+                b.add_compute(
+                    "T1_gt", reads=[(A_path1, idx), (B_path1, k)], writes=[(A_path1, k)]
+                )
 
         idx = Int(0)
-        with b.add_branch("B2",
-                          reads=[(A_local, idx), (B_local, k)],
-                          writes=[(A_local, k)]) as B2:
+        with b.add_branch(
+            "B2", reads=[(A_local, idx), (B_local, k)], writes=[(A_local, k)]
+        ) as B2:
             # else
             P2 = LE(Minus(k, Int(10)), Int(0))
             with B2.add_path(P2):
                 # Data nodes local to this path's graph
                 A_path2 = b.add_data("A", is_output=True)
                 B_path2 = b.add_data("B")
-                b.add_compute("T2_le",
-                              reads=[(A_path2, idx), (B_path2, k)],
-                              writes=[(A_path2, k)]
-                              )
+                b.add_compute(
+                    "T2_le", reads=[(A_path2, idx), (B_path2, k)], writes=[(A_path2, k)]
+                )
 
     # Print constructed P3G
     print_p3g_structure(b.root_graph)
 
     loop_end = N
     print(f"Generating SMT query for N (symbolic).")
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
+        loop_node, verbose=False
+    )
     print("\n--- Generated SMT Query (long_distance_dependency) ---")
     print(smt_query)
     print("----------------------------------------------------")
@@ -77,5 +84,9 @@ def test_long_distance_dependency():
     # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
     # across all adjacent iterations due to the long-distance dependency.
     result = solve_smt_string(smt_query, "long_distance_dependency_check")
-    assert not result, "Expected long-distance dependency loop to be Not DOFS (parallel) but SMT solver returned SAT."
-    print("\nVerdict: PASSED. Long-distance dependency loop is Not DOFS (Parallel) as expected.")
+    assert not result, (
+        "Expected long-distance dependency loop to be Not DOFS (parallel) but SMT solver returned SAT."
+    )
+    print(
+        "\nVerdict: PASSED. Long-distance dependency loop is Not DOFS (Parallel) as expected."
+    )

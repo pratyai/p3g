@@ -1,19 +1,41 @@
 import io
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict, Set
 
 from pysmt.shortcuts import (
-    Symbol, INT, Equals,
-    And, TRUE, Plus, Int, get_free_variables, FALSE, Or, GE, LE
+    Symbol,
+    INT,
+    Equals,
+    And,
+    TRUE,
+    Plus,
+    Int,
+    get_free_variables,
+    FALSE,
+    Or,
+    GE,
+    LE,
 )
 from pysmt.smtlib.printers import SmtPrinter
 
 # --- Import P3G model classes ---
 from p3g.p3g import (
-    Graph, Loop, Data, Compute, Branch, Map, PysmtFormula, PysmtSymbol,
-    ReadSet, WriteSet, create_path_model_fn, Reduce
+    Graph,
+    Loop,
+    Data,
+    Compute,
+    Branch,
+    Map,
+    PysmtFormula,
+    PysmtSymbol,
+    ReadSet,
+    WriteSet,
+    create_path_model_fn,
+    Reduce,
 )
 
+
 # --- SMT String Generation (unchanged) ---
+
 
 class _StringSmtBuilder:
     """
@@ -94,7 +116,10 @@ def _equal_indices(idx1, idx2):
             return FALSE()  # Different dimensions, cannot be equal
 
         # Create a conjunction (AND) of equality checks for each dimension
-        equalities = [Equals(_get_index_from_access(i1), _get_index_from_access(i2)) for i1, i2 in zip(idx1, idx2)]
+        equalities = [
+            Equals(_get_index_from_access(i1), _get_index_from_access(i2))
+            for i1, i2 in zip(idx1, idx2)
+        ]
         if not equalities:
             return TRUE()  # Should not happen for arrays, but handle empty tuples
         return And(equalities)
@@ -106,15 +131,16 @@ def _equal_indices(idx1, idx2):
         return FALSE()
 
 
-def _intersect_to_formula(set_a: ReadSet, set_b: WriteSet,
-                          id_to_symbol_map: Dict[int, PysmtSymbol]) -> PysmtFormula:
+def _intersect_to_formula(
+    set_a: ReadSet, set_b: WriteSet, id_to_symbol_map: Dict[int, PysmtSymbol]
+) -> PysmtFormula:
     """Creates a pysmt formula for the intersection of two sets."""
     clauses = []
     if not set_a or not set_b:
         return FALSE()
 
-    for (arr_a, idx_a) in set_a:
-        for (arr_b, idx_b) in set_b:
+    for arr_a, idx_a in set_a:
+        for arr_b, idx_b in set_b:
             arr_a_node = id_to_symbol_map[arr_a]
             arr_b_node = id_to_symbol_map[arr_b]
 
@@ -132,7 +158,9 @@ def _intersect_to_formula(set_a: ReadSet, set_b: WriteSet,
 
 
 # Helper for recursive free variable extraction (needed for multi-dimensional access tuples)
-def _get_free_variables_recursive(formula_or_tuple: [PysmtFormula, tuple, list]) -> Set[PysmtSymbol]:
+def _get_free_variables_recursive(
+    formula_or_tuple: [PysmtFormula, tuple, list],
+) -> Set[PysmtSymbol]:
     """Recursively extracts free variables from a formula or a tuple/list of formulas."""
 
     if isinstance(formula_or_tuple, (tuple, list)):
@@ -192,9 +220,8 @@ def _find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
 
 
 def _get_existential_quantifier_vars(
-        loop_node: Loop,
-        loop_end: PysmtFormula,
-        k: PysmtSymbol) -> List[PysmtSymbol]:
+    loop_node: Loop, k: PysmtSymbol
+) -> List[PysmtSymbol]:
     """
     Identifies and collects PysmtSymbol objects that need to be existentially
     quantified in the SMT query for DOFS analysis. These are typically data
@@ -203,7 +230,6 @@ def _get_existential_quantifier_vars(
 
     Args:
         loop_node: The P3G Loop node being analyzed.
-        loop_end: The upper bound of the loop.
         k: The PysmtSymbol representing the current iteration variable.
 
     Returns:
@@ -217,15 +243,17 @@ def _get_existential_quantifier_vars(
         # Exclude free variables from loop bound formulas
         # These are considered constants for the SMT solver, not universally quantified.
         for free_var_in_bound in _get_free_variables_recursive(loop_node.start):
-            if sym == free_var_in_bound: continue
+            if sym == free_var_in_bound:
+                continue
         for free_var_in_bound in _get_free_variables_recursive(loop_node.end):
-            if sym == free_var_in_bound: continue
+            if sym == free_var_in_bound:
+                continue
 
         # Exclude loop bound variables
         # Note: loop_node.start and loop_node.end might be complex formulas,
         # so direct equality check might not be sufficient if they are not simple Symbols.
         # For now, we assume they are simple Symbols or Ints.
-        if sym == loop_node.start or sym == loop_end:
+        if sym == loop_node.start or sym == loop_node.end:
             continue
 
         # Exclude the SMT solver's iteration variables
@@ -241,10 +269,8 @@ def _get_existential_quantifier_vars(
 
 
 def generate_smt_for_prove_exists_data_forall_iter_isdep(
-        loop_node: Loop,
-        loop_end: PysmtFormula,
-        extra_assertions: List[PysmtFormula] = None,
-        verbose: bool = True) -> str:
+    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+) -> str:
     """
     Generates an SMT-LIB query string to prove Data-Oblivious Full Sequentiality (Φ_DOFS)
     for a given loop.
@@ -271,8 +297,6 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
 
     Args:
         loop_node: The P3G Loop node for which to generate the SMT query.
-        loop_end: A PysmtFormula representing the upper bound of the loop.
-                  This is used to define the valid range for loop iterations `k` and `k+1`.
         extra_assertions: An optional list of additional PysmtFormula assertions
                           to include in the SMT query. These can be used to
                           constrain symbolic variables (e.g., array sizes,
@@ -284,7 +308,7 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     """
 
     k = loop_node.loop_var  # Use the loop's internal iteration variable
-    existential_quantifier_vars = _get_existential_quantifier_vars(loop_node, loop_end, k)
+    existential_quantifier_vars = _get_existential_quantifier_vars(loop_node, k)
 
     universal_quantifier_vars = [f"({k.symbol_name()} {k.get_type()})"]
 
@@ -301,7 +325,9 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     # root_graph = loop_node.builder.root_graph # No longer needed directly here
 
     all_data_nodes: Set[Data] = set()
-    _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes)  # Collect from the entire graph
+    _collect_all_data_nodes(
+        loop_node.builder.root_graph, all_data_nodes
+    )  # Collect from the entire graph
 
     builder.assertions.append("; --- Data Definitions ---")
     for node in all_data_nodes:  # Iterate over all collected Data nodes
@@ -321,7 +347,7 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
 
     builder.add_assertion(
         GE(loop_end, Plus(loop_start, Int(1))),
-        "Loop runs at least two adjacent iterations"
+        "Loop runs at least two adjacent iterations",
     )
 
     path_model_fn = create_path_model_fn(loop_node)
@@ -333,7 +359,6 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     # builder.add_assertion(LE(j, loop_end), "Iteration 'k+1' upper bound")
     loop_runs_at_least_two_iterations = GE(loop_end, Plus(loop_start, Int(1)))
     k_lower_bound = GE(k, loop_start)
-    j_upper_bound = LE(Plus(k, Int(1)), loop_end)
 
     let_bindings_list = []
     dep_var_names = []
@@ -373,11 +398,13 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
 
             let_bindings_list.append(f"; p{idx_k}(k) <-> p{idx_j}(j) dependency")
             let_bindings_list.append(f"({dep_var_name} {full_path_dependency_str})")
-            let_bindings_list.append("") # Add a blank line for readability
+            let_bindings_list.append("")  # Add a blank line for readability
 
             dep_var_names.append(dep_var_name)
 
-    main_body_str = "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
+    main_body_str = (
+        "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
+    )
 
     let_bindings = "\n".join(let_bindings_list)
 

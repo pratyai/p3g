@@ -21,9 +21,14 @@ def test_array_reversal():
     A_root = b.add_data("A", is_output=True)
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(0), Minus(N, Int(1)),
-                    reads=[(A_root, (Int(0), Minus(N, Int(1))))],
-                    writes=[(A_root, (Int(0), Minus(N, Int(1))))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(0),
+        Minus(N, Int(1)),
+        reads=[(A_root, (Int(0), Minus(N, Int(1))))],
+        writes=[(A_root, (Int(0), Minus(N, Int(1))))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
 
@@ -32,17 +37,20 @@ def test_array_reversal():
         # Get local references to the data containers for this scope
         A_local = b.add_data("A", is_output=True)
 
-        b.add_compute("T1_swap",
-                      reads=[(A_local, k), (A_local, idx_rev)],
-                      writes=[(A_local, k), (A_local, idx_rev)]
-                      )
+        b.add_compute(
+            "T1_swap",
+            reads=[(A_local, k), (A_local, idx_rev)],
+            writes=[(A_local, k), (A_local, idx_rev)],
+        )
 
     # Print constructed P3G
     print_p3g_structure(b.root_graph)
 
     loop_end = Minus(N, Int(1))
     print(f"Generating SMT query for N (symbolic) with no extra assertions.")
-    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop_node, loop_end, verbose=False)
+    smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
+        loop_node, verbose=False
+    )
     print("\n--- Generated SMT Query (test_array_reversal) ---")
     print(smt_query)
     print("--------------------------------------------------")
@@ -51,7 +59,9 @@ def test_array_reversal():
     # For example, if N=2, k=0, j=1, A[0] and A[1] are swapped.
     # If N is symbolic, the solver can pick N=2, which is sequential.
     result = solve_smt_string(smt_query, "array_reversal_dofs_check")
-    assert result, "Expected array reversal to be DOFS (sequential) but SMT solver returned UNSAT."
+    assert result, (
+        "Expected array reversal to be DOFS (sequential) but SMT solver returned UNSAT."
+    )
     print("\nVerdict: PASSED. Array reversal is DOFS (Sequential) as expected.")
 
 
@@ -66,15 +76,22 @@ def test_array_reversal_high_N():
     across all adjacent iterations.
     The SMT query should return UNSAT, indicating Not DOFS (parallel).
     """
-    print("\n--- Running Test: Array Reversal (Expected: Not DOFS/Parallel for N >= 3) ---")
+    print(
+        "\n--- Running Test: Array Reversal (Expected: Not DOFS/Parallel for N >= 3) ---"
+    )
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     A_root = b.add_data("A", is_output=True)
 
     loop_node = None
-    with b.add_loop("L1", "k", Int(0), Minus(N, Int(1)),
-                    reads=[(A_root, (Int(0), Minus(N, Int(1))))],
-                    writes=[(A_root, (Int(0), Minus(N, Int(1))))]) as L1:
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(0),
+        Minus(N, Int(1)),
+        reads=[(A_root, (Int(0), Minus(N, Int(1))))],
+        writes=[(A_root, (Int(0), Minus(N, Int(1))))],
+    ) as L1:
         k = L1.loop_var
         loop_node = L1
 
@@ -83,10 +100,11 @@ def test_array_reversal_high_N():
         # Get local references to the data containers for this scope
         A_local = b.add_data("A", is_output=True)
 
-        b.add_compute("T1_swap",
-                      reads=[(A_local, k), (A_local, idx_rev)],
-                      writes=[(A_local, k), (A_local, idx_rev)]
-                      )
+        b.add_compute(
+            "T1_swap",
+            reads=[(A_local, k), (A_local, idx_rev)],
+            writes=[(A_local, k), (A_local, idx_rev)],
+        )
 
     # Print constructed P3G
     print_p3g_structure(b.root_graph)
@@ -94,7 +112,8 @@ def test_array_reversal_high_N():
     loop_end = Minus(N, Int(1))
     print(f"Generating SMT query for N (symbolic) with extra assertion: N >= 3.")
     smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
-        loop_node, loop_end, extra_assertions=[GE(N, Int(3))], verbose=False)
+        loop_node, extra_assertions=[GE(N, Int(3))], verbose=False
+    )
     print("\n--- Generated SMT Query (test_array_reversal_high_N) ---")
     print(smt_query)
     print("---------------------------------------------------------")
@@ -102,5 +121,9 @@ def test_array_reversal_high_N():
     # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
     # across all adjacent iterations when N >= 3.
     result = solve_smt_string(smt_query, "array_reversal_not_dofs_check")
-    assert not result, "Expected array reversal to be Not DOFS (parallel) but SMT solver returned SAT."
-    print("\nVerdict: PASSED. Array reversal is Not DOFS (Parallel) as expected for N >= 3.")
+    assert not result, (
+        "Expected array reversal to be Not DOFS (parallel) but SMT solver returned SAT."
+    )
+    print(
+        "\nVerdict: PASSED. Array reversal is Not DOFS (Parallel) as expected for N >= 3."
+    )

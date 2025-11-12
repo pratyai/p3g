@@ -3,6 +3,7 @@ import os
 import glob
 from z3 import *
 
+
 def simplify_smt_file(input_file, readable_dir, smt2_dir):
     """
     Simplifies a single SMT2 file, verifies the simplification,
@@ -40,7 +41,9 @@ def simplify_smt_file(input_file, readable_dir, smt2_dir):
         simplified_solver.add(simplified_asserts)
         simplified_result = simplified_solver.check()
         print(f"  -> Simplified result: {simplified_result}")
-        assert original_result == simplified_result, "Simplification changed the satisfiability!"
+        assert original_result == simplified_result, (
+            "Simplification changed the satisfiability!"
+        )
 
         # --- 4. Generate and save outputs ---
         # Readable output
@@ -51,14 +54,14 @@ def simplify_smt_file(input_file, readable_dir, smt2_dir):
             for d in model.decls():
                 readable_output += f"{d.name()} = {model[d]}\n"
 
-        with open(readable_path, 'w') as f:
+        with open(readable_path, "w") as f:
             f.write(readable_output)
 
         # SMT-LIB v2 output
         output_solver = Solver()
         output_solver.add(simplified_asserts)
         smt2_output = output_solver.sexpr()
-        with open(smt2_path, 'w') as f:
+        with open(smt2_path, "w") as f:
             f.write(smt2_output)
 
         # --- 5. Verify the final SMT-LIB string ---
@@ -66,7 +69,9 @@ def simplify_smt_file(input_file, readable_dir, smt2_dir):
         final_checker.from_string(smt2_output)
         final_result = final_checker.check()
         print(f"  -> Final SMT output result: {final_result}")
-        assert original_result == final_result, "Final SMT output changed the satisfiability!"
+        assert original_result == final_result, (
+            "Final SMT output changed the satisfiability!"
+        )
 
         print(f"  -> All checks passed. Saved outputs.")
 
@@ -76,8 +81,18 @@ def simplify_smt_file(input_file, readable_dir, smt2_dir):
 
 def main():
     parser = argparse.ArgumentParser(description="Simplify SMT2 files in a directory.")
-    parser.add_argument("-i", "--input_dir", required=True, help="Input directory containing .smt2 files.")
-    parser.add_argument("-o", "--output_dir", required=True, help="Output directory to save simplified files.")
+    parser.add_argument(
+        "-i",
+        "--input_dir",
+        required=True,
+        help="Input directory containing .smt2 files.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_dir",
+        required=True,
+        help="Output directory to save simplified files.",
+    )
     args = parser.parse_args()
 
     # --- Validate directories ---
@@ -86,8 +101,8 @@ def main():
         exit(1)
 
     # --- Create output directories ---
-    readable_dir = os.path.join(args.output_dir, 'readable')
-    smt2_dir = os.path.join(args.output_dir, 'smt2')
+    readable_dir = os.path.join(args.output_dir, "readable")
+    smt2_dir = os.path.join(args.output_dir, "smt2")
     os.makedirs(readable_dir, exist_ok=True)
     os.makedirs(smt2_dir, exist_ok=True)
 
@@ -96,7 +111,7 @@ def main():
     print("-" * 20)
 
     # --- Find and process files ---
-    smt2_files = glob.glob(os.path.join(args.input_dir, '*.smt2'))
+    smt2_files = glob.glob(os.path.join(args.input_dir, "*.smt2"))
     if not smt2_files:
         print("No .smt2 files found in the input directory.")
         return

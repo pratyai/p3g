@@ -20,9 +20,9 @@ class TestCompute:
         B = builder.add_data("B")
         C = builder.add_data("C")
 
-        c_node = builder.add_compute("C1",
-                                     reads=[(A, Int(0)), (B, Int(1))],
-                                     writes=[(C, Int(2))])
+        c_node = builder.add_compute(
+            "C1", reads=[(A, Int(0)), (B, Int(1))], writes=[(C, Int(2))]
+        )
 
         read_set = c_node.get_read_set()
         write_set = c_node.get_write_set()
@@ -33,9 +33,7 @@ class TestCompute:
         assert (C.array_id, Int(2)) in read_set
 
         assert len(write_set) == 1
-        expected_write_set = {
-            (C.array_id, Int(2))
-        }
+        expected_write_set = {(C.array_id, Int(2))}
         actual_write_set = {item for item in write_set}
         assert actual_write_set == expected_write_set
 
@@ -73,26 +71,27 @@ class TestGraphBuilder:
         B = builder.add_data("B")
         C = builder.add_data("C")
 
-        compute_node = builder.add_compute("C1",
-                                           reads=[(A, Int(0))],
-                                           writes=[(B, Int(1)), (C, Int(2))])
+        compute_node = builder.add_compute(
+            "C1", reads=[(A, Int(0))], writes=[(B, Int(1)), (C, Int(2))]
+        )
 
         assert compute_node in builder.root_graph.nodes
         assert len(compute_node.in_edges) == 3
         expected_in_edges = {
             (A, compute_node, Int(0)),
             (B, compute_node, Int(1)),
-            (C, compute_node, Int(2))
+            (C, compute_node, Int(2)),
         }
-        actual_in_edges = {(edge.src, edge.dst, edge.subset) for edge in compute_node.in_edges}
+        actual_in_edges = {
+            (edge.src, edge.dst, edge.subset) for edge in compute_node.in_edges
+        }
         assert actual_in_edges == expected_in_edges
 
         assert len(compute_node.out_edges) == 2
-        expected_out_edges = {
-            (compute_node, B, Int(1)),
-            (compute_node, C, Int(2))
+        expected_out_edges = {(compute_node, B, Int(1)), (compute_node, C, Int(2))}
+        actual_out_edges = {
+            (edge.src, edge.dst, edge.subset) for edge in compute_node.out_edges
         }
-        actual_out_edges = {(edge.src, edge.dst, edge.subset) for edge in compute_node.out_edges}
         assert actual_out_edges == expected_out_edges
 
     def test_add_loop(self):
@@ -102,7 +101,9 @@ class TestGraphBuilder:
         A = builder.add_data("A")
         B = builder.add_data("B")
 
-        with builder.add_loop("loop1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]) as loop:
+        with builder.add_loop(
+            "loop1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
             assert loop.loop_var == i
             assert loop.start == Int(0)
             assert loop.end == N
@@ -111,18 +112,17 @@ class TestGraphBuilder:
 
             # Check hierarchical edges
             assert len(loop.in_edges) == 2
-            expected_in_edges = {
-                (A, loop, i),
-                (B, loop, i)
+            expected_in_edges = {(A, loop, i), (B, loop, i)}
+            actual_in_edges = {
+                (edge.src, edge.dst, edge.subset) for edge in loop.in_edges
             }
-            actual_in_edges = {(edge.src, edge.dst, edge.subset) for edge in loop.in_edges}
             assert actual_in_edges == expected_in_edges
 
             assert len(loop.out_edges) == 1
-            expected_out_edges = {
-                (loop, B, i)
+            expected_out_edges = {(loop, B, i)}
+            actual_out_edges = {
+                (edge.src, edge.dst, edge.subset) for edge in loop.out_edges
             }
-            actual_out_edges = {(edge.src, edge.dst, edge.subset) for edge in loop.out_edges}
             assert actual_out_edges == expected_out_edges
 
             C = builder.add_data("C")
@@ -138,7 +138,9 @@ class TestGraphBuilder:
         A = builder.add_data("A")
         B = builder.add_data("B")
 
-        with builder.add_map("map1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]) as map_node:
+        with builder.add_map(
+            "map1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as map_node:
             assert map_node.loop_var == i
             assert map_node.start == Int(0)
             assert map_node.end == N
@@ -147,18 +149,17 @@ class TestGraphBuilder:
 
             # Check hierarchical edges
             assert len(map_node.in_edges) == 2
-            expected_in_edges = {
-                (A, map_node, i),
-                (B, map_node, i)
+            expected_in_edges = {(A, map_node, i), (B, map_node, i)}
+            actual_in_edges = {
+                (edge.src, edge.dst, edge.subset) for edge in map_node.in_edges
             }
-            actual_in_edges = {(edge.src, edge.dst, edge.subset) for edge in map_node.in_edges}
             assert actual_in_edges == expected_in_edges
 
             assert len(map_node.out_edges) == 1
-            expected_out_edges = {
-                (map_node, B, i)
+            expected_out_edges = {(map_node, B, i)}
+            actual_out_edges = {
+                (edge.src, edge.dst, edge.subset) for edge in map_node.out_edges
             }
-            actual_out_edges = {(edge.src, edge.dst, edge.subset) for edge in map_node.out_edges}
             assert actual_out_edges == expected_out_edges
 
             C = builder.add_data("C")
@@ -173,32 +174,37 @@ class TestGraphBuilder:
         A = builder.add_data("A")
         B = builder.add_data("B")
 
-        with builder.add_branch("branch1", reads=[(A, Int(0))], writes=[(B, Int(0))]) as branch:
+        with builder.add_branch(
+            "branch1", reads=[(A, Int(0))], writes=[(B, Int(0))]
+        ) as branch:
             assert branch in builder.root_graph.nodes
 
             # Check hierarchical edges
             assert len(branch.in_edges) == 2
-            expected_in_edges = {
-                (A, branch, Int(0)),
-                (B, branch, Int(0))
+            expected_in_edges = {(A, branch, Int(0)), (B, branch, Int(0))}
+            actual_in_edges = {
+                (edge.src, edge.dst, edge.subset) for edge in branch.in_edges
             }
-            actual_in_edges = {(edge.src, edge.dst, edge.subset) for edge in branch.in_edges}
             assert actual_in_edges == expected_in_edges
 
             assert len(branch.out_edges) == 1
-            expected_out_edges = {
-                (branch, B, Int(0))
+            expected_out_edges = {(branch, B, Int(0))}
+            actual_out_edges = {
+                (edge.src, edge.dst, edge.subset) for edge in branch.out_edges
             }
-            actual_out_edges = {(edge.src, edge.dst, edge.subset) for edge in branch.out_edges}
             assert actual_out_edges == expected_out_edges
 
             with branch.add_path(GE(x, Int(0))):
                 C = builder.add_data("C")
-                builder.add_compute("comp_true", reads=[(A, Int(0))], writes=[(C, Int(0))])
+                builder.add_compute(
+                    "comp_true", reads=[(A, Int(0))], writes=[(C, Int(0))]
+                )
 
             with branch.add_path(LE(x, Int(-1))):
                 D = builder.add_data("D")
-                builder.add_compute("comp_false", reads=[(A, Int(0))], writes=[(D, Int(0))])
+                builder.add_compute(
+                    "comp_false", reads=[(A, Int(0))], writes=[(D, Int(0))]
+                )
 
         assert builder.current_graph == builder.root_graph
         assert len(branch.branches) == 2
@@ -214,7 +220,9 @@ class TestGraphBuilder:
         A = builder.add_data("A")
         B = builder.add_data("B")
 
-        with builder.add_reduce("reduce1", "i", Int(0), N, TRUE(), reads=[(A, i)], writes=[(B, Int(0))]) as reduce_node:
+        with builder.add_reduce(
+            "reduce1", "i", Int(0), N, TRUE(), reads=[(A, i)], writes=[(B, Int(0))]
+        ) as reduce_node:
             assert reduce_node.loop_var == i
             assert reduce_node.start == Int(0)
             assert reduce_node.end == N
@@ -224,18 +232,17 @@ class TestGraphBuilder:
 
             # Check hierarchical edges
             assert len(reduce_node.in_edges) == 2
-            expected_in_edges = {
-                (A, reduce_node, i),
-                (B, reduce_node, Int(0))
+            expected_in_edges = {(A, reduce_node, i), (B, reduce_node, Int(0))}
+            actual_in_edges = {
+                (edge.src, edge.dst, edge.subset) for edge in reduce_node.in_edges
             }
-            actual_in_edges = {(edge.src, edge.dst, edge.subset) for edge in reduce_node.in_edges}
             assert actual_in_edges == expected_in_edges
 
             assert len(reduce_node.out_edges) == 1
-            expected_out_edges = {
-                (reduce_node, B, Int(0))
+            expected_out_edges = {(reduce_node, B, Int(0))}
+            actual_out_edges = {
+                (edge.src, edge.dst, edge.subset) for edge in reduce_node.out_edges
             }
-            actual_out_edges = {(edge.src, edge.dst, edge.subset) for edge in reduce_node.out_edges}
             assert actual_out_edges == expected_out_edges
 
             C = builder.add_data("C")
@@ -253,7 +260,9 @@ class TestPathModelFn:
         A = builder.add_data("A")
         B = builder.add_data("B")
 
-        with builder.add_loop("loop1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]) as loop:
+        with builder.add_loop(
+            "loop1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
             builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
 
         path_model_fn = create_path_model_fn(loop)
@@ -277,12 +286,16 @@ class TestPathModelFn:
         B = builder.add_data("B")
         C = builder.add_data("C")
 
-        with builder.add_loop("loop1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]) as loop:
+        with builder.add_loop(
+            "loop1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
             with builder.add_branch("branch1", reads=[], writes=[]) as branch:
                 with branch.add_path(GE(x, Int(0))):
                     builder.add_compute("comp_true", reads=[(A, i)], writes=[(B, i)])
                 with branch.add_path(LE(x, Int(-1))):
-                    builder.add_compute("comp_false", reads=[(A, Plus(i, Int(1)))], writes=[(C, i)])
+                    builder.add_compute(
+                        "comp_false", reads=[(A, Plus(i, Int(1)))], writes=[(C, i)]
+                    )
 
         path_model_fn = create_path_model_fn(loop)
         k = Symbol("k", INT)
@@ -311,9 +324,15 @@ class TestPathModelFn:
         A = builder.add_data("A")
         B = builder.add_data("B")
 
-        with builder.add_loop("outer_loop", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]) as outer_loop:
-            with builder.add_loop("inner_loop", "j", Int(0), M, reads=[(A, j)], writes=[(B, j)]) as inner_loop:
-                builder.add_compute("comp_inner", reads=[(A, Plus(i, j))], writes=[(B, Plus(i, j))])
+        with builder.add_loop(
+            "outer_loop", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as outer_loop:
+            with builder.add_loop(
+                "inner_loop", "j", Int(0), M, reads=[(A, j)], writes=[(B, j)]
+            ) as inner_loop:
+                builder.add_compute(
+                    "comp_inner", reads=[(A, Plus(i, j))], writes=[(B, Plus(i, j))]
+                )
 
         path_model_fn = create_path_model_fn(outer_loop)
         k_outer = Symbol("k_outer", INT)
@@ -324,7 +343,10 @@ class TestPathModelFn:
 
         assert predicate == TRUE()
         # The inner loop variable 'j' should not be substituted by 'k_outer'
-        assert read_set == [(A.array_id, Plus(k_outer, j)), (B.array_id, Plus(k_outer, j))]
+        assert read_set == [
+            (A.array_id, Plus(k_outer, j)),
+            (B.array_id, Plus(k_outer, j)),
+        ]
 
     def test_create_path_model_fn_loop_with_map(self):
         builder = GraphBuilder()
@@ -335,9 +357,15 @@ class TestPathModelFn:
         A = builder.add_data("A")
         B = builder.add_data("B")
 
-        with builder.add_loop("outer_loop", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]) as outer_loop:
-            with builder.add_map("inner_map", "j", Int(0), M, reads=[(A, j)], writes=[(B, j)]) as inner_map:
-                builder.add_compute("comp_inner", reads=[(A, Plus(i, j))], writes=[(B, Plus(i, j))])
+        with builder.add_loop(
+            "outer_loop", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as outer_loop:
+            with builder.add_map(
+                "inner_map", "j", Int(0), M, reads=[(A, j)], writes=[(B, j)]
+            ) as inner_map:
+                builder.add_compute(
+                    "comp_inner", reads=[(A, Plus(i, j))], writes=[(B, Plus(i, j))]
+                )
 
             path_model_fn = create_path_model_fn(outer_loop)
             k_outer = Symbol("k_outer", INT)
@@ -348,7 +376,10 @@ class TestPathModelFn:
 
             assert predicate == TRUE()
             assert write_set == [(B.array_id, Plus(k_outer, j))]
-            assert read_set == [(A.array_id, Plus(k_outer, j)), (B.array_id, Plus(k_outer, j))]
+            assert read_set == [
+                (A.array_id, Plus(k_outer, j)),
+                (B.array_id, Plus(k_outer, j)),
+            ]
 
     def test_create_path_model_fn_loop_with_reduce(self):
         builder = GraphBuilder()
@@ -359,10 +390,21 @@ class TestPathModelFn:
         A = builder.add_data("A")
         B = builder.add_data("B")
 
-        with builder.add_loop("outer_loop", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]) as outer_loop:
-            with builder.add_reduce("inner_reduce", "j", Int(0), M, TRUE(), reads=[(A, j)],
-                                    writes=[(B, Int(0))]) as inner_reduce:
-                builder.add_compute("comp_inner", reads=[(A, Plus(i, j))], writes=[(B, Plus(i, j))])
+        with builder.add_loop(
+            "outer_loop", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as outer_loop:
+            with builder.add_reduce(
+                "inner_reduce",
+                "j",
+                Int(0),
+                M,
+                TRUE(),
+                reads=[(A, j)],
+                writes=[(B, Int(0))],
+            ) as inner_reduce:
+                builder.add_compute(
+                    "comp_inner", reads=[(A, Plus(i, j))], writes=[(B, Plus(i, j))]
+                )
 
         path_model_fn = create_path_model_fn(outer_loop)
         k_outer = Symbol("k_outer", INT)
@@ -372,7 +414,10 @@ class TestPathModelFn:
         predicate, write_set, read_set = path_model[0]
 
         assert predicate == TRUE()
-        assert read_set == [(A.array_id, Plus(k_outer, j)), (B.array_id, Plus(k_outer, j))]
+        assert read_set == [
+            (A.array_id, Plus(k_outer, j)),
+            (B.array_id, Plus(k_outer, j)),
+        ]
 
     def test_recursive_substitute_tuple(self):
         builder = GraphBuilder()
@@ -395,9 +440,19 @@ class TestPathModelFn:
         A = builder.add_data("A")
         B = builder.add_data("B")
 
-        with builder.add_loop("loop_tuple", "i", Int(0), N, reads=[(A, (i, Plus(i, Int(1))))],
-                              writes=[(B, (i, Plus(i, Int(1))))]) as loop:
-            builder.add_compute("comp_tuple", reads=[(A, (i, Plus(i, Int(1))))], writes=[(B, (i, Plus(i, Int(1))))])
+        with builder.add_loop(
+            "loop_tuple",
+            "i",
+            Int(0),
+            N,
+            reads=[(A, (i, Plus(i, Int(1))))],
+            writes=[(B, (i, Plus(i, Int(1))))],
+        ) as loop:
+            builder.add_compute(
+                "comp_tuple",
+                reads=[(A, (i, Plus(i, Int(1))))],
+                writes=[(B, (i, Plus(i, Int(1))))],
+            )
 
         path_model_fn = create_path_model_fn(loop)
         solver_k = Symbol("solver_k", INT)
@@ -407,5 +462,7 @@ class TestPathModelFn:
         predicate, write_set, read_set = path_model[0]
 
         assert write_set == [(B.array_id, (solver_k, Plus(solver_k, Int(1))))]
-        assert read_set == [(A.array_id, (solver_k, Plus(solver_k, Int(1)))),
-                            (B.array_id, (solver_k, Plus(solver_k, Int(1))))]
+        assert read_set == [
+            (A.array_id, (solver_k, Plus(solver_k, Int(1)))),
+            (B.array_id, (solver_k, Plus(solver_k, Int(1)))),
+        ]
