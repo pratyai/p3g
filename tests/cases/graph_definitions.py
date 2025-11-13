@@ -770,6 +770,83 @@ def build_non_linear_predicate_graph():
     return b.root_graph, loop_node, N, A_root, B_root, C_root
 
 
+def build_non_linear_access_graph():
+    """
+    Helper to create a P3G graph for a loop with a Non-linear Array Access:
+    for i=0:N: A[i*i] = B[i] + C[i]
+    """
+    b = GraphBuilder()
+    N = b.add_symbol("N", INT)
+    A_root = b.add_data("A", is_output=True)
+    B_root = b.add_data("B")
+    C_root = b.add_data("C")
+
+    loop_node = None
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(0),
+        N,
+        reads=[
+            (B_root, (Int(0), N)),
+            (C_root, (Int(0), N)),
+        ],
+        writes=[(A_root, (Int(0), Times(N, N)))], # Upper bound for A[i*i] is N*N
+    ) as L1:
+        k = L1.loop_var
+        loop_node = L1
+
+        # Get local references to the data containers for this scope
+        A_local = b.add_data("A", is_output=True)
+        B_local = b.add_data("B")
+        C_local = b.add_data("C")
+
+        # A[k*k] = B[k] + C[k]
+        b.add_compute(
+            "T1_comp",
+            reads=[(B_local, k), (C_local, k)],
+            writes=[(A_local, Times(k, k))],
+        )
+    return b.root_graph, loop_node, N, A_root, B_root, C_root
+
+
+def build_non_linear_access_sequential_graph():
+    """
+    Helper to create a P3G graph for a loop with a Non-linear Array Access that is sequential:
+    for i = 1...N: A[i*i] = A[(i-1)*(i-1)] + B[i]
+    """
+    b = GraphBuilder()
+    N = b.add_symbol("N", INT)
+    A_root = b.add_data("A", is_output=True)
+    B_root = b.add_data("B")
+
+    loop_node = None
+    with b.add_loop(
+        "L1",
+        "k",
+        Int(1),
+        N,
+        reads=[
+            (A_root, (Int(0), Times(Minus(N, Int(1)), Minus(N, Int(1))))), # Read from (i-1)*(i-1)
+            (B_root, (Int(1), N)),
+        ],
+        writes=[(A_root, (Int(1), Times(N, N)))], # Write to i*i
+    ) as L1:
+        k = L1.loop_var
+        loop_node = L1
+
+        A_local = b.add_data("A", is_output=True)
+        B_local = b.add_data("B")
+
+        # A[k*k] = A[(k-1)*(k-1)] + B[k]
+        b.add_compute(
+            "T1_comp",
+            reads=[(A_local, Times(Minus(k, Int(1)), Minus(k, Int(1)))), (B_local, k)],
+            writes=[(A_local, Times(k, k))],
+        )
+    return b.root_graph, loop_node, N, A_root, B_root
+
+
 def build_parallel_loop_graph():
     """
     Helper to create a P3G graph for a Parallel Loop: for i in 0:n { a[i] = b[i] + c[i] }.

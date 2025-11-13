@@ -173,6 +173,36 @@ The test suite covers a range of loop structures to verify the correctness of th
     - **Description**: Analyzes the same loop logic as `test_indirect_write_scatter_dofs` , but using loop bounds SMT generation.
     - **Expected Outcome**: Not DOFS (Parallelizable) for *some* data configurations. SMT query returns UNSAT, proving that no data configuration forces sequentiality across *all* adjacent iterations.
 
+#### `test_non_linear_access.py` / `test_non_linear_access_dofs`
+
+- **Loop Logic**:
+  ```
+  for i=0:N:
+    A[i*i] = B[i] + C[i]
+  ```
+
+- **Description**: This loop involves a non-linear array access pattern (`A[i*i]`). Due to the quadratic growth of the index, for `i > 0`, `i*i` and `(i+1)*(i+1)` are distinct and sufficiently far apart. This prevents adjacent iteration dependencies, making the loop parallelizable.
+  - `test_non_linear_access_dofs` :
+    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+  - `test_non_linear_access_dofs_forall_bounds` :
+    - **Description**: Analyzes the same loop logic as `test_non_linear_access_dofs` , but using loop bounds SMT generation.
+    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+
+#### `test_non_linear_access.py` / `test_non_linear_access_sequential_dofs`
+
+- **Loop Logic**:
+  ```
+  for i = 1...N:
+    A[i*i] = A[(i-1)*(i-1)] + B[i]
+  ```
+
+- **Description**: This loop involves a non-linear array access pattern (`A[i*i]`) that introduces a Read-After-Write (RAW) dependency. `A[i*i]` reads a value written to `A[(i-1)*(i-1)]` in the previous iteration. This dependency exists for all iterations, making the loop inherently sequential.
+  - `test_non_linear_access_sequential_dofs` :
+    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+  - `test_non_linear_access_sequential_dofs_forall_bounds` :
+    - **Description**: Analyzes the same loop logic as `test_non_linear_access_sequential_dofs` , but using loop bounds SMT generation.
+    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+
 ### Data-Dependent Analysis
 
 #### `test_data_aware_bi.py`
