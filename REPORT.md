@@ -322,6 +322,116 @@ ForAll([k, N], Not(And(2 <= N, 1 <= k, k <= -1 + N)))
 
 ---
 
+### `test_non_linear_access.py`
+
+#### `test_non_linear_access_dofs`
+
+#### Pseudocode
+
+```
+for i=0:N:
+  A[i*i] = B[i] + C[i]
+```
+
+#### Description
+
+This loop involves a non-linear array access pattern (`A[i*i]`). Due to the quadratic growth of the index, for `i > 0`, `i*i` and `(i+1)*(i+1)` are distinct and sufficiently far apart. This prevents adjacent iteration dependencies, making the loop parallelizable.
+
+#### Expected Outcome
+
+** `test_non_linear_access_dofs` **: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+
+#### SMT Analysis
+
+##### `non_linear_access_dofs.smt2`
+
+```
+DATA!C == 10003
+DATA!B == 10002
+DATA!A == 10001
+1 <= N
+ForAll(k,
+       Or(And(DATA!A == DATA!C, k*k == 1 + k),
+          And(DATA!C == DATA!A, k == (1 + k)*(1 + k)),
+          k*k == (1 + k)*(1 + k),
+          Not(And(1 <= N, 0 <= k, k <= -1 + N)),
+          And(DATA!A == DATA!B, k*k == 1 + k),
+          And(DATA!B == DATA!A, k == (1 + k)*(1 + k))))
+```
+
+*Interpretation*: This SMT query attempts to find a data configuration (including loop bounds as data) that forces a dependency between adjacent iterations. The `UNSAT` result confirms that no such data configuration (and loop bound) exists that makes the loop fully sequential, thus proving the loop is Not DOFS (parallelizable).
+
+##### `non_linear_access_dofs_forall_bounds.smt2`
+
+```
+DATA!B == 10002
+DATA!C == 10003
+DATA!A == 10001
+1 <= N
+ForAll([k, N],
+       Or(And(DATA!B == DATA!A, k == (1 + k)*(1 + k)),
+          k*k == (1 + k)*(1 + k),
+          Not(And(1 <= N, 0 <= k, k <= -1 + N)),
+          And(DATA!A == DATA!C, k*k == 1 + k),
+          And(DATA!A == DATA!B, k*k == 1 + k),
+          And(DATA!C == DATA!A, k == (1 + k)*(1 + k))))
+```
+
+*Interpretation*: This query universally quantifies `N` (loop bounds) and attempts to find a data configuration that forces a dependency. The `UNSAT` result indicates that for *every* possible loop bound, there is no data configuration that forces sequentiality. This strongly implies the loop is Not DOFS (parallelizable) across all valid loop bounds.
+
+#### `test_non_linear_access_sequential_dofs`
+
+#### Pseudocode
+
+```
+for i = 1...N:
+  A[i*i] = A[(i-1)*(i-1)] + B[i]
+```
+
+#### Description
+
+This loop involves a non-linear array access pattern (`A[i*i]`) that introduces a Read-After-Write (RAW) dependency. `A[i*i]` reads a value written to `A[(i-1)*(i-1)]` in the previous iteration. This dependency exists for all iterations, making the loop inherently sequential.
+
+#### Expected Outcome
+
+** `test_non_linear_access_sequential_dofs` **: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+
+#### SMT Analysis
+
+##### `non_linear_access_sequential_dofs.smt2`
+
+```
+DATA!A == 10001
+DATA!B == 10002
+2 <= N
+True
+
+--- Model (Witness) ---
+N = 2
+DATA!B = 10002
+DATA!A = 10001
+```
+
+*Interpretation*: This SMT query attempts to find a data configuration (including loop bounds as data) that forces a dependency between adjacent iterations. The `SAT` result indicates that such a data configuration (and loop bound, e.g., `N=2` ) exists, making the loop fully sequential (DOFS).
+
+##### `non_linear_access_sequential_dofs_forall_bounds.smt2`
+
+```
+DATA!A == 10001
+DATA!B == 10002
+2 <= N
+True
+
+--- Model (Witness) ---
+N = 2
+DATA!B = 10002
+DATA!A = 10001
+```
+
+*Interpretation*: This query universally quantifies `N` (loop bounds) and attempts to find a data configuration that forces a dependency. The `SAT` result indicates that for *every* possible loop bound, there exists a data configuration that forces sequentiality. This means the loop is DOFS (sequential) for all loop bounds.
+
+---
+
 ## Data-Dependent Analysis
 
 ### `test_data_aware_bi.py`
