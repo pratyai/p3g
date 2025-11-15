@@ -227,7 +227,17 @@ def build_cholesky_full_kernel_graph():
                 ],  # Read L[j,j] (for division, if modeled)
                 writes=[(L_local_middle, (i, j))],  # Write L[i,j]
             )
-    return b.root_graph, outer_loop_node, middle_loop_node, inner_loop_node, N, A_root, L_root, A_val, L_val
+    return (
+        b.root_graph,
+        outer_loop_node,
+        middle_loop_node,
+        inner_loop_node,
+        N,
+        A_root,
+        L_root,
+        A_val,
+        L_val,
+    )
 
 
 def build_data_aware_bi_graph():
@@ -791,7 +801,7 @@ def build_non_linear_access_graph():
             (B_root, (Int(0), N)),
             (C_root, (Int(0), N)),
         ],
-        writes=[(A_root, (Int(0), Times(N, N)))], # Upper bound for A[i*i] is N*N
+        writes=[(A_root, (Int(0), Times(N, N)))],  # Upper bound for A[i*i] is N*N
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -827,10 +837,13 @@ def build_non_linear_access_sequential_graph():
         Int(1),
         N,
         reads=[
-            (A_root, (Int(0), Times(Minus(N, Int(1)), Minus(N, Int(1))))), # Read from (i-1)*(i-1)
+            (
+                A_root,
+                (Int(0), Times(Minus(N, Int(1)), Minus(N, Int(1)))),
+            ),  # Read from (i-1)*(i-1)
             (B_root, (Int(1), N)),
         ],
-        writes=[(A_root, (Int(1), Times(N, N)))], # Write to i*i
+        writes=[(A_root, (Int(1), Times(N, N)))],  # Write to i*i
     ) as L1:
         k = L1.loop_var
         loop_node = L1

@@ -144,10 +144,11 @@ def _intersect_to_formula(
             arr_a_node = id_to_symbol_map[arr_a]
             arr_b_node = id_to_symbol_map[arr_b]
 
-            # Use the helper function to correctly handle multi-dimensional indices
-            index_equality = _equal_indices(idx_a, idx_b)
-
-            clauses.append(And(Equals(arr_a_node, arr_b_node), index_equality))
+            if arr_a == arr_b:
+                # Use the helper function to correctly handle multi-dimensional indices
+                index_equality = _equal_indices(idx_a, idx_b)
+                clauses.append(And(Equals(arr_a_node, arr_b_node), index_equality))
+            # If arr_a != arr_b, we simply don't add a clause, as they cannot alias.
 
     if len(clauses) == 0:
         return FALSE()
@@ -593,4 +594,3 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
 {smt_query}
 """)
     return smt_query
-

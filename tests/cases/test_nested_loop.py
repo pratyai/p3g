@@ -2,7 +2,10 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
 )
-from tests.cases.graph_definitions import build_nested_loop_outer_dofs_graph, build_nested_loop_inner_dofs_graph
+from tests.cases.graph_definitions import (
+    build_nested_loop_outer_dofs_graph,
+    build_nested_loop_inner_dofs_graph,
+)
 from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
@@ -20,7 +23,9 @@ class TestProveExistsDataForallIterIsdep:
         print(
             "\n--- Running Test: Nested Loop (Expected: Outer DOFS/Sequential, Inner Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = build_nested_loop_outer_dofs_graph()
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_outer_dofs_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -84,7 +89,9 @@ class TestProveExistsDataForallIterIsdep:
         print(
             "\n--- Running Test: Nested Loop (Expected: Outer Not DOFS/Parallel, Inner DOFS/Sequential) ---"
         )
-        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = build_nested_loop_inner_dofs_graph()
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_inner_dofs_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -103,7 +110,9 @@ class TestProveExistsDataForallIterIsdep:
         print("-----------------------------------------------")
 
         # EXPECT: sat (True) - Inner loop has dependency A[j] <- A[j-1]
-        result_inner = solve_smt_string(smt_query_inner, "nested_loop_inner_dofs_inner_dofs")
+        result_inner = solve_smt_string(
+            smt_query_inner, "nested_loop_inner_dofs_inner_dofs"
+        )
         assert result_inner, (
             "Expected inner loop to be DOFS (sequential) but SMT solver returned UNSAT."
         )
@@ -123,7 +132,9 @@ class TestProveExistsDataForallIterIsdep:
         print("-----------------------------------------------")
 
         # EXPECT: unsat (False) - Outer loop has no self-dependencies on i
-        result_outer = solve_smt_string(smt_query_outer, "nested_loop_inner_dofs_outer_dofs")
+        result_outer = solve_smt_string(
+            smt_query_outer, "nested_loop_inner_dofs_outer_dofs"
+        )
         assert not result_outer, (
             "Expected outer loop to be Not DOFS (parallel) but SMT solver returned SAT."
         )
@@ -142,7 +153,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Nested Loop (Loop Bounds) (Expected: Outer DOFS/Sequential, Inner Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = build_nested_loop_outer_dofs_graph()
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_outer_dofs_graph()
+        )
 
         print_p3g_structure(b_root_graph)
 
@@ -150,10 +163,14 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n-- 1. Checking Inner Loop (L_inner) for Parallelism (Expected: Not DOFS/Parallel) --"
         )
-        smt_query_inner = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
-            L_inner_node, verbose=False
+        smt_query_inner = (
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
+                L_inner_node, verbose=False
+            )
         )
-        print("\n--- Generated SMT Query (nested_loop_outer_dofs_inner_dofs_forall_bounds) ---")
+        print(
+            "\n--- Generated SMT Query (nested_loop_outer_dofs_inner_dofs_forall_bounds) ---"
+        )
         print(smt_query_inner)
         print("-----------------------------------------------")
 
@@ -169,10 +186,14 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n-- 2. Checking Outer Loop (L_outer) for Parallelism (Expected: DOFS/Sequential) --"
         )
-        smt_query_outer = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
-            loop_node, verbose=False
+        smt_query_outer = (
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
+                loop_node, verbose=False
+            )
         )
-        print("\n--- Generated SMT Query (nested_loop_outer_dofs_outer_dofs_forall_bounds) ---")
+        print(
+            "\n--- Generated SMT Query (nested_loop_outer_dofs_outer_dofs_forall_bounds) ---"
+        )
         print(smt_query_outer)
         print("-----------------------------------------------")
 
@@ -195,7 +216,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Nested Loop (Loop Bounds) (Expected: Outer Not DOFS/Parallel, Inner DOFS/Sequential) ---"
         )
-        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = build_nested_loop_inner_dofs_graph()
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_inner_dofs_graph()
+        )
 
         print_p3g_structure(b_root_graph)
 
@@ -203,14 +226,20 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n-- 1. Checking Inner Loop (L_inner) for Parallelism (Expected: DOFS/Sequential) --"
         )
-        smt_query_inner = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
-            L_inner_node, verbose=False
+        smt_query_inner = (
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
+                L_inner_node, verbose=False
+            )
         )
-        print("\n--- Generated SMT Query (nested_loop_inner_dofs_inner_dofs_forall_bounds) ---")
+        print(
+            "\n--- Generated SMT Query (nested_loop_inner_dofs_inner_dofs_forall_bounds) ---"
+        )
         print(smt_query_inner)
         print("-----------------------------------------------")
 
-        result_inner = solve_smt_string(smt_query_inner, "nested_loop_inner_dofs_inner_dofs_forall_bounds")
+        result_inner = solve_smt_string(
+            smt_query_inner, "nested_loop_inner_dofs_inner_dofs_forall_bounds"
+        )
         assert result_inner, (
             "Expected inner loop (loop bounds) to be DOFS (sequential) but SMT solver returned UNSAT."
         )
@@ -220,14 +249,20 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n-- 2. Checking Outer Loop (L_outer) for Parallelism (Expected: Not DOFS/Parallel) --"
         )
-        smt_query_outer = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
-            loop_node, verbose=False
+        smt_query_outer = (
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
+                loop_node, verbose=False
+            )
         )
-        print("\n--- Generated SMT Query (nested_loop_inner_dofs_outer_dofs_forall_bounds) ---")
+        print(
+            "\n--- Generated SMT Query (nested_loop_inner_dofs_outer_dofs_forall_bounds) ---"
+        )
         print(smt_query_outer)
         print("-----------------------------------------------")
 
-        result_outer = solve_smt_string(smt_query_outer, "nested_loop_inner_dofs_outer_dofs_forall_bounds")
+        result_outer = solve_smt_string(
+            smt_query_outer, "nested_loop_inner_dofs_outer_dofs_forall_bounds"
+        )
         assert not result_outer, (
             "Expected outer loop (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
         )

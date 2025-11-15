@@ -21,7 +21,9 @@ class TestProveExistsDataForallIterIsdep:
         print(
             "\n--- Running Test: Indirect Read (Gather) (Expected: Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = build_indirect_read_gather_graph()
+        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = (
+            build_indirect_read_gather_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -60,7 +62,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Indirect Read (Gather) (Loop Bounds) (Expected: Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = build_indirect_read_gather_graph()
+        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = (
+            build_indirect_read_gather_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)

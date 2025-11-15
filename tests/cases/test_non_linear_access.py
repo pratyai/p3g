@@ -2,7 +2,10 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
 )
-from tests.cases.graph_definitions import build_non_linear_access_graph, build_non_linear_access_sequential_graph
+from tests.cases.graph_definitions import (
+    build_non_linear_access_graph,
+    build_non_linear_access_sequential_graph,
+)
 from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
@@ -17,8 +20,12 @@ class TestProveExistsDataForallIterIsdep:
         are distinct and sufficiently far apart to avoid adjacent iteration dependencies.
         The SMT query should return UNSAT, indicating Not DOFS (parallel).
         """
-        print("\n--- Running Test: Non-linear Array Access (Expected: Not DOFS/Parallel) ---")
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_non_linear_access_graph()
+        print(
+            "\n--- Running Test: Non-linear Array Access (Expected: Not DOFS/Parallel) ---"
+        )
+        b_root_graph, loop_node, N, A_root, B_root, C_root = (
+            build_non_linear_access_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -52,8 +59,12 @@ class TestProveExistsDataForallIterIsdep:
         This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
         meaning the SMT query should return SAT, indicating DOFS (sequential).
         """
-        print("\n--- Running Test: Non-linear Array Access Sequential (Expected: DOFS/Sequential) ---")
-        b_root_graph, loop_node, N, A_root, B_root = build_non_linear_access_sequential_graph()
+        print(
+            "\n--- Running Test: Non-linear Array Access Sequential (Expected: DOFS/Sequential) ---"
+        )
+        b_root_graph, loop_node, N, A_root, B_root = (
+            build_non_linear_access_sequential_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -72,7 +83,9 @@ class TestProveExistsDataForallIterIsdep:
         assert result, (
             "Expected non-linear array access sequential loop to be DOFS (sequential) but SMT solver returned UNSAT."
         )
-        print("\nVerdict: PASSED. Non-linear Array Access Sequential loop is DOFS (Sequential) as expected.")
+        print(
+            "\nVerdict: PASSED. Non-linear Array Access Sequential loop is DOFS (Sequential) as expected."
+        )
 
 
 class TestProveExistsDataForallLoopBoundsIterIsdep:
@@ -89,7 +102,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Non-linear Array Access (Loop Bounds) (Expected: Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_non_linear_access_graph()
+        b_root_graph, loop_node, N, A_root, B_root, C_root = (
+            build_non_linear_access_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -126,7 +141,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Non-linear Array Access Sequential (Loop Bounds) (Expected: DOFS/Sequential) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root = build_non_linear_access_sequential_graph()
+        b_root_graph, loop_node, N, A_root, B_root = (
+            build_non_linear_access_sequential_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -135,13 +152,17 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (non_linear_access_sequential_dofs_forall_bounds) ---")
+        print(
+            "\n--- Generated SMT Query (non_linear_access_sequential_dofs_forall_bounds) ---"
+        )
         print(smt_query)
         print("-------------------------------------------------------------")
 
         # EXPECT: sat (True) - A data configuration exists that forces sequential execution
         # across all adjacent iterations due to the RAW dependency.
-        result = solve_smt_string(smt_query, "non_linear_access_sequential_dofs_forall_bounds")
+        result = solve_smt_string(
+            smt_query, "non_linear_access_sequential_dofs_forall_bounds"
+        )
         assert result, (
             "Expected non-linear array access sequential loop (loop bounds) to be DOFS (sequential) but SMT solver returned UNSAT."
         )

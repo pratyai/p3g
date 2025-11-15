@@ -205,14 +205,8 @@ class TestProveExistsDataForallIterIsdep:
 
         # Check dependency logic by looking for key substrings in the SMT query string
         assert "(and (= DATA!B DATA!B) (= i (+ i 1)))" in smt_query_string  # WAW
-        assert (
-            "(or (and (= DATA!B DATA!A) (= i (+ i 1))) (and (= DATA!B DATA!B) (= i (+ i 1))))"
-            in smt_query_string
-        )  # RAW
-        assert (
-            "(or (and (= DATA!A DATA!B) (= i (+ i 1))) (and (= DATA!B DATA!B) (= i (+ i 1))))"
-            in smt_query_string
-        )  # WAR
+        assert "(and (= DATA!B DATA!B) (= i (+ i 1)))" in smt_query_string  # RAW
+        assert "(and (= DATA!B DATA!B) (= i (+ i 1)))" in smt_query_string  # WAR
 
         # Ensure no "not" for the main dependency
         # The overall structure should be (forall (i) (=> loop_bounds (let (...) (or ...))))
@@ -372,9 +366,7 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         main_assertion_body = q_body
         loop_bounds_formula = main_assertion_body.arg(0)
         assert loop_bounds_formula.is_and()
-        assert (
-            GE(N, Plus(M, Int(1))) in loop_bounds_formula.args()
-        )  # (<= (+ M 1) N)
+        assert GE(N, Plus(M, Int(1))) in loop_bounds_formula.args()  # (<= (+ M 1) N)
         assert GE(Symbol("i", INT), M) in loop_bounds_formula.args()  # (<= M i)
         assert (
             LE(Plus(Symbol("i", INT), Int(1)), N) in loop_bounds_formula.args()

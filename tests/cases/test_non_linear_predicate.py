@@ -21,8 +21,12 @@ class TestProveExistsDataForallIterIsdep:
         that forces *all* adjacent iterations to be sequential.
         The SMT query should return UNSAT, indicating Not DOFS (parallel).
         """
-        print("\n--- Running Test: Non-linear Predicate (Expected: DOFS/Sequential) ---")
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_non_linear_predicate_graph()
+        print(
+            "\n--- Running Test: Non-linear Predicate (Expected: DOFS/Sequential) ---"
+        )
+        b_root_graph, loop_node, N, A_root, B_root, C_root = (
+            build_non_linear_predicate_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -64,7 +68,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Non-linear Predicate (Loop Bounds) (Expected: DOFS/Sequential) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_non_linear_predicate_graph()
+        b_root_graph, loop_node, N, A_root, B_root, C_root = (
+            build_non_linear_predicate_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)

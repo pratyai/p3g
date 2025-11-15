@@ -21,7 +21,9 @@ class TestProveExistsDataForallIterIsdep:
         print(
             "\n--- Running Test: Loop with long-distance dependency (Expected: Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root = build_long_distance_dependency_graph()
+        b_root_graph, loop_node, N, A_root, B_root = (
+            build_long_distance_dependency_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -57,7 +59,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Loop with long-distance dependency (Loop Bounds) (Expected: Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root = build_long_distance_dependency_graph()
+        b_root_graph, loop_node, N, A_root, B_root = (
+            build_long_distance_dependency_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -66,13 +70,17 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (long_distance_dependency_dofs_forall_bounds) ---")
+        print(
+            "\n--- Generated SMT Query (long_distance_dependency_dofs_forall_bounds) ---"
+        )
         print(smt_query)
         print("----------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across all adjacent iterations due to the long-distance dependency.
-        result = solve_smt_string(smt_query, "long_distance_dependency_dofs_forall_bounds")
+        result = solve_smt_string(
+            smt_query, "long_distance_dependency_dofs_forall_bounds"
+        )
         assert not result, (
             "Expected long-distance dependency loop (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
         )

@@ -23,7 +23,9 @@ class TestProveExistsDataForallIterIsdep:
         print(
             "\n--- Running Test: Indirect Write (Scatter) (Expected: Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = build_indirect_write_scatter_graph()
+        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = (
+            build_indirect_write_scatter_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -64,7 +66,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Indirect Write (Scatter) (Loop Bounds) (Expected: Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = build_indirect_write_scatter_graph()
+        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = (
+            build_indirect_write_scatter_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -73,13 +77,17 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (indirect_write_scatter_dofs_forall_bounds) ---")
+        print(
+            "\n--- Generated SMT Query (indirect_write_scatter_dofs_forall_bounds) ---"
+        )
         print(smt_query)
         print("---------------------------------------------------")
 
         # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
         # across *all* adjacent iterations. This means it's parallelizable.
-        result = solve_smt_string(smt_query, "indirect_write_scatter_dofs_forall_bounds")
+        result = solve_smt_string(
+            smt_query, "indirect_write_scatter_dofs_forall_bounds"
+        )
         assert not result, (
             "Expected indirect write (scatter) (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
         )

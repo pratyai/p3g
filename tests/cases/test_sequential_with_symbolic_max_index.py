@@ -20,7 +20,9 @@ class TestProveExistsDataForallIterIsdep:
         print(
             "\n--- Running Test: Sequential Loop with symbolic max(i-w, 0) index (Expected: DOFS/Sequential) ---"
         )
-        b_root_graph, loop_node, N, w, A, B = build_sequential_with_symbolic_max_index_graph()
+        b_root_graph, loop_node, N, w, A, B = (
+            build_sequential_with_symbolic_max_index_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -58,7 +60,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Sequential Loop with symbolic max(i-w, 0) index (Loop Bounds) (Expected: DOFS/Sequential) ---"
         )
-        b_root_graph, loop_node, N, w, A, B = build_sequential_with_symbolic_max_index_graph()
+        b_root_graph, loop_node, N, w, A, B = (
+            build_sequential_with_symbolic_max_index_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -67,13 +71,17 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
             loop_node, verbose=False
         )
-        print("\n--- Generated SMT Query (sequential_with_symbolic_max_index_dofs_forall_bounds) ---")
+        print(
+            "\n--- Generated SMT Query (sequential_with_symbolic_max_index_dofs_forall_bounds) ---"
+        )
         print(smt_query)
         print("-----------------------------------------------------------------")
 
         # EXPECT: sat (True) - A data configuration (value for w) exists that forces
         # sequential execution across all adjacent iterations.
-        result = solve_smt_string(smt_query, "sequential_with_symbolic_max_index_dofs_forall_bounds")
+        result = solve_smt_string(
+            smt_query, "sequential_with_symbolic_max_index_dofs_forall_bounds"
+        )
         assert result, (
             "Expected sequential loop with symbolic max index (loop bounds) to be DOFS (sequential) but SMT solver returned UNSAT."
         )

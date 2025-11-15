@@ -21,7 +21,9 @@ class TestProveExistsDataForallIterIsdep:
         print(
             "\n--- Running Test: Data-Aware (B[i] - B[13]) (Expected: DOFS/Sequential) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root, B_val, const_idx = build_data_aware_bi_b13_graph()
+        b_root_graph, loop_node, N, A_root, B_root, B_val, const_idx = (
+            build_data_aware_bi_b13_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -56,7 +58,9 @@ class TestProveExistsDataForallIterIsdep:
         print(
             "\n--- Running Test: Data-Aware (B[i] - B[13]) High N (Expected: Not DOFS/Parallel) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root, B_val, const_idx = build_data_aware_bi_b13_graph()
+        b_root_graph, loop_node, N, A_root, B_root, B_val, const_idx = (
+            build_data_aware_bi_b13_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
@@ -93,7 +97,9 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\n--- Running Test: Data-Aware (B[i] - B[13]) (Loop Bounds) (Expected: DOFS/Sequential) ---"
         )
-        b_root_graph, loop_node, N, A_root, B_root, B_val, const_idx = build_data_aware_bi_b13_graph()
+        b_root_graph, loop_node, N, A_root, B_root, B_val, const_idx = (
+            build_data_aware_bi_b13_graph()
+        )
 
         # Print constructed P3G
         print_p3g_structure(b_root_graph)
