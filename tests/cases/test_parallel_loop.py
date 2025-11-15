@@ -6,6 +6,7 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isindep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
     generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
 )
 from tests.cases.graph_definitions import build_parallel_loop_graph
 from tests.test_utils import print_p3g_structure, solve_smt_string
@@ -191,3 +192,37 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
         print(
             "\nVerdict: PASSED. Parallel Loop (Forall Data, Forall Loop Bounds) is DOFI (Parallel) as expected."
         )
+
+
+class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
+    def test_parallel_loop_find_dependency(self):
+        """
+        Test case for a Parallel Loop: for i in 0:n { a[i] = b[i] + c[i] }.
+        This test uses the relaxed SMT query to find *any* dependency.
+        This loop is fully parallel, so no dependency should be found.
+        The SMT query should return UNSAT.
+        """
+        print(
+            "\n--- Running Test: Parallel Loop (Find Dependency) (Expected: UNSAT) ---"
+        )
+        b_root_graph, loop_node, N, A_root, B_root, C_root = build_parallel_loop_graph()
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        print(f"Generating SMT query for N (symbolic).")
+        smt_query = (
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+                loop_node, verbose=False
+            )
+        )
+        print("\n--- Generated SMT Query (parallel_loop_find_dependency) ---")
+        print(smt_query)
+        print("-------------------------------------------")
+
+        # EXPECT: unsat (False) - No dependency should be found.
+        result = solve_smt_string(smt_query, "parallel_loop_find_dependency")
+        assert not result, (
+            "Expected to find no dependency for parallel loop but SMT solver returned SAT."
+        )
+        print("\nVerdict: PASSED. Found no dependency for Parallel Loop as expected.")

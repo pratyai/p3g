@@ -4,6 +4,7 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isindep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
     generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
 )
 from tests.cases.graph_definitions import build_indirect_read_gather_graph
 from tests.test_utils import print_p3g_structure, solve_smt_string
@@ -207,4 +208,42 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
         )
         print(
             "\nVerdict: PASSED. Indirect Read (Gather) (Forall Data, Forall Loop Bounds) is DOFI (Parallel) as expected."
+        )
+
+
+class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
+    def test_indirect_read_gather_find_dependency(self):
+        """
+        Test case for Indirect Read (Gather) operation: for i = 1...N: A[i] = B[ IDX[i] ].
+        This test uses the relaxed SMT query to find *any* dependency.
+        This loop is fully parallel, so no dependency should be found.
+        The SMT query should return UNSAT.
+        """
+        print(
+            "\n--- Running Test: Indirect Read (Gather) (Find Dependency) (Expected: UNSAT) ---"
+        )
+        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = (
+            build_indirect_read_gather_graph()
+        )
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        print(f"Generating SMT query for N (symbolic).")
+        smt_query = (
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+                loop_node, verbose=False
+            )
+        )
+        print("\n--- Generated SMT Query (indirect_read_gather_find_dependency) ---")
+        print(smt_query)
+        print("--------------------------------------------------")
+
+        # EXPECT: unsat (False) - No data configuration for IDX exists that creates a dependency.
+        result = solve_smt_string(smt_query, "indirect_read_gather_find_dependency")
+        assert not result, (
+            "Expected to find no dependency for indirect read (gather) but SMT solver returned SAT."
+        )
+        print(
+            "\nVerdict: PASSED. Found no dependency for Indirect Read (Gather) as expected."
         )

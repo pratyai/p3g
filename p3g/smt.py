@@ -663,6 +663,107 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
     return smt_query
 
 
+def generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+) -> str:
+    """
+    Generates an SMT-LIB query to find if there exists a data configuration,
+    loop bounds, and a pair of iterations (j, k) with j < k such that a
+    data dependency exists.
+
+    This is a more relaxed query than DOFS, aiming to find *any* dependency.
+    It's often faster as it avoids universal quantifiers over loop bounds and iterations.
+
+    Interpretation of SMT Solver Results:
+    - SAT: A dependency was found for some data, loop bounds, and iterations.
+           The loop is not fully parallel.
+    - UNSAT: No dependency could be found. The loop is likely parallel.
+    """
+
+    k = loop_node.loop_var
+    j = Symbol(f"{k.symbol_name()}_j", INT)
+
+    builder = _StringSmtBuilder()
+
+    # All variables (data, loop bounds, j, k) are effectively existentially quantified
+    # by being free variables. We just need to declare them.
+
+    builder.declarations.add(k)
+    builder.declarations.add(j)
+
+    # Collect data symbols that can be chosen by the solver
+    existential_data_vars = _get_existential_quantifier_vars(loop_node, k)
+    for sym in existential_data_vars:
+        builder.declarations.add(sym)
+
+    # Collect loop bound symbols
+    symbolic_loop_bounds = set()
+    for free_var in _get_free_variables_recursive(loop_node.start):
+        if free_var != k and free_var != j:
+            symbolic_loop_bounds.add(free_var)
+    for free_var in _get_free_variables_recursive(loop_node.end):
+        if free_var != k and free_var != j:
+            symbolic_loop_bounds.add(free_var)
+    for sym in symbolic_loop_bounds:
+        builder.declarations.add(sym)
+
+    # Collect defined data array symbols
+    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
+    all_data_nodes: Set[Data] = set()
+    _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes)
+
+    builder.assertions.append("; --- Data Definitions ---")
+    for node in all_data_nodes:
+        sym = Symbol(f"DATA!{node.name}", INT)
+        id_to_symbol_map[node.array_id] = sym
+        defn = Equals(sym, Int(node.array_id))
+        builder.add_assertion(defn, f"Define DATA!{node.name}")
+
+    if extra_assertions:
+        builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
+        for idx, assertion in enumerate(extra_assertions):
+            builder.add_assertion(assertion, f"Human Assertion #{idx}")
+
+    builder.assertions.append("\n; --- Loop Bounds ---")
+    loop_start, loop_end = loop_node.start, loop_node.end
+
+    # Assert loop runs at least two iterations
+    builder.add_assertion(
+        GE(loop_end, Plus(loop_start, Int(1))),
+        "Loop runs at least two iterations",
+    )
+
+    # Assert j and k are within bounds and j < k
+    j_lower_bound = GE(j, loop_start)
+    j_upper_bound = LT(j, k)
+    k_lower_bound = GE(k, loop_start)
+    k_upper_bound = LE(k, loop_end)
+
+    builder.add_assertion(
+        And(j_lower_bound, j_upper_bound, k_lower_bound, k_upper_bound),
+        "j < k within loop bounds",
+    )
+
+    builder.assertions.append("\n; --- Dependency Logic ---")
+    let_bindings, main_body_str = _build_dependency_logic_assertions_general(
+        loop_node, j, k, builder, id_to_symbol_map
+    )
+
+    dependency_formula_str = f"""
+    (let (
+        {let_bindings}
+        )
+        {main_body_str}
+    )
+    """
+    builder.assertions.append(f"(assert {dependency_formula_str})")
+
+    smt_query = builder.build_query()
+    if verbose:
+        print(f"\n-- Generated SMT for prove_dependency_existence --\n{smt_query}\n")
+    return smt_query
+
+
 def generate_smt_for_prove_exists_data_forall_iter_isindep(
     loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
 ) -> str:

@@ -22,6 +22,7 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isindep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
     generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
 )
 
 
@@ -731,3 +732,116 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
         assert "(let (" in smt_query_string
         assert "(or " in smt_query_string
         assert "p0p0_waw" in smt_query_string  # Example conflict var
+
+
+class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
+    def test_simple_loop_find_dependency(self):
+        root_graph, loop, i, N, A, B = build_simple_loop_graph()
+        j = Symbol(f"{i.symbol_name()}_j", INT)
+
+        smt_query_string = (
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+                loop
+            )
+        )
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        expected_declarations = {
+            "N",
+            "DATA!A",
+            "DATA!B",
+            "i",
+            "i_j",
+        }  # i_j is the symbol name for j
+        declared_symbols = {
+            cmd.args[0].symbol_name()
+            for cmd in inspector.declarations
+            if cmd.name == "declare-fun"
+        }
+        assert declared_symbols.issuperset(expected_declarations)
+
+        # No quantifiers are expected at the top level, as everything is existentially
+        # quantified by being free variables.
+        assert len(inspector.quantifiers) == 0
+
+        # Check the main assertion
+        assert (
+            len(inspector.assertions) == 5
+        )  # Loop runs at least two, j<k bounds, and dependency
+
+        # Check loop bounds assertions
+        # The order of assertions might vary, so check for content
+        assert (
+            "(assert (<= (+ 0 1) N))" in smt_query_string
+        )  # Loop runs at least two iterations
+        assert (
+            "(assert (and (<= 0 i_j) (< i_j i) (<= 0 i) (<= i N)))" in smt_query_string
+        )  # j < k within loop bounds
+
+        # Check for dependency assertion
+        # The dependency logic is wrapped in a let, which is then asserted.
+        # We'll check for the presence of key substrings in the SMT query string, ignoring whitespace.
+        cleaned_smt_query = "".join(smt_query_string.split())
+        assert "(let((" in cleaned_smt_query
+        assert "(or" in cleaned_smt_query
+        assert "p0p0_waw" in cleaned_smt_query  # Example conflict var
+
+        # Ensure no "not" for the main dependency
+        assert not any(a.is_not() for a in inspector.assertions)
+
+    def test_symbolic_lower_bound_find_dependency(self):
+        builder = GraphBuilder()
+        i = builder.add_symbol("i")
+        M = builder.add_symbol("M")  # M is a symbolic lower bound
+        N = builder.add_symbol("N")  # N is a symbolic upper bound
+        A = builder.add_data("A")
+        B = builder.add_data("B")
+
+        with builder.add_loop(
+            "loop1", "i", M, N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
+            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
+
+        smt_query_string = (
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+                loop
+            )
+        )
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        expected_declarations = {"M", "N", "DATA!A", "DATA!B", "i", "i_j"}
+        declared_symbols = {
+            cmd.args[0].symbol_name()
+            for cmd in inspector.declarations
+            if cmd.name == "declare-fun"
+        }
+        assert declared_symbols.issuperset(expected_declarations)
+
+        # No quantifiers are expected at the top level
+        assert len(inspector.quantifiers) == 0
+
+        # Check the main assertion
+        assert (
+            len(inspector.assertions) == 5
+        )  # Loop runs at least two, j<k bounds, and dependency
+
+        # Check loop bounds assertions
+        assert (
+            "(assert (<= (+ M 1) N))" in smt_query_string
+        )  # Loop runs at least two iterations
+        assert (
+            "(assert (and (<= M i_j) (< i_j i) (<= M i) (<= i N)))" in smt_query_string
+        )  # j < k within loop bounds
+
+        # Check for dependency assertion
+        # The dependency logic is wrapped in a let, which is then asserted.
+        # We'll check for the presence of key substrings in the SMT query string, ignoring whitespace.
+        cleaned_smt_query = "".join(smt_query_string.split())
+        assert "(let((" in cleaned_smt_query
+        assert "(or" in cleaned_smt_query
+        assert "p0p0_waw" in cleaned_smt_query  # Example conflict var
+
+        # Ensure no "not" for the main dependency
+        assert not any(a.is_not() for a in inspector.assertions)

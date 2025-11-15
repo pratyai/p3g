@@ -4,6 +4,7 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isindep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
     generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
 )
 from tests.cases.graph_definitions import (
     build_nested_loop_outer_dofs_graph,
@@ -679,4 +680,170 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
         )
         print(
             "\nOuter Loop Verdict: PASSED. DOFI (Parallel) as expected. All checks PASSED."
+        )
+
+
+class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
+    def test_nested_loop_outer_dofs_find_dependency(self):
+        """
+        Test case for a Nested Loop where the OUTER loop is DOFS:
+        for i = 1...N:
+          for j = 1...M: A[i, j] = A[i-1, j] + B[i, j]
+
+        This test uses the relaxed SMT query to find *any* dependency.
+        The outer loop has a RAW dependency, so a dependency should be found.
+        The SMT query should return SAT.
+        """
+        print(
+            "\n--- Running Test: Nested Loop (Outer DOFS) (Find Dependency) (Expected: SAT) ---"
+        )
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_outer_dofs_graph()
+        )
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        print(f"Generating SMT query for N, M (symbolic).")
+        smt_query = (
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+                loop_node, verbose=False
+            )
+        )
+        print("\n--- Generated SMT Query (nested_loop_outer_dofs_find_dependency) ---")
+        print(smt_query)
+        print("-----------------------------------------------")
+
+        # EXPECT: sat (True) - A dependency should be found.
+        result = solve_smt_string(smt_query, "nested_loop_outer_dofs_find_dependency")
+        assert result, (
+            "Expected to find a dependency for nested outer DOFS loop but SMT solver returned UNSAT."
+        )
+        print(
+            "\nVerdict: PASSED. Found a dependency for Nested Outer DOFS Loop as expected."
+        )
+
+    def test_nested_loop_outer_dofs_inner_find_dependency(self):
+        """
+        Test case for a Nested Loop where the OUTER loop is DOFS:
+        for i = 1...N:
+          for j = 1...M: A[i, j] = A[i-1, j] + B[i, j]
+
+        This test uses the relaxed SMT query to find *any* dependency.
+        The inner loop is fully parallel, so no dependency should be found.
+        The SMT query should return UNSAT.
+        """
+        print(
+            "\n--- Running Test: Nested Loop (Outer DOFS, Inner) (Find Dependency) (Expected: UNSAT) ---"
+        )
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_outer_dofs_graph()
+        )
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        print(f"Generating SMT query for N, M (symbolic).")
+        smt_query = (
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+                L_inner_node, verbose=False
+            )
+        )
+        print(
+            "\n--- Generated SMT Query (nested_loop_outer_dofs_inner_find_dependency) ---"
+        )
+        print(smt_query)
+        print("-----------------------------------------------")
+
+        # EXPECT: unsat (False) - No dependency should be found.
+        result = solve_smt_string(
+            smt_query, "nested_loop_outer_dofs_inner_find_dependency"
+        )
+        assert not result, (
+            "Expected to find no dependency for nested outer DOFS inner loop but SMT solver returned SAT."
+        )
+        print(
+            "\nVerdict: PASSED. Found no dependency for Nested Outer DOFS Inner Loop as expected."
+        )
+
+    def test_nested_loop_inner_dofs_find_dependency(self):
+        """
+        Test case for a Nested Loop with inner loop DOFS:
+        for i = 1...N:
+          for j = 1...M: A[i, j] = A[i, j-1] + B[i, j]
+
+        This test uses the relaxed SMT query to find *any* dependency.
+        The outer loop is fully parallel, so no dependency should be found.
+        The SMT query should return UNSAT.
+        """
+        print(
+            "\n--- Running Test: Nested Loop (Inner DOFS) (Find Dependency) (Expected: UNSAT) ---"
+        )
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_inner_dofs_graph()
+        )
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        print(f"Generating SMT query for N, M (symbolic).")
+        smt_query = (
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+                loop_node, verbose=False
+            )
+        )
+        print("\n--- Generated SMT Query (nested_loop_inner_dofs_find_dependency) ---")
+        print(smt_query)
+        print("-----------------------------------------------")
+
+        # EXPECT: unsat (False) - No dependency should be found.
+        result = solve_smt_string(smt_query, "nested_loop_inner_dofs_find_dependency")
+        assert not result, (
+            "Expected to find no dependency for nested inner DOFS loop but SMT solver returned SAT."
+        )
+        print(
+            "\nVerdict: PASSED. Found no dependency for Nested Inner DOFS Loop as expected."
+        )
+
+    def test_nested_loop_inner_dofs_inner_find_dependency(self):
+        """
+        Test case for a Nested Loop with inner loop DOFS:
+        for i = 1...N:
+          for j = 1...M: A[i, j] = A[i, j-1] + B[i, j]
+
+        This test uses the relaxed SMT query to find *any* dependency.
+        The inner loop has a RAW dependency, so a dependency should be found.
+        The SMT query should return SAT.
+        """
+        print(
+            "\n--- Running Test: Nested Loop (Inner DOFS, Inner) (Find Dependency) (Expected: SAT) ---"
+        )
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_inner_dofs_graph()
+        )
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        print(f"Generating SMT query for N, M (symbolic).")
+        smt_query = (
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+                L_inner_node, verbose=False
+            )
+        )
+        print(
+            "\n--- Generated SMT Query (nested_loop_inner_dofs_inner_find_dependency) ---"
+        )
+        print(smt_query)
+        print("-----------------------------------------------")
+
+        # EXPECT: sat (True) - A dependency should be found.
+        result = solve_smt_string(
+            smt_query, "nested_loop_inner_dofs_inner_find_dependency"
+        )
+        assert result, (
+            "Expected to find a dependency for nested inner DOFS inner loop but SMT solver returned UNSAT."
+        )
+        print(
+            "\nVerdict: PASSED. Found a dependency for Nested Inner DOFS Inner Loop as expected."
         )

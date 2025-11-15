@@ -5,6 +5,7 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isindep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
     generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
 )
 from tests.cases.graph_definitions import build_indirect_write_scatter_graph
 from tests.test_utils import print_p3g_structure, solve_smt_string, TimeoutError
@@ -226,8 +227,45 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
             assert not result, (
                 "Expected indirect write (scatter) (forall data, forall loop bounds) to be Not DOFI (sequential) but SMT solver returned SAT."
             )
-            print(
-                "\nVerdict: PASSED. Indirect Write (Scatter) (Forall Data, Forall Loop Bounds) is Not DOFI (Sequential) as expected."
-            )
         except TimeoutError as e:
             pytest.skip(f"Skipping due to timeout: {e}")
+
+
+class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
+    def test_indirect_write_scatter_find_dependency(self):
+        """
+        Test case for Indirect Write (Scatter) operation: for i = 1...N: A[ IDX[i] ] = B[i].
+        This test uses the relaxed SMT query to find *any* dependency.
+        A dependency exists if we can find a data configuration for IDX such that
+        IDX[j] = IDX[k] for some j < k. This creates a WAW dependency on A.
+        The SMT solver should be able to find such a configuration.
+        The SMT query should return SAT.
+        """
+        print(
+            "\n--- Running Test: Indirect Write (Scatter) (Find Dependency) (Expected: SAT) ---"
+        )
+        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = (
+            build_indirect_write_scatter_graph()
+        )
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        print(f"Generating SMT query for N (symbolic).")
+        smt_query = (
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+                loop_node, verbose=False
+            )
+        )
+        print("\n--- Generated SMT Query (indirect_write_scatter_find_dependency) ---")
+        print(smt_query)
+        print("---------------------------------------------------")
+
+        # EXPECT: sat (True) - A data configuration for IDX exists that creates a dependency.
+        result = solve_smt_string(smt_query, "indirect_write_scatter_find_dependency")
+        assert result, (
+            "Expected to find a dependency for indirect write (scatter) but SMT solver returned UNSAT."
+        )
+        print(
+            "\nVerdict: PASSED. Found a dependency for Indirect Write (Scatter) as expected."
+        )
