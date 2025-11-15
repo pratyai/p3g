@@ -3,6 +3,7 @@ from pysmt.shortcuts import Int, Minus
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+    generate_smt_for_prove_exists_data_forall_iter_isindep,
 )
 from tests.cases.graph_definitions import build_parallel_loop_graph
 from tests.test_utils import print_p3g_structure, solve_smt_string
@@ -80,3 +81,36 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         print(
             "\nVerdict: PASSED. Parallel Loop (Loop Bounds) is Not DOFS (Parallel) as expected."
         )
+
+
+class TestProveExistsDataForallIterIsindep:
+    def test_parallel_loop_dofi(self):
+        """
+        Test case for a Parallel Loop: for i in 0:n { a[i] = b[i] + c[i] }.
+        Each iteration of this loop is independent.
+        This test expects the loop to be Data-Oblivious Fully Independent (DOFI),
+        meaning it is parallelizable.
+        The SMT query should return SAT, indicating DOFI (parallel).
+        """
+        print("\n--- Running Test: Parallel Loop (Expected: DOFI/Parallel) ---")
+        b_root_graph, loop_node, N, A_root, B_root, C_root = build_parallel_loop_graph()
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        loop_end = Minus(N, Int(1))
+        print(f"Generating SMT query for N (symbolic).")
+        smt_query = generate_smt_for_prove_exists_data_forall_iter_isindep(
+            loop_node, verbose=False
+        )
+        print("\n--- Generated SMT Query (parallel_loop_dofi) ---")
+        print(smt_query)
+        print("-------------------------------------------")
+
+        # EXPECT: sat (True) - A data configuration exists where no dependencies
+        # force sequentiality across any pair of iterations (j < k).
+        result = solve_smt_string(smt_query, "parallel_loop_dofi")
+        assert result, (
+            "Expected parallel loop to be DOFI (parallel) but SMT solver returned UNSAT."
+        )
+        print("\nVerdict: PASSED. Parallel Loop is DOFI (Parallel) as expected.")

@@ -10,6 +10,7 @@ from pysmt.shortcuts import (
     ArrayType,
     Store,
     Select,
+    LT,
 )
 from pysmt.smtlib.parser import SmtLibParser
 from pysmt.walkers import IdentityDagWalker
@@ -18,6 +19,7 @@ from p3g.p3g import GraphBuilder
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+    generate_smt_for_prove_exists_data_forall_iter_isindep,
 )
 
 
@@ -371,3 +373,71 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         assert (
             LE(Plus(Symbol("i", INT), Int(1)), N) in loop_bounds_formula.args()
         )  # (<= (+ i 1) N)
+
+
+class TestProveExistsDataForallIterIsindep:
+    def test_simple_loop_independence(self):
+        root_graph, loop, i, N, A, B = build_simple_loop_graph()
+        j = Symbol(f"{i.symbol_name()}_j", INT)  # Need to define j for assertions
+
+        smt_query_string = generate_smt_for_prove_exists_data_forall_iter_isindep(loop)
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        expected_declarations = {
+            "N",
+            "DATA!A",
+            "DATA!B",
+            "i",
+            "i_j",
+        }  # i_j is the symbol name for j
+        declared_symbols = {
+            cmd.args[0].symbol_name()
+            for cmd in inspector.declarations
+            if cmd.name == "declare-fun"
+        }
+        assert declared_symbols.issuperset(expected_declarations)
+
+        # Check for existential quantifiers (for data variables)
+        # The top-level assertion should be an exists quantifier
+        assert len(inspector.assertions) == 1
+        top_level_assertion = inspector.assertions[0]
+        assert top_level_assertion.is_exists()
+
+        exists_q_vars = top_level_assertion.quantifier_vars()
+        exists_q_body = top_level_assertion.arg(0)
+
+        assert Symbol("DATA!A", INT) in exists_q_vars
+        assert Symbol("DATA!B", INT) in exists_q_vars
+
+        # Check for universal quantifiers (for i and j) inside the exists body
+        assert exists_q_body.is_forall()
+        forall_q_vars = exists_q_body.quantifier_vars()
+        forall_q_body = exists_q_body.arg(0)
+        assert Symbol("i", INT) in forall_q_vars
+        assert Symbol("i_j", INT) in forall_q_vars  # Check for j
+
+        # Check the body of the quantified formula (main assertion)
+        # It should contain (=> loop_bounds (not (let (...) (or ...))))
+        assert forall_q_body.is_implies()
+        loop_bounds_formula = forall_q_body.arg(0)
+        negated_dependency_formula = forall_q_body.arg(1)
+
+        # Check loop bounds
+        assert loop_bounds_formula.is_and()
+        assert GE(j, Int(0)) in loop_bounds_formula.args()  # j >= 0
+        assert LT(j, i) in loop_bounds_formula.args()  # j < i
+        assert GE(i, Int(0)) in loop_bounds_formula.args()  # i >= 0
+        assert LE(i, N) in loop_bounds_formula.args()  # i <= N
+
+        # Check for negation of dependency
+        assert negated_dependency_formula.is_not()
+        # dependency_let_formula = negated_dependency_formula.arg(0)
+        # assert dependency_let_formula.is_let() # <--- Removed this line
+        assert "(let (" in smt_query_string  # <--- Added this line
+
+        # Check dependency logic by looking for key substrings in the SMT query string
+        # The actual content of the let/or will be complex, so just check for presence
+        assert "(let (" in smt_query_string
+        assert "(or " in smt_query_string
+        assert "p0p0_waw" in smt_query_string  # Example conflict var

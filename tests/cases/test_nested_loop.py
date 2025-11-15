@@ -1,6 +1,7 @@
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+    generate_smt_for_prove_exists_data_forall_iter_isindep,
 )
 from tests.cases.graph_definitions import (
     build_nested_loop_outer_dofs_graph,
@@ -268,4 +269,128 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         )
         print(
             "\nOuter Loop Verdict: PASSED. Not fully sequential (DOFS) as expected. All checks PASSED."
+        )
+
+
+class TestProveExistsDataForallIterIsindep:
+    def test_nested_loop_outer_dofs_dofi(self):
+        """
+        Test case for a Nested Loop where the OUTER loop is DOFS:
+        for i = 1...N:
+          for j = 1...M: A[i, j] = A[i-1, j] + B[i, j]
+
+        The outer loop is sequential, so it should be NOT DOFI.
+        The inner loop is parallel, so it should be DOFI.
+        """
+        print(
+            "--- Running Test: Nested Loop DOFI (Expected: Outer Not DOFI/Sequential, Inner DOFI/Parallel) ---"
+        )
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_outer_dofs_graph()
+        )
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        # --- 1. Check Inner Loop (L_inner) ---
+        print(
+            "-- 1. Checking Inner Loop (L_inner) for Parallelism (Expected: DOFI/Parallel) --"
+        )
+        smt_query_inner = generate_smt_for_prove_exists_data_forall_iter_isindep(
+            L_inner_node, verbose=False
+        )
+        print("--- Generated SMT Query (nested_loop_outer_dofs_inner_dofi) ---")
+        print(smt_query_inner)
+        print("-----------------------------------------------")
+
+        # EXPECT: sat (True) - Inner loop is parallel.
+        result_inner = solve_smt_string(
+            smt_query_inner, "nested_loop_outer_dofs_inner_dofi"
+        )
+        assert result_inner, (
+            "Expected inner loop to be DOFI (parallel) but SMT solver returned UNSAT."
+        )
+        print("Inner Loop Verdict: PASSED. DOFI (Parallel) as expected.")
+
+        # --- 2. Check Outer Loop (L_outer) ---
+        print(
+            "-- 2. Checking Outer Loop (L_outer) for Parallelism (Expected: Not DOFI/Sequential) --"
+        )
+        smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isindep(
+            loop_node, verbose=False
+        )
+        print("--- Generated SMT Query (nested_loop_outer_dofs_outer_dofi) ---")
+        print(smt_query_outer)
+        print("-----------------------------------------------")
+
+        # EXPECT: unsat (False) - Outer loop is sequential.
+        result_outer = solve_smt_string(
+            smt_query_outer, "nested_loop_outer_dofs_outer_dofi"
+        )
+        assert not result_outer, (
+            "Expected outer loop to be Not DOFI (sequential) but SMT solver returned SAT."
+        )
+        print(
+            "Outer Loop Verdict: PASSED. Not DOFI (Sequential) as expected. All checks PASSED."
+        )
+
+    def test_nested_loop_inner_dofs_dofi(self):
+        """
+        Test case for a Nested Loop with inner loop DOFS:
+        for i = 1...N:
+          for j = 1...M: A[i, j] = A[i, j-1] + B[i, j]
+
+        The outer loop is parallel, so it should be DOFI.
+        The inner loop is sequential, so it should be NOT DOFI.
+        """
+        print(
+            "--- Running Test: Nested Loop DOFI (Expected: Outer DOFI/Parallel, Inner Not DOFI/Sequential) ---"
+        )
+        b_root_graph, loop_node, L_inner_node, N, M, A_root, B_root = (
+            build_nested_loop_inner_dofs_graph()
+        )
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        # --- 1. Check Inner Loop (L_inner) ---
+        print(
+            "-- 1. Checking Inner Loop (L_inner) for Parallelism (Expected: Not DOFI/Sequential) --"
+        )
+        smt_query_inner = generate_smt_for_prove_exists_data_forall_iter_isindep(
+            L_inner_node, verbose=False
+        )
+        print("--- Generated SMT Query (nested_loop_inner_dofs_inner_dofi) ---")
+        print(smt_query_inner)
+        print("-----------------------------------------------")
+
+        # EXPECT: unsat (False) - Inner loop is sequential.
+        result_inner = solve_smt_string(
+            smt_query_inner, "nested_loop_inner_dofs_inner_dofi"
+        )
+        assert not result_inner, (
+            "Expected inner loop to be Not DOFI (sequential) but SMT solver returned SAT."
+        )
+        print("Inner Loop Verdict: PASSED. Not DOFI (Sequential) as expected.")
+
+        # --- 2. Check Outer Loop (L_outer) ---
+        print(
+            "-- 2. Checking Outer Loop (L_outer) for Parallelism (Expected: DOFI/Parallel) --"
+        )
+        smt_query_outer = generate_smt_for_prove_exists_data_forall_iter_isindep(
+            loop_node, verbose=False
+        )
+        print("--- Generated SMT Query (nested_loop_inner_dofs_outer_dofi) ---")
+        print(smt_query_outer)
+        print("-----------------------------------------------")
+
+        # EXPECT: sat (True) - Outer loop is parallel.
+        result_outer = solve_smt_string(
+            smt_query_outer, "nested_loop_inner_dofs_outer_dofi"
+        )
+        assert result_outer, (
+            "Expected outer loop to be DOFI (parallel) but SMT solver returned UNSAT."
+        )
+        print(
+            "Outer Loop Verdict: PASSED. DOFI (Parallel) as expected. All checks PASSED."
         )
