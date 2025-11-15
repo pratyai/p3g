@@ -21,6 +21,7 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
     generate_smt_for_prove_exists_data_forall_iter_isindep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+    generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
 )
 
 
@@ -236,12 +237,12 @@ class TestProveExistsDataForallIterIsdep:
             Int(0),
             N,
             reads=[(A, Select(A_array_sym, i))],
-            writes=[(A, Store(A_array_sym, i, Int(0)))],
+            writes=[(A, Select(A_array_sym, i))],
         ) as loop:
             builder.add_compute(
                 "comp1",
                 reads=[(A, Select(A_array_sym, i))],
-                writes=[(A, Store(A_array_sym, i, Int(0)))],
+                writes=[(A, Select(A_array_sym, i))],
             )
 
         smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(loop)
@@ -575,6 +576,146 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
         assert forall_q_body.is_implies()
         loop_bounds_formula = forall_q_body.arg(0)
         negated_dependency_formula = forall_q_body.arg(1)
+
+        # Check loop bounds
+        assert loop_bounds_formula.is_and()
+        assert GE(Symbol("i_j", INT), M) in loop_bounds_formula.args()  # j >= M
+        assert (
+            LT(Symbol("i_j", INT), Symbol("i", INT)) in loop_bounds_formula.args()
+        )  # j < i
+        assert GE(Symbol("i", INT), M) in loop_bounds_formula.args()  # i >= M
+        assert LE(Symbol("i", INT), N) in loop_bounds_formula.args()  # i <= N
+
+        # Check for negation of dependency
+        assert negated_dependency_formula.is_not()
+        assert "(let (" in smt_query_string
+        assert "(or " in smt_query_string
+        assert "p0p0_waw" in smt_query_string  # Example conflict var
+
+
+class TestProveForallDataForallLoopBoundsIterIsindep:
+    def test_simple_loop_independence_forall_data_forall_bounds(self):
+        builder = GraphBuilder()
+        i = builder.add_symbol("i")
+        N = builder.add_symbol("N")  # N is a symbolic loop bound
+        A = builder.add_data("A")
+        B = builder.add_data("B")
+
+        with builder.add_loop(
+            "loop1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
+            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
+
+        smt_query_string = (
+            generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep(loop)
+        )
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        expected_declarations = {"N", "DATA!A", "DATA!B", "i", "i_j"}
+        declared_symbols = {
+            cmd.args[0].symbol_name()
+            for cmd in inspector.declarations
+            if cmd.name == "declare-fun"
+        }
+        assert declared_symbols.issuperset(expected_declarations)
+
+        # Check for quantifiers
+        # We expect a single forall quantifier for DATA!A, DATA!B, i, j, and N
+        assert len(inspector.quantifiers) == 1
+        quantifier_type, q_vars, q_body = inspector.quantifiers[0]
+        assert quantifier_type == "forall"
+
+        # Outer forall quantifies DATA!A, DATA!B
+        assert len(q_vars) == 2  # DATA!A, DATA!B
+        assert Symbol("DATA!A", INT) in q_vars
+        assert Symbol("DATA!B", INT) in q_vars
+
+        # The body of the outer forall should be another forall
+        assert q_body.is_forall()
+        inner_forall_q_vars = q_body.quantifier_vars()
+        inner_forall_q_body = q_body.arg(0)
+
+        # Inner forall quantifies i, i_j, N
+        assert len(inner_forall_q_vars) == 3  # i, i_j, N
+        assert Symbol("i", INT) in inner_forall_q_vars
+        assert Symbol("i_j", INT) in inner_forall_q_vars  # Check for j
+        assert Symbol("N", INT) in inner_forall_q_vars  # Check for N
+
+        # Check the body of the inner quantified formula (main assertion)
+        assert inner_forall_q_body.is_implies()
+        loop_bounds_formula = inner_forall_q_body.arg(0)
+        negated_dependency_formula = inner_forall_q_body.arg(1)
+
+        # Check loop bounds
+        assert loop_bounds_formula.is_and()
+        assert GE(Symbol("i_j", INT), Int(0)) in loop_bounds_formula.args()  # j >= 0
+        assert (
+            LT(Symbol("i_j", INT), Symbol("i", INT)) in loop_bounds_formula.args()
+        )  # j < i
+        assert GE(Symbol("i", INT), Int(0)) in loop_bounds_formula.args()  # i >= 0
+        assert LE(Symbol("i", INT), N) in loop_bounds_formula.args()  # i <= N
+
+        # Check for negation of dependency
+        assert negated_dependency_formula.is_not()
+        assert "(let (" in smt_query_string
+        assert "(or " in smt_query_string
+        assert "p0p0_waw" in smt_query_string  # Example conflict var
+
+    def test_symbolic_lower_bound_forall_data_forall_bounds(self):
+        builder = GraphBuilder()
+        i = builder.add_symbol("i")
+        M = builder.add_symbol("M")  # M is a symbolic lower bound
+        N = builder.add_symbol("N")  # N is a symbolic upper bound
+        A = builder.add_data("A")
+        B = builder.add_data("B")
+
+        with builder.add_loop(
+            "loop1", "i", M, N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
+            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
+
+        smt_query_string = (
+            generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep(loop)
+        )
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        expected_declarations = {"M", "N", "DATA!A", "DATA!B", "i", "i_j"}
+        declared_symbols = {
+            cmd.args[0].symbol_name()
+            for cmd in inspector.declarations
+            if cmd.name == "declare-fun"
+        }
+        assert declared_symbols.issuperset(expected_declarations)
+
+        # Check for quantifiers
+        # We expect a single forall quantifier for DATA!A, DATA!B, i, j, M, and N
+        assert len(inspector.quantifiers) == 1
+        quantifier_type, q_vars, q_body = inspector.quantifiers[0]
+        assert quantifier_type == "forall"
+
+        # Outer forall quantifies DATA!A, DATA!B
+        assert len(q_vars) == 2  # DATA!A, DATA!B
+        assert Symbol("DATA!A", INT) in q_vars
+        assert Symbol("DATA!B", INT) in q_vars
+
+        # The body of the outer forall should be another forall
+        assert q_body.is_forall()
+        inner_forall_q_vars = q_body.quantifier_vars()
+        inner_forall_q_body = q_body.arg(0)
+
+        # Inner forall quantifies i, i_j, M, N
+        assert len(inner_forall_q_vars) == 4  # i, i_j, M, N
+        assert Symbol("i", INT) in inner_forall_q_vars
+        assert Symbol("i_j", INT) in inner_forall_q_vars  # Check for j
+        assert Symbol("M", INT) in inner_forall_q_vars  # Check for M
+        assert Symbol("N", INT) in inner_forall_q_vars  # Check for N
+
+        # Check the body of the inner quantified formula (main assertion)
+        assert inner_forall_q_body.is_implies()
+        loop_bounds_formula = inner_forall_q_body.arg(0)
+        negated_dependency_formula = inner_forall_q_body.arg(1)
 
         # Check loop bounds
         assert loop_bounds_formula.is_and()

@@ -16,3 +16,6 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 include = ["p3g", "tests"]
+
+[tool.pytest.ini_options]
+timeout = 30

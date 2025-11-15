@@ -70,6 +70,14 @@ class Edge:
         self.dst = dst
         self.subset = subset
 
+        # Assertion to check if a Store operation is being passed as subset
+        if isinstance(subset, PysmtFormula) and subset.is_store():
+            assert False, (
+                f"ERROR: Store operation '{subset}' found in Edge subset. "
+                "For dependency analysis, edges should specify the memory location "
+                "(e.g., Select(array, index)), not the Store operation itself."
+            )
+
         src.out_edges.append(self)
         dst.in_edges.append(self)
 

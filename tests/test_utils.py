@@ -1,6 +1,8 @@
 import io
 import os
 import sys
+import multiprocessing
+from multiprocessing import Process, Queue
 
 from z3 import Z3Exception
 
@@ -8,6 +10,12 @@ from p3g.p3g import Graph, Compute, Branch, Loop, Map, Reduce, Data, WriteSet, R
 from pysmt.exceptions import SolverReturnedUnknownResultError
 from pysmt.shortcuts import Solver
 from pysmt.smtlib.parser import SmtLibParser
+
+
+# Custom Timeout Exception
+class TimeoutError(Exception):
+    pass
+
 
 # --- Solver Configuration ---
 SOLVER_NAME = "z3"  # Can be 'z3', 'cvc5', etc.
@@ -149,12 +157,10 @@ def print_p3g_structure(graph: Graph, indent=0):
 # --- End of Graph Printing Utility ---
 
 
-def solve_smt_string(smt_string: str, case_name: str) -> bool:
+def _solve_smt_string_internal(smt_string: str, case_name: str, result_queue: Queue):
     """
-    Saves the SMT query to a file and runs an in-memory pysmt solver
-    (e.g., z3, cvc5) on the parsed string.
-    Returns True for 'sat', False for 'unsat'.
-    Raises Exception for 'unknown'.
+    Internal function to solve the SMT query. Designed to be run in a separate process.
+    Puts (result, model_str) or (exception,) into the queue.
     """
     filename = os.path.join(OUTPUT_DIR, f"{case_name}.smt2")
 
@@ -162,7 +168,6 @@ def solve_smt_string(smt_string: str, case_name: str) -> bool:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(filename, "w") as f:
         f.write(smt_string)
-    print(f"SMT query saved to {filename}")
 
     # 2. Parse the SMT-LIB string into pysmt formulas
     parser = SmtLibParser()
@@ -171,33 +176,86 @@ def solve_smt_string(smt_string: str, case_name: str) -> bool:
     # 3. Run the solver using the pysmt API
     try:
         with Solver(name=SOLVER_NAME) as s:
-            # Setting aggressive options to resolve 'unknown' faster
             s.set_option(":quant_inst_max", 5000)
-            s.set_option(":timeout", 60000)
+            s.set_option(
+                ":timeout", 30000
+            )  # Still set for internal solver, but multiprocessing handles hard timeout
 
-            # Feed all commands from the SMT-LIB script into the solver
             for cmd in script.commands:
                 if cmd.name == "assert":
                     s.add_assertion(cmd.args[0])
                 elif cmd.name == "declare-fun":
-                    pass  # Handled by parser
+                    pass
                 elif cmd.name == "check-sat":
-                    break  # We'll call this
+                    break
                 else:
-                    pass  # Skip other commands
+                    pass
 
-            # 4. Solve the assertions using check_sat()
             result: bool = s.check_sat()
 
-            # 5. Parse and report the output
+            model_str = None
+            if result:
+                model = s.get_model()
+                try:
+                    model_str = str(model)
+                except (NotImplementedError, Z3Exception) as e:
+                    model_str = (
+                        f"Cannot print model (sometime it's library's fault): {e}"
+                    )
+            result_queue.put((result, model_str))
+
+    except SolverReturnedUnknownResultError as e:
+        result_queue.put((e,))
+    except Exception as e:
+        result_queue.put((e,))
+
+
+def solve_smt_string(
+    smt_string: str, case_name: str, timeout_seconds: int = 30
+) -> bool:
+    """
+    Saves the SMT query to a file and runs an in-memory pysmt solver
+    (e.g., z3, cvc5) on the parsed string within a separate process with a timeout.
+    Returns True for 'sat', False for 'unsat'.
+    Raises TimeoutError if the solver exceeds the timeout.
+    Raises other Exceptions for 'unknown' or solver failures.
+    """
+    print(f"SMT query saved to {os.path.join(OUTPUT_DIR, f'{case_name}.smt2')}")
+
+    result_queue = Queue()
+    process = Process(
+        target=_solve_smt_string_internal, args=(smt_string, case_name, result_queue)
+    )
+    process.start()
+    process.join(timeout=timeout_seconds)
+
+    if process.is_alive():
+        process.terminate()
+        process.join()
+        raise TimeoutError(
+            f"SMT solver timed out after {timeout_seconds} seconds for case: {case_name}"
+        )
+
+    if not result_queue.empty():
+        result_tuple = result_queue.get()
+        if isinstance(result_tuple[0], Exception):
+            # An exception occurred in the child process
+            exc = result_tuple[0]
+            if isinstance(exc, SolverReturnedUnknownResultError):
+                raise exc
+            else:
+                print(f"Error: Solver '{SOLVER_NAME}' failed or is not installed.")
+                print(f"Full error: {exc}")
+                # Do not sys.exit(1) here, let pytest handle the failure
+                raise exc
+        else:
+            # Normal SAT/UNSAT result
+            result, model_str = result_tuple
             if result:
                 print(f"Solver result: sat")
-                model = s.get_model()
                 print("--- Model ---")
-                try:
-                    print(model)
-                except (NotImplementedError, Z3Exception) as e:
-                    print(f"Cannot print model (sometime it's library's fault): {e}")
+                if model_str:
+                    print(model_str)
                 print(
                     "Note: The model only displays concrete values for symbols it could determine. "
                     "For arrays or other symbols without a concrete assignment, their values are not shown here. "
@@ -208,11 +266,7 @@ def solve_smt_string(smt_string: str, case_name: str) -> bool:
             else:
                 print(f"Solver result: unsat")
                 return False
-
-    except SolverReturnedUnknownResultError as e:
-        # Re-throw the unknown exception
-        raise e
-    except Exception as e:
-        print(f"Error: Solver '{SOLVER_NAME}' failed or is not installed.")
-        print(f"Full error: {e}")
-        sys.exit(1)
+    else:
+        # This case should ideally not be reached if the process finished without timeout
+        # and put something in the queue.
+        raise Exception("SMT solver process finished without returning a result.")

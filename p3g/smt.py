@@ -121,16 +121,13 @@ def _equal_indices(idx1, idx2):
             return FALSE()  # Different dimensions, cannot be equal
 
         # Create a conjunction (AND) of equality checks for each dimension
-        equalities = [
-            Equals(_get_index_from_access(i1), _get_index_from_access(i2))
-            for i1, i2 in zip(idx1, idx2)
-        ]
+        equalities = [Equals(i1, i2) for i1, i2 in zip(idx1, idx2)]
         if not equalities:
             return TRUE()  # Should not happen for arrays, but handle empty tuples
         return And(equalities)
     elif not is_idx1_tuple and not is_idx2_tuple:
         # Both are single dimension
-        return Equals(_get_index_from_access(idx1), _get_index_from_access(idx2))
+        return Equals(idx1, idx2)
     else:
         # One is single dimension, the other is multi-dimension. Cannot be equal.
         return FALSE()
@@ -895,6 +892,150 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
     # The DATA! symbols are now free variables, not existentially quantified.
     # The query asserts the inner forall directly.
     final_assertion_str = inner_forall_str
+
+    builder.assertions.append(f"(assert {final_assertion_str})")
+
+    smt_query = builder.build_query()
+    if verbose:
+        print(f"""
+{smt_query}
+""")
+    return smt_query
+
+
+def generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep(
+    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+) -> str:
+    """
+    Generates an SMT-LIB query string to prove Data-Oblivious Full Independence (Φ_DOFI)
+    for a given loop, with symbolic data arrays AND loop bounds explicitly universally quantified.
+
+    This function is similar to `generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep`,
+    but it explicitly includes any symbolic variables found in the loop's data arrays
+    (DATA! symbols) and loop bounds in the universal quantifier (`forall`) part of the SMT query.
+    This means the solver will attempt to prove the property for *all possible integer values*
+    of these symbolic data arrays and loop bounds.
+
+    A loop is considered Data-Oblivious Fully Independent (DOFI) if for *all* possible
+    assignments of values to its symbolic data arrays (a "data configuration") AND
+    for *all* possible values of its symbolic loop bounds, *no* data dependency is
+    guaranteed to exist between *any* pair of iterations (j and k, where j < k)
+    within the loop's execution range.
+    In simpler terms, a DOFI loop *can* be parallelized because under *any* data scenario
+    and *any* loop bounds, no dependencies force sequential execution.
+
+    The SMT query is constructed to prove this universal independence.
+
+    Interpretation of SMT Solver Results:
+    - If the SMT solver returns `SAT` (Satisfiable), it means the query's assertion is true:
+      for *all* data configurations and *all* loop bounds, *no* dependency exists between
+      iterations `j` and `k` (where `j < k`) for all valid `j` and `k`.
+      Therefore, the loop is **DOFI (Parallel)**.
+    - If the SMT solver returns `UNSAT` (Unsatisfiable), it means the query's assertion is false:
+      there exists *at least one* data configuration OR *at least one* set of loop bounds
+      for which there is at least one pair of iterations (j, k) with `j < k`
+      that *does* have a dependency.
+      Therefore, the loop is **not DOFI (Sequential)**.
+
+    Args:
+        loop_node: The P3G Loop node for which to generate the SMT query.
+        extra_assertions: An optional list of additional PysmtFormula assertions
+                          to include in the SMT query. These can be used to
+                          constrain symbolic variables (e.g., array sizes,
+                          specific data values) for more targeted analysis.
+        verbose: If True, prints the generated SMT query to stdout.
+
+    Returns:
+        A string containing the SMT-LIB query.
+    """
+    k = loop_node.loop_var  # Use the loop's internal iteration variable
+    j = Symbol(f"{loop_node.loop_var.symbol_name()}_j", INT)  # New iteration variable j
+
+    # Identify symbolic loop bound variables
+    symbolic_loop_bounds = set()
+    for free_var in _get_free_variables_recursive(loop_node.start):
+        if free_var != k and free_var != j:
+            symbolic_loop_bounds.add(free_var)
+    for free_var in _get_free_variables_recursive(loop_node.end):
+        if free_var != k and free_var != j:
+            symbolic_loop_bounds.add(free_var)
+
+    universal_quantifier_vars = [f"({k.symbol_name()} {k.get_type()})"]
+    universal_quantifier_vars.append(f"({j.symbol_name()} {j.get_type()})")  # Add j
+    for sym in symbolic_loop_bounds:
+        universal_quantifier_vars.append(f"({sym.symbol_name()} {sym.get_type()})")
+
+    builder = _StringSmtBuilder()
+
+    # Declare universal quantifiers (k, j, and symbolic loop bounds)
+    builder.declarations.add(k)
+    builder.declarations.add(j)  # Add j
+    for sym in symbolic_loop_bounds:
+        builder.declarations.add(sym)
+
+    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
+    all_data_nodes: Set[Data] = set()
+    _collect_all_data_nodes(
+        loop_node.builder.root_graph, all_data_nodes
+    )  # Collect from the entire graph
+
+    builder.assertions.append("; --- Data Definitions ---")
+    forall_data_quantifier_vars = []  # NEW: Collect data symbols for universal quantification
+    for node in all_data_nodes:  # Iterate over all collected Data nodes
+        sym = Symbol(f"DATA!{node.name}", INT)
+        id_to_symbol_map[node.array_id] = sym
+        # Explicitly add DATA! symbols to declarations
+        builder.declarations.add(sym)
+        forall_data_quantifier_vars.append(
+            f"({sym.symbol_name()} {sym.get_type()})"
+        )  # NEW
+
+    # existential_quantifier_vars = list(id_to_symbol_map.values()) # REMOVE/COMMENT OUT
+
+    # NEW BLOCK: Add human-provided assertions
+    if extra_assertions:
+        builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
+        for idx, assertion in enumerate(extra_assertions):
+            builder.add_assertion(assertion, f"Human Assertion #{idx}")
+
+    builder.assertions.append("\n; --- Loop Bounds ---")
+    loop_start, loop_end = loop_node.start, loop_node.end
+
+    builder.assertions.append("\n; --- Dependency Logic Definitions ---")
+    # New loop bounds for j and k
+    j_lower_bound = GE(j, loop_start)
+    j_upper_bound = LT(j, k)  # j < k
+    k_lower_bound = GE(k, loop_start)
+    k_upper_bound = LE(k, loop_end)
+
+    builder.add_assertion(
+        GE(loop_end, Plus(loop_start, Int(1))),
+        "Loop runs at least two iterations for j < k",
+    )
+
+    # Combine all bounds
+    loop_bound_formula = And(j_lower_bound, j_upper_bound, k_lower_bound, k_upper_bound)
+
+    let_bindings, main_body_str = _build_dependency_logic_assertions_general(
+        loop_node, j, k, builder, id_to_symbol_map
+    )
+
+    loop_bound_str = builder._serialize(loop_bound_formula)
+
+    inner_forall_str = f"""(forall ({" ".join(universal_quantifier_vars)}) ; End of universal variables
+    (=> {loop_bound_str}
+    (let (
+        {let_bindings}
+        )
+        ; Main formula
+        (not {main_body_str})
+    )
+))"""
+
+    # NEW: Wrap the inner forall with another forall for data variables
+    final_assertion_str = f"""(forall ({" ".join(forall_data_quantifier_vars)})
+    {inner_forall_str}
+)"""
 
     builder.assertions.append(f"(assert {final_assertion_str})")
 
