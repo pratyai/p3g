@@ -2,6 +2,7 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
     generate_smt_for_prove_exists_data_forall_iter_isindep,
+    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
 )
 from tests.cases.graph_definitions import build_indirect_write_scatter_graph
 from tests.test_utils import print_p3g_structure, solve_smt_string
@@ -132,4 +133,46 @@ class TestProveExistsDataForallIterIsindep:
         )
         print(
             "\nVerdict: PASSED. Indirect Write (Scatter) is DOFI (Parallel) as expected."
+        )
+
+
+class TestProveExistsDataForallLoopBoundsIterIsindep:
+    def test_indirect_write_scatter_dofi_forall_bounds(self):
+        """
+        Test case for Indirect Write (Scatter) operation using loop bounds SMT: for i = 1...N: A[ IDX[i] ] = B[i].
+        This operation can be parallel if the index array `IDX` is configured to avoid conflicts
+        (e.g., if all `IDX[i]` values are unique).
+        This test expects the loop to be Data-Oblivious Fully Independent (DOFI) because
+        a parallelizing data configuration for `IDX` can exist, even with symbolic loop bounds.
+        The SMT query should return SAT, indicating DOFI (parallel).
+        """
+        print(
+            "\n--- Running Test: Indirect Write (Scatter) (Loop Bounds) (Expected: DOFI/Parallel) ---"
+        )
+        b_root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val = (
+            build_indirect_write_scatter_graph()
+        )
+
+        # Print constructed P3G
+        print_p3g_structure(b_root_graph)
+
+        print(f"Generating SMT query for N (symbolic).")
+        smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
+            loop_node, verbose=False
+        )
+        print(
+            "\n--- Generated SMT Query (indirect_write_scatter_dofi_forall_bounds) ---"
+        )
+        print(smt_query)
+        print("---------------------------------------------------")
+
+        # EXPECT: sat (True) - A data configuration for IDX exists that makes the loop parallel, for all loop bounds.
+        result = solve_smt_string(
+            smt_query, "indirect_write_scatter_dofi_forall_bounds"
+        )
+        assert result, (
+            "Expected indirect write (scatter) (loop bounds) to be DOFI (parallel) but SMT solver returned UNSAT."
+        )
+        print(
+            "\nVerdict: PASSED. Indirect Write (Scatter) (Loop Bounds) is DOFI (Parallel) as expected."
         )

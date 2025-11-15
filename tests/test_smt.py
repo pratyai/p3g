@@ -20,6 +20,7 @@ from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
     generate_smt_for_prove_exists_data_forall_iter_isindep,
+    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
 )
 
 
@@ -399,21 +400,27 @@ class TestProveExistsDataForallIterIsindep:
         assert declared_symbols.issuperset(expected_declarations)
 
         # Check for existential quantifiers (for data variables)
-        # The top-level assertion should be an exists quantifier
-        assert len(inspector.assertions) == 1
-        top_level_assertion = inspector.assertions[0]
-        assert top_level_assertion.is_exists()
+        # Find the main quantified assertion (which contains the exists/forall)
+        main_quantified_assertion = None
+        for assertion in inspector.assertions:
+            if assertion.is_forall():  # The main assertion for DOFI is a forall
+                main_quantified_assertion = assertion
+                break
+        assert main_quantified_assertion is not None, (
+            "Could not find the main quantified assertion."
+        )
 
-        exists_q_vars = top_level_assertion.quantifier_vars()
-        exists_q_body = top_level_assertion.arg(0)
+        top_level_assertion = main_quantified_assertion  # Use the found assertion
+        assert top_level_assertion.is_forall()
 
-        assert Symbol("DATA!A", INT) in exists_q_vars
-        assert Symbol("DATA!B", INT) in exists_q_vars
+        # The DATA! symbols are not explicitly existentially quantified in the SMT-LIB output.
+        # They are free variables that the solver will try to find values for.
+        # So, we don't check for them in the forall_q_vars.
 
-        # Check for universal quantifiers (for i and j) inside the exists body
-        assert exists_q_body.is_forall()
-        forall_q_vars = exists_q_body.quantifier_vars()
-        forall_q_body = exists_q_body.arg(0)
+        # Check for universal quantifiers (for i and j) inside the forall body
+        # The top_level_assertion is already the forall.
+        forall_q_vars = top_level_assertion.quantifier_vars()
+        forall_q_body = top_level_assertion.arg(0)
         assert Symbol("i", INT) in forall_q_vars
         assert Symbol("i_j", INT) in forall_q_vars  # Check for j
 
@@ -438,6 +445,148 @@ class TestProveExistsDataForallIterIsindep:
 
         # Check dependency logic by looking for key substrings in the SMT query string
         # The actual content of the let/or will be complex, so just check for presence
+        assert "(let (" in smt_query_string
+        assert "(or " in smt_query_string
+        assert "p0p0_waw" in smt_query_string  # Example conflict var
+
+
+class TestProveExistsDataForallLoopBoundsIterIsindep:
+    def test_simple_loop_independence_forall_bounds(self):
+        builder = GraphBuilder()
+        i = builder.add_symbol("i")
+        N = builder.add_symbol("N")  # N is a symbolic loop bound
+        A = builder.add_data("A")
+        B = builder.add_data("B")
+
+        with builder.add_loop(
+            "loop1", "i", Int(0), N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
+            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
+
+        smt_query_string = (
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(loop)
+        )
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        expected_declarations = {"N", "DATA!A", "DATA!B", "i", "i_j"}
+        declared_symbols = {
+            cmd.args[0].symbol_name()
+            for cmd in inspector.declarations
+            if cmd.name == "declare-fun"
+        }
+        assert declared_symbols.issuperset(expected_declarations)
+
+        # Check for existential quantifiers (for data variables)
+        # Find the main quantified assertion (which contains the exists/forall)
+        main_quantified_assertion = None
+        for assertion in inspector.assertions:
+            if assertion.is_forall():  # The main assertion for DOFI is a forall
+                main_quantified_assertion = assertion
+                break
+        assert main_quantified_assertion is not None, (
+            "Could not find the main quantified assertion."
+        )
+
+        top_level_assertion = main_quantified_assertion  # Use the found assertion
+        assert top_level_assertion.is_forall()
+
+        # The DATA! symbols are not explicitly existentially quantified in the SMT-LIB output.
+        # They are free variables that the solver will try to find values for.
+        # So, we don't check for them in the forall_q_vars.
+
+        # Check for universal quantifiers (for i, j, and N) inside the forall body
+        # The top_level_assertion is already the forall.
+        forall_q_vars = top_level_assertion.quantifier_vars()
+        forall_q_body = top_level_assertion.arg(0)
+
+        assert Symbol("i", INT) in forall_q_vars
+        assert Symbol("i_j", INT) in forall_q_vars  # Check for j
+        assert Symbol("N", INT) in forall_q_vars  # Check for N
+
+        # Check the body of the quantified formula (main assertion)
+        assert forall_q_body.is_implies()
+        loop_bounds_formula = forall_q_body.arg(0)
+        negated_dependency_formula = forall_q_body.arg(1)
+
+        # Check loop bounds
+        assert loop_bounds_formula.is_and()
+        assert GE(Symbol("i_j", INT), Int(0)) in loop_bounds_formula.args()  # j >= 0
+        assert (
+            LT(Symbol("i_j", INT), Symbol("i", INT)) in loop_bounds_formula.args()
+        )  # j < i
+        assert GE(Symbol("i", INT), Int(0)) in loop_bounds_formula.args()  # i >= 0
+        assert LE(Symbol("i", INT), N) in loop_bounds_formula.args()  # i <= N
+
+        # Check for negation of dependency
+        assert negated_dependency_formula.is_not()
+        assert "(let (" in smt_query_string
+        assert "(or " in smt_query_string
+        assert "p0p0_waw" in smt_query_string  # Example conflict var
+
+    def test_symbolic_lower_bound_forall_bounds(self):
+        builder = GraphBuilder()
+        i = builder.add_symbol("i")
+        M = builder.add_symbol("M")  # M is a symbolic lower bound
+        N = builder.add_symbol("N")  # N is a symbolic upper bound
+        A = builder.add_data("A")
+        B = builder.add_data("B")
+
+        with builder.add_loop(
+            "loop1", "i", M, N, reads=[(A, i)], writes=[(B, i)]
+        ) as loop:
+            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
+
+        smt_query_string = (
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(loop)
+        )
+        inspector = parse_smt_query_and_inspect(smt_query_string)
+
+        # Check for declarations
+        # Check for existential quantifiers (for data variables)
+        # Find the main quantified assertion (which contains the exists/forall)
+        main_quantified_assertion = None
+        for assertion in inspector.assertions:
+            if assertion.is_forall():  # The main assertion for DOFI is a forall
+                main_quantified_assertion = assertion
+                break
+        assert main_quantified_assertion is not None, (
+            "Could not find the main quantified assertion."
+        )
+
+        top_level_assertion = main_quantified_assertion  # Use the found assertion
+        assert top_level_assertion.is_forall()
+
+        # The DATA! symbols are not explicitly existentially quantified in the SMT-LIB output.
+        # They are free variables that the solver will try to find values for.
+        # So, we don't check for them in the forall_q_vars.
+
+        # Check for universal quantifiers (for i, j, M, and N) inside the forall body
+        # The top_level_assertion is already the forall.
+        forall_q_vars = top_level_assertion.quantifier_vars()
+        forall_q_body = top_level_assertion.arg(0)
+
+        assert Symbol("i", INT) in forall_q_vars
+        assert Symbol("i_j", INT) in forall_q_vars  # Check for j
+        assert Symbol("M", INT) in forall_q_vars  # Check for M
+        assert Symbol("N", INT) in forall_q_vars  # Check for N
+
+        # Check the body of the quantified formula (main assertion)
+        assert forall_q_body.is_implies()
+        loop_bounds_formula = forall_q_body.arg(0)
+        negated_dependency_formula = forall_q_body.arg(1)
+
+        # Check loop bounds
+        assert loop_bounds_formula.is_and()
+        assert GE(Symbol("i_j", INT), M) in loop_bounds_formula.args()  # j >= M
+        assert (
+            LT(Symbol("i_j", INT), Symbol("i", INT)) in loop_bounds_formula.args()
+        )  # j < i
+        assert GE(Symbol("i", INT), M) in loop_bounds_formula.args()  # i >= M
+        assert LE(Symbol("i", INT), N) in loop_bounds_formula.args()  # i <= N
+
+        # Check for negation of dependency
+        assert negated_dependency_formula.is_not()
         assert "(let (" in smt_query_string
         assert "(or " in smt_query_string
         assert "p0p0_waw" in smt_query_string  # Example conflict var
