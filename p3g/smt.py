@@ -221,20 +221,52 @@ def _build_dependency_logic_assertions(
             # Construct the LET bindings for all variables (even if false)
             let_bindings_for_conflict = []
             for name, formula, _ in conflict_vars:
-                let_bindings_for_conflict.append(f"({name} {builder._serialize(formula)})")
-
-            conflict_let_str = f"""
-(let (
-    {' '.join(let_bindings_for_conflict)}
-    ) {path_pair_conflict_or_str})
-"""
+                let_bindings_for_conflict.append(
+                    f"({name} {builder._serialize(formula)})"
+                )
 
             pred_k_str = builder._serialize(pred_k)
             pred_j_str = builder._serialize(pred_j)
 
-            full_path_dependency_str = f"""
-(and {pred_k_str} {pred_j_str} {conflict_let_str})
+            # Construct the OR part of the conflict_let_str
+            if not active_conflict_vars:
+                path_pair_conflict_or_str = "false"
+            elif len(active_conflict_vars) == 1:
+                path_pair_conflict_or_str = active_conflict_vars[0]
+            else:
+                path_pair_conflict_or_str = f"(or {' '.join(active_conflict_vars)})"
+
+            # Construct the LET bindings for all variables (even if false)
+            let_bindings_for_conflict = []
+            for name, formula, _ in conflict_vars:
+                let_bindings_for_conflict.append(
+                    f"({name} {builder._serialize(formula)})"
+                )
+
+            # The conflict_let_str itself
+            conflict_let_str = f"""
+(let (
+    {"\n    ".join(let_bindings_for_conflict)}
+    ) {path_pair_conflict_or_str})
 """
+            # Collect active components for the AND
+            and_components = []
+            if pred_k_str != "true":
+                and_components.append(pred_k_str)
+            if pred_j_str != "true":
+                and_components.append(pred_j_str)
+
+            # Only add conflict_let_str if it's not effectively "true"
+            # A let expression (let (...) true) is logically equivalent to true.
+            if path_pair_conflict_or_str != "true":
+                and_components.append(conflict_let_str)
+
+            if not and_components:
+                full_path_dependency_str = "true"
+            elif len(and_components) == 1:
+                full_path_dependency_str = and_components[0]
+            else:
+                full_path_dependency_str = f"(and {' '.join(and_components)})"
 
             dep_var_name = f"p{idx_k}p{idx_j}_dep"
 
