@@ -261,9 +261,14 @@ def _build_dependency_logic_assertions(
 
             dep_var_names.append(dep_var_name)
 
-    main_body_str = (
-        "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
-    )
+    if not dep_var_names:
+        main_body_str = "false"
+    elif len(dep_var_names) == 1:
+        main_body_str = dep_var_names[0]
+    else:
+        main_body_str = (
+            "(or\n" + "\n".join([f"    {name}" for name in dep_var_names]) + "\n  )"
+        )
 
     let_bindings = "\n".join(let_bindings_list)
     return let_bindings, main_body_str
