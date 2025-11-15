@@ -51,6 +51,10 @@ class _StringSmtBuilder:
 
     def _serialize(self, formula: PysmtFormula) -> str:
         """Serializes a pysmt formula object into an SMT-LIB string."""
+        if formula.is_true():
+            return "true"
+        if formula.is_false():
+            return "false"
         for sym in get_free_variables(formula):
             self.declarations.add(sym)
         self._printer.printer(formula)
@@ -194,18 +198,35 @@ def _build_dependency_logic_assertions(
             raw_var = f"p{idx_k}p{idx_j}_raw"
             war_var = f"p{idx_k}p{idx_j}_war"
 
-            waw_str = builder._serialize(waw)
-            raw_str = builder._serialize(raw)
-            war_str = builder._serialize(war)
+            # Store variables and their formulas for dynamic OR construction
+            conflict_vars = [
+                (waw_var, waw, waw),
+                (raw_var, raw, raw),
+                (war_var, war, war),
+            ]
 
-            path_pair_conflict_str = f"(or {waw_var} {raw_var} {war_var})"
+            # Filter out variables that are always false
+            active_conflict_vars = [
+                name for name, formula, _ in conflict_vars if not formula.is_false()
+            ]
+
+            # Construct the OR part of the conflict_let_str
+            if not active_conflict_vars:
+                path_pair_conflict_or_str = "false"
+            elif len(active_conflict_vars) == 1:
+                path_pair_conflict_or_str = active_conflict_vars[0]
+            else:
+                path_pair_conflict_or_str = f"(or {' '.join(active_conflict_vars)})"
+
+            # Construct the LET bindings for all variables (even if false)
+            let_bindings_for_conflict = []
+            for name, formula, _ in conflict_vars:
+                let_bindings_for_conflict.append(f"({name} {builder._serialize(formula)})")
 
             conflict_let_str = f"""
 (let (
-    ({waw_var} {waw_str})
-    ({raw_var} {raw_str})
-    ({war_var} {war_str})
-    ) {path_pair_conflict_str})
+    {' '.join(let_bindings_for_conflict)}
+    ) {path_pair_conflict_or_str})
 """
 
             pred_k_str = builder._serialize(pred_k)
