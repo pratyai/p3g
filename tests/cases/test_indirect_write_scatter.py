@@ -7,7 +7,7 @@ from p3g.smt import (
     generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
 )
 from tests.cases.graph_definitions import build_indirect_write_scatter_graph
-from tests.test_utils import print_p3g_structure, solve_smt_string
+from tests.test_utils import print_p3g_structure, solve_smt_string, TimeoutError
 
 
 class TestProveExistsDataForallIterIsdep:
@@ -139,7 +139,6 @@ class TestProveExistsDataForallIterIsindep:
 
 
 class TestProveExistsDataForallLoopBoundsIterIsindep:
-    @pytest.mark.skip(reason="Temporarily skipping due to timeout/complexity issues")
     def test_indirect_write_scatter_dofi_forall_bounds(self):
         """
         Test case for Indirect Write (Scatter) operation using loop bounds SMT: for i = 1...N: A[ IDX[i] ] = B[i].
@@ -170,19 +169,23 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
         print("---------------------------------------------------")
 
         # EXPECT: sat (True) - A data configuration for IDX exists that makes the loop parallel, for all loop bounds.
-        result = solve_smt_string(
-            smt_query, "indirect_write_scatter_dofi_forall_bounds"
-        )
-        assert result, (
-            "Expected indirect write (scatter) (loop bounds) to be DOFI (parallel) but SMT solver returned UNSAT."
-        )
-        print(
-            "\nVerdict: PASSED. Indirect Write (Scatter) (Loop Bounds) is DOFI (Parallel) as expected."
-        )
+        try:
+            result = solve_smt_string(
+                smt_query,
+                "indirect_write_scatter_dofi_forall_bounds",
+                timeout_seconds=10,
+            )
+            assert result, (
+                "Expected indirect write (scatter) (loop bounds) to be DOFI (parallel) but SMT solver returned UNSAT."
+            )
+            print(
+                "\nVerdict: PASSED. Indirect Write (Scatter) (Loop Bounds) is DOFI (Parallel) as expected."
+            )
+        except TimeoutError as e:
+            pytest.skip(f"Skipping due to timeout: {e}")
 
 
 class TestProveForallDataForallLoopBoundsIterIsindep:
-    @pytest.mark.skip(reason="Temporarily skipping due to timeout/complexity issues")
     def test_indirect_write_scatter_forall_data_forall_bounds(self):
         """
         Test case for Indirect Write (Scatter) operation using SMT with universally quantified data and loop bounds:
@@ -214,12 +217,17 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
         print("---------------------------------------------------")
 
         # EXPECT: unsat (False) - For all data configurations and all loop bounds, there is a dependency.
-        result = solve_smt_string(
-            smt_query, "indirect_write_scatter_forall_data_forall_bounds"
-        )
-        assert not result, (
-            "Expected indirect write (scatter) (forall data, forall loop bounds) to be Not DOFI (sequential) but SMT solver returned SAT."
-        )
-        print(
-            "\nVerdict: PASSED. Indirect Write (Scatter) (Forall Data, Forall Loop Bounds) is Not DOFI (Sequential) as expected."
-        )
+        try:
+            result = solve_smt_string(
+                smt_query,
+                "indirect_write_scatter_forall_data_forall_bounds",
+                timeout_seconds=10,
+            )
+            assert not result, (
+                "Expected indirect write (scatter) (forall data, forall loop bounds) to be Not DOFI (sequential) but SMT solver returned SAT."
+            )
+            print(
+                "\nVerdict: PASSED. Indirect Write (Scatter) (Forall Data, Forall Loop Bounds) is Not DOFI (Sequential) as expected."
+            )
+        except TimeoutError as e:
+            pytest.skip(f"Skipping due to timeout: {e}")
