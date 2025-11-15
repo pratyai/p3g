@@ -205,18 +205,18 @@ def _build_dependency_logic_assertions(
                 (war_var, war, war),
             ]
 
-            # Filter out variables that are always false
-            active_conflict_vars = [
-                name for name, formula, _ in conflict_vars if not formula.is_false()
-            ]
+            # This list will contain ALL conflict variable names
+            all_conflict_var_names = [name for name, _, _ in conflict_vars]
 
             # Construct the OR part of the conflict_let_str
-            if not active_conflict_vars:
+            # Always construct an OR if there are any variables,
+            # and simplify to 'false' only if there are no variables at all.
+            if not all_conflict_var_names:
                 path_pair_conflict_or_str = "false"
-            elif len(active_conflict_vars) == 1:
-                path_pair_conflict_or_str = active_conflict_vars[0]
+            elif len(all_conflict_var_names) == 1:
+                path_pair_conflict_or_str = all_conflict_var_names[0]
             else:
-                path_pair_conflict_or_str = f"(or {' '.join(active_conflict_vars)})"
+                path_pair_conflict_or_str = f"(or {' '.join(all_conflict_var_names)})"
 
             # Construct the LET bindings for all variables (even if false)
             let_bindings_for_conflict = []
@@ -227,21 +227,6 @@ def _build_dependency_logic_assertions(
 
             pred_k_str = builder._serialize(pred_k)
             pred_j_str = builder._serialize(pred_j)
-
-            # Construct the OR part of the conflict_let_str
-            if not active_conflict_vars:
-                path_pair_conflict_or_str = "false"
-            elif len(active_conflict_vars) == 1:
-                path_pair_conflict_or_str = active_conflict_vars[0]
-            else:
-                path_pair_conflict_or_str = f"(or {' '.join(active_conflict_vars)})"
-
-            # Construct the LET bindings for all variables (even if false)
-            let_bindings_for_conflict = []
-            for name, formula, _ in conflict_vars:
-                let_bindings_for_conflict.append(
-                    f"({name} {builder._serialize(formula)})"
-                )
 
             # The conflict_let_str itself
             conflict_let_str = f"""
