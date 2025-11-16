@@ -1,68 +1,74 @@
 # P3G : Loop Analysis Tool
 
 ## Overview
+P3G is a prototype tool for analyzing loops in simple imperative programs to determine their potential for parallelization. It represents loop structures using a graph-based intermediate representation (P3G) and uses an SMT solver (like Z3) to formally verify the presence or absence of data dependencies across loop iterations.
 
-P3G is a prototype tool for analyzing loops in a simple imperative language to determine their potential for parallelization. It represents loop structures using a graph-based intermediate representation (P3G) and uses an SMT solver (like Z3) to formally verify the presence or absence of data dependencies.
+The tool supports several kinds of formal analysis:
+- **Data-Oblivious Full Sequentiality (DOFS)**: A loop is DOFS if there **exists** a data configuration that forces a dependency between **all** adjacent iterations. A `SAT` result for a DOFS query means the loop is sequential under some data pattern. An `UNSAT` result proves the loop is parallelizable because no single data pattern can make it fully sequential.
+- **Data-Oblivious Full Independence (DOFI)**: A loop is DOFI if there **exists** a data configuration for which **no** dependencies exist between **any** pair of iterations. A `SAT` result for a DOFI query proves the loop is parallelizable under some data pattern.
+- **Dependency Existence**: A relaxed query that checks if there **exists** any data configuration, loop bounds, and iteration pair that can cause a dependency. A `SAT` result proves the loop is not fully parallel.
 
-The primary analysis performed is for **Data-Oblivious Full Sequentiality (DOFS)**. A loop is considered sequential from a DOFS perspective if a data dependency is proven to exist between adjacent iterations for all possible data inputs. If the SMT query is unsatisfiable (UNSAT), it proves that for any data configuration, at least one pair of adjacent iterations remains independent, making the loop "not fully sequential" and a candidate for parallelization.
+## Table of Contents
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Running Tests](#running-tests)
+- [Test Cases](#test-cases)
+  - [Basic Loops](#basic-loops)
+  - [Complex Access Patterns](#complex-access-patterns)
+  - [Data-Dependent Analysis](#data-dependent-analysis)
+  - [Other Cases](#other-cases)
 
 ## Features
-
-- **Graph-based Representation**: Models loop nests, branches, and computations as a P3G.
-- **SMT-based Verification**: Generates SMT-LIB queries to formally prove or disprove data dependencies.
-- **Data-Oblivious Analysis**: Analyzes loops for parallelism independent of the actual data values.
-- **Support for Complex Scenarios**: Includes test cases for various complex loop structures, including:
-  - Indirect and symbolic array accesses.
-  - Data-dependent and non-linear predicates.
-  - Nested loops.
+- **Graph-based Representation**: Models loop nests (`Loop`), parallel maps (`Map`), reductions (`Reduce`), and conditional logic (`Branch`) as a P3G.
+- **Multi-dimensional Data Access**: Supports multi-dimensional array accesses using `PysmtCoordSet` and `PysmtRange`.
+- **SMT-based Verification**: Generates SMT-LIB queries for different formal analyses (DOFS, DOFI, dependency existence).
+- **Support for Complex Scenarios**: Includes a rich test suite for various complex loop structures, including:
+    - Indirect and symbolic array accesses.
+    - Data-dependent and non-linear predicates.
+    - Nested loops.
 
 ## Project Structure
 
 ```
 .
 ├── p3g/
-│   ├── __init__.py
 │   ├── p3g.py         # Core P3G graph-building components.
-│   └── smt.py         # SMT query generation logic and interaction with the SMT solver.
+│   └── smt.py         # SMT query generation logic.
 ├── tests/
 │   ├── cases/         # Individual test cases for different loop types.
 │   └── test_utils.py  # Helper functions for tests.
+├── tools/
+│   └── simplify.py    # A utility to simplify SMT-LIB files.
 ├── .gitignore
 ├── pyproject.toml
-└── requirements.txt
+├── requirements.txt
+└── README.md
 ```
 
 ## Getting Started
 
 ### Prerequisites
-
 - Python 3.9+
-- Z3 SMT Solver (required for SMT-based verification)
+- Z3 SMT Solver
 
 ### Installation
-
 1. **Clone the repository:**
     ```bash
     git clone <repository-url>
     cd p3g
     ```
-
-1. **Install dependencies:**
+2. **Install dependencies:**
     It is recommended to use a virtual environment.
     ```bash
     python -m venv .venv
     source .venv/bin/activate
     pip install -r requirements.txt
     ```
-
-1. **Install SMT Solver (Z3):**
-    P3G relies on an SMT solver, typically Z3. You can install it via `pysmt-install` :
-    ```bash
-    pysmt-install --z3
-    ```
+3. **Install SMT Solver (Z3):**
+    P3G relies on Z3. The required `z3-solver` Python package is included in `requirements.txt` and will be installed automatically.
 
 ## Running Tests
-
 This project uses `pytest` for testing. The test suite is located in the `tests/cases/` directory.
 
 To run all test cases, execute the following command from the project root:
@@ -72,7 +78,6 @@ pytest
 ```
 
 ## Test Cases
-
 The test suite covers a range of loop structures to verify the correctness of the dependency analysis. Each test case describes a specific loop pattern, its expected parallelization property (Data-Oblivious Full Sequentiality - DOFS, or Not DOFS/Parallelizable), and the reasoning behind it.
 
 ### Basic Loops
@@ -85,12 +90,31 @@ The test suite covers a range of loop structures to verify the correctness of th
     A[i] = B[i] + C[i]
   ```
 
-- **Description**: This loop is inherently parallelizable as each iteration is independent, reading from `B` and `C` and writing to `A` at the current index `i` . There are no dependencies between adjacent iterations that would force sequential execution.
-  - `test_parallel_loop_dofs` :
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
-  - `test_parallel_loop_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_parallel_loop_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+- **Description**: This loop is inherently parallelizable as each iteration is independent. Each iteration `i` only reads from `B[i]` and `C[i]` and writes to `A[i]`. There are no dependencies between adjacent iterations that would force sequential execution.
+
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS).
+  - **Expected Outcome**: Not DOFS (Parallelizable). The SMT query returns UNSAT, proving that no data configuration can make this loop fully sequential.
+
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT.
+
+- `test_dofi`:
+  - **Description**: Checks for Data-Oblivious Full Independence (DOFI).
+  - **Expected Outcome**: DOFI (Parallelizable). The SMT query returns SAT, proving that a data configuration exists (which is all configurations in this case) that makes the loop fully independent.
+
+- `test_dofi_forall_bounds`:
+  - **Description**: Analyzes DOFI with universally quantified loop bounds.
+  - **Expected Outcome**: DOFI (Parallelizable). SMT query returns SAT.
+
+- `test_forall_data_forall_bounds`:
+  - **Description**: Checks if the loop is independent for *all* data configurations.
+  - **Expected Outcome**: DOFI for all data (Always Parallel). The SMT query returns SAT, proving the loop is parallel regardless of the contents of `B` and `C`.
+
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency can exist.
+  - **Expected Outcome**: No dependency. The SMT query returns UNSAT.
 
 #### `test_sequential_loop.py`
 
@@ -100,33 +124,59 @@ The test suite covers a range of loop structures to verify the correctness of th
     A[i] = A[i-1] + B[i]
   ```
 
-- **Description**: This loop has a Read-After-Write (RAW) dependency where `A[i]` reads `A[i-1]` , which was written in the previous iteration. This dependency exists for all iterations, making the loop inherently sequential.
-  - `test_sequential_loop_dofs` :
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
-  - `test_sequential_loop_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_sequential_loop_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+- **Description**: This is a classic sequential loop due to a Read-After-Write (RAW) dependency: `A[i]` reads `A[i-1]`, which was written in the previous iteration. This dependency exists for all iterations in the loop range.
+
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS).
+  - **Expected Outcome**: DOFS (Sequential). The SMT query returns SAT, proving that a data configuration exists (which is inherent in the loop structure) that forces sequential execution.
+
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT.
+
+- `test_dofi`:
+  - **Description**: Checks for Data-Oblivious Full Independence (DOFI).
+  - **Expected Outcome**: Not DOFI (Sequential). The SMT query returns UNSAT, as no data configuration can make this loop fully independent.
+
+- `test_dofi_forall_bounds`:
+  - **Description**: Analyzes DOFI with universally quantified loop bounds.
+  - **Expected Outcome**: Not DOFI (Sequential). SMT query returns UNSAT.
+
+- `test_forall_data_forall_bounds`:
+  - **Description**: Checks if the loop is independent for *all* data configurations.
+  - **Expected Outcome**: Not DOFI for all data (Always Sequential). The SMT query returns UNSAT, as the loop is inherently sequential.
+
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency can exist.
+  - **Expected Outcome**: Dependency exists. The SMT query returns SAT, as the RAW dependency is always present.
 
 ### Complex Access Patterns
 
 #### `test_array_reversal.py`
 
 - **Loop Logic**:
-    ```
-    for i = 0...N-1:
-      swap(A[i], A[N-1-i])
-    ```
+  ```
+  for i = 0...N-1:
+    swap(A[i], A[N-1-i])
+  ```
 
-- **Description**: This loop swaps elements `A[i]` and `A[N-1-i]` . The parallelizability depends on the value of `N` .
-  - `test_array_reversal_dofs` :
-    - **Description**: Tests the general case. For `N=2` , `A[0]` and `A[1]` are swapped, creating a dependency. If `N` is symbolic, the solver can pick `N=2` , making it sequential.
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
-  - `test_array_reversal_high_N_dofs` :
-    - **Description**: Tests the case where `N >= 3` . When `N >= 3` , indices `k` and `N-1-k` are distinct and do not overlap with `k+1` and `N-1-(k+1)` , making it parallelizable.
-    - **Expected Outcome**: Not DOFS (Parallel). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
-  - `test_array_reversal_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_array_reversal_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+- **Description**: This loop swaps elements from opposite ends of an array. The parallelizability of this loop is highly dependent on the value of `N` (the array size). For small `N`, dependencies can exist between adjacent iterations.
+
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS).
+  - **Expected Outcome**: DOFS (Sequential). The SMT query returns SAT. The solver can find a value for `N` (e.g., `N=2`) where `swap(A[0], A[1])` and `swap(A[1], A[0])` create a dependency between adjacent iterations.
+
+- `test_high_N_dofs`:
+  - **Description**: Checks for DOFS with the additional constraint that `N >= 3`.
+  - **Expected Outcome**: Not DOFS (Parallelizable). The SMT query returns UNSAT. When `N >= 3`, for any iteration `k`, the indices `k` and `N-1-k` are distinct and do not overlap with the indices for the next iteration `k+1`. This means no data configuration can force sequential execution across all adjacent iterations.
+
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: Not DOFS (Parallelizable). The SMT query returns UNSAT. Because the solver must consider all possible loop bounds, it will encounter cases where `N >= 3`, which breaks the dependency chain for adjacent iterations.
+
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency can exist between *any* two iterations `j < k`.
+  - **Expected Outcome**: Dependency exists. The SMT query returns SAT. The solver can find a data configuration for `N` (e.g., `N=2`) that creates a dependency.
 
 #### `test_long_distance_dependency.py`
 
@@ -136,12 +186,19 @@ The test suite covers a range of loop structures to verify the correctness of th
     A[i] = A[max(i-10, 0)] + B[i]
   ```
 
-- **Description**: `A[i]` depends on `A[max(i-10, 0)]` , a value far removed from `A[i-1]` . This means there is no inherent data dependency between *adjacent* iterations that would force sequential execution.
-  - `test_long_distance_dependency_dofs` :
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
-  - `test_long_distance_dependency_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_long_distance_dependency_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+- **Description**: This test analyzes a loop where the dependency `A[i] <- A[max(i-10, 0)]` has a fixed, long distance (10 iterations). The DOFS analysis, which checks for dependencies between adjacent iterations (`k` and `k+1`), should not find a dependency.
+
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS) between adjacent iterations.
+  - **Expected Outcome**: Not DOFS (Parallel). The SMT query returns UNSAT because the dependency distance is greater than 1.
+
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: Not DOFS (Parallel). SMT query returns UNSAT.
+
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency exists between *any* two iterations `j < k`.
+  - **Expected Outcome**: Dependency exists. The SMT query returns SAT because this relaxed query is able to find the long-distance dependency (e.g., between iteration `k=2` and `k=12`).
 
 #### `test_indirect_read_gather.py`
 
@@ -151,12 +208,31 @@ The test suite covers a range of loop structures to verify the correctness of th
     A[i] = B[ IDX[i] ]
   ```
 
-- **Description**: This operation is generally parallelizable because writes to `A[i]` are independent of previous `A` values, and reads from `B` are indirect. There is no inherent data dependency between adjacent iterations that would force sequential execution for all data configurations.
-  - `test_indirect_read_gather_dofs` :
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
-  - `test_indirect_read_gather_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_indirect_read_gather_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+- **Description**: This "gather" operation reads from an array `B` using an indirect index from array `IDX` and writes to a sequential index `i` in array `A`. Since each iteration `i` writes to a unique location `A[i]`, there are no write-related dependencies (WAW, WAR). Reads from `B` do not create dependencies between iterations. Therefore, the loop is fully parallel.
+
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS).
+  - **Expected Outcome**: Not DOFS (Parallelizable). The SMT query returns UNSAT. No data configuration for `IDX` can force a dependency.
+
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT.
+
+- `test_dofi`:
+  - **Description**: Checks for Data-Oblivious Full Independence (DOFI).
+  - **Expected Outcome**: DOFI (Parallelizable). The SMT query returns SAT. A parallelizing data configuration for `IDX` can always be found (in fact, all configurations are parallel).
+
+- `test_dofi_forall_bounds`:
+  - **Description**: Analyzes DOFI with universally quantified loop bounds.
+  - **Expected Outcome**: DOFI (Parallelizable). SMT query returns SAT.
+
+- `test_forall_data_forall_bounds`:
+  - **Description**: Checks if the loop is independent for *all* data configurations.
+  - **Expected Outcome**: DOFI for all data (Always Parallel). The SMT query returns SAT, proving the loop is parallel regardless of the contents of `IDX`.
+
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency can exist.
+  - **Expected Outcome**: No dependency. The SMT query returns UNSAT.
 
 #### `test_indirect_write_scatter.py`
 
@@ -166,42 +242,71 @@ The test suite covers a range of loop structures to verify the correctness of th
     A[ IDX[i] ] = B[i]
   ```
 
-- **Description**: This operation is generally sequential because multiple iterations can write to the same memory location in `A` if `IDX[i]` values are not unique or create dependencies (e.g., WAW if `IDX[i]=5` for all `i` ). The test proves *existence* of a sequentializing data configuration.
-  - `test_indirect_write_scatter_dofs` :
-    - **Expected Outcome**: Not DOFS (Parallelizable) for *some* data configurations. SMT query returns UNSAT, proving that no data configuration forces sequentiality across *all* adjacent iterations.
-  - `test_indirect_write_scatter_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_indirect_write_scatter_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: Not DOFS (Parallelizable) for *some* data configurations. SMT query returns UNSAT, proving that no data configuration forces sequentiality across *all* adjacent iterations.
+- **Description**: This "scatter" operation writes to an array `A` using an indirect index from array `IDX`. A Write-After-Write (WAW) dependency can exist if different iterations write to the same location (i.e., if `IDX[j] == IDX[k]` for `j != k`).
 
-#### `test_non_linear_access.py` / `test_non_linear_access_dofs`
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS).
+  - **Expected Outcome**: DOFS (Sequential). The SMT query returns SAT. The solver can find a data configuration for the `IDX` array (e.g., `IDX[i] = 0` for all `i`) that forces a dependency between all adjacent iterations.
 
-- **Loop Logic**:
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT.
+
+- `test_dofi`:
+  - **Description**: Checks for Data-Oblivious Full Independence (DOFI).
+  - **Expected Outcome**: DOFI (Parallelizable). The SMT query returns SAT. The solver can find a data configuration for `IDX` (e.g., `IDX[i] = i`) that avoids all dependencies, making the loop fully parallel.
+
+- `test_dofi_forall_bounds`:
+  - **Description**: Analyzes DOFI with universally quantified loop bounds.
+  - **Expected Outcome**: DOFI (Parallelizable). SMT query returns SAT.
+
+- `test_forall_data_forall_bounds`:
+  - **Description**: Checks if the loop is independent for *all* data configurations.
+  - **Expected Outcome**: Not DOFI for all data (Sequential case exists). The SMT query returns UNSAT, because a conflicting `IDX` array can always be constructed.
+
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency can exist.
+  - **Expected Outcome**: Dependency exists. The SMT query returns SAT, as the solver can easily find a case where `IDX[j] = IDX[k]`.
+
+#### `test_non_linear_access.py`
+
+- **Description**: Analyzes loops with non-linear (quadratic) array access patterns.
+
+- **Parallel Non-Linear Access**
+  - **Loop Logic**:
+    ```
+    for i=0:N:
+      A[i*i] = B[i] + C[i]
   ```
-  for i=0:N:
-    A[i*i] = B[i] + C[i]
+
+- **Description**: This loop writes to `A` using a quadratic index `i*i`. The distance between access indices for adjacent iterations (`(i+1)^2 - i^2 = 2i+1`) grows, ensuring no dependencies are created.
+
+- `test_dofs`:
+  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT.
+
+- `test_dofs_forall_bounds`:
+  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT.
+
+- `test_find_dependency`:
+  - **Expected Outcome**: No dependency. SMT query returns UNSAT.
+
+- **Sequential Non-Linear Access**
+  - **Loop Logic**:
+    ```
+    for i = 1...N:
+      A[i*i] = A[(i-1)*(i-1)] + B[i]
   ```
 
-- **Description**: This loop involves a non-linear array access pattern (`A[i*i]`). Due to the quadratic growth of the index, for `i > 0`, `i*i` and `(i+1)*(i+1)` are distinct and sufficiently far apart. This prevents adjacent iteration dependencies, making the loop parallelizable.
-  - `test_non_linear_access_dofs` :
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
-  - `test_non_linear_access_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_non_linear_access_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+- **Description**: This loop has a Read-After-Write (RAW) dependency where the write to `A[i*i]` depends on the read from `A[(i-1)*(i-1)]`, which was written in the previous iteration.
 
-#### `test_non_linear_access.py` / `test_non_linear_access_sequential_dofs`
+- `test_sequential_dofs`:
+  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT.
 
-- **Loop Logic**:
-  ```
-  for i = 1...N:
-    A[i*i] = A[(i-1)*(i-1)] + B[i]
-  ```
+- `test_sequential_dofs_forall_bounds`:
+  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT.
 
-- **Description**: This loop involves a non-linear array access pattern (`A[i*i]`) that introduces a Read-After-Write (RAW) dependency. `A[i*i]` reads a value written to `A[(i-1)*(i-1)]` in the previous iteration. This dependency exists for all iterations, making the loop inherently sequential.
-  - `test_non_linear_access_sequential_dofs` :
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
-  - `test_non_linear_access_sequential_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_non_linear_access_sequential_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+- `test_sequential_find_dependency`:
+  - **Expected Outcome**: Dependency exists. SMT query returns SAT.
 
 ### Data-Dependent Analysis
 
@@ -214,12 +319,19 @@ The test suite covers a range of loop structures to verify the correctness of th
       A[i] = A[i-1]
   ```
 
-- **Description**: This loop's dependency is conditional on the data in `B` . If all `B[i] > 0` , then `A[i] = A[i-1]` always executes, creating a sequential dependency.
-  - `test_data_aware_bi_dofs` :
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
-  - `test_data_aware_bi_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_data_aware_bi_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+- **Description**: This test case analyzes a loop with a data-dependent conditional branch. A dependency exists only if the condition `B[i] > 0` is met.
+
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS).
+  - **Expected Outcome**: DOFS (Sequential). The SMT query returns SAT. The solver can find a data configuration (e.g., setting all `B[i]` values to be greater than 0) that makes the sequential branch `A[i] = A[i-1]` execute for all iterations, thus proving a sequential case exists.
+
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: DOFS (Sequential). The SMT query returns SAT, as the existence of a sequentializing data configuration is not dependent on the specific loop bounds.
+
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency can exist.
+  - **Expected Outcome**: Dependency exists. The SMT query returns SAT, as the solver can easily find a data configuration where the condition is met for at least two consecutive iterations.
 
 #### `test_data_aware_bi_b13.py`
 
@@ -230,16 +342,23 @@ The test suite covers a range of loop structures to verify the correctness of th
       A[i] = A[i-1]
   ```
 
-- **Description**: This loop's dependency is conditional on the difference between `B[i]` and a constant `B[13]` .
-  - `test_data_aware_bi_b13_dofs` :
-    - **Description**: Tests the general case. If `B[i]=1` and `B[13]=0` , the condition `B[i] - B[13] > 0` is always true, making the loop sequential.
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
-  - `test_data_aware_bi_b13_high_N_dofs` :
-    - **Description**: Tests the case where `N >= 15` . If `N >= 15` , the loop includes `k=13` , where `B[13] - B[13] > 0` is false, skipping the dependency and making it parallelizable.
-    - **Expected Outcome**: Not DOFS (Parallel). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
-  - `test_data_aware_bi_b13_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_data_aware_bi_b13_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+- **Description**: This test case features a conditional dependency that references a fixed index (`B[13]`). The analysis must consider how the loop bounds (`N`) interact with this fixed index.
+
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS).
+  - **Expected Outcome**: DOFS (Sequential). The SMT query returns SAT. The solver can find a data configuration and loop bounds (e.g., `N < 13`) that make the condition `B[i] - B[13] > 0` true for all iterations, thus forcing a sequential dependency.
+
+- `test_high_N_dofs`:
+  - **Description**: Checks for DOFS with the additional constraint that `N >= 15`.
+  - **Expected Outcome**: Not DOFS (Parallelizable). The SMT query returns UNSAT. When `N >= 15`, the loop is guaranteed to include the iteration `i=13`. At this point, the condition `B[13] - B[13] > 0` is always false, breaking the chain of dependencies.
+
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: Not DOFS (Parallelizable). The SMT query returns UNSAT. Because the solver must consider all possible loop bounds, it will encounter cases where `N >= 13`, which breaks the dependency chain, so it cannot prove that a data configuration exists that makes it sequential for *all* possible bounds. *(Note: The test case expects False/UNSAT)*.
+
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency can exist.
+  - **Expected Outcome**: Dependency exists. The SMT query returns SAT, as the solver can easily find a data and bounds configuration where the sequential branch is taken for at least two consecutive iterations.
 
 #### `test_sequential_with_symbolic_max_index.py`
 
@@ -248,14 +367,21 @@ The test suite covers a range of loop structures to verify the correctness of th
   for i = 2...N:
     A[i] = A[max(i-w, 0)] + B[i]
   ```
-  (where `w` is symbolic)
+  (where `w` is a symbolic variable)
 
-- **Description**: This loop's dependency involves a symbolic variable `w` in the `max` function. Since `w` is symbolic, the SMT solver can choose `w=1` , making the loop `A[i] = A[i-1] + B[i]` (sequential). Thus, a data configuration exists that forces sequentiality.
-  - `test_sequential_with_symbolic_max_index_dofs` :
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
-  - `test_sequential_with_symbolic_max_index_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_sequential_with_symbolic_max_index_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+- **Description**: This test analyzes a loop with a symbolic dependency distance, `w`. The SMT solver must determine if there *exists* a value for `w` that can force the loop to be sequential.
+
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS).
+  - **Expected Outcome**: DOFS (Sequential). The SMT query returns SAT. The solver can choose a value for `w` (e.g., `w=1`) that creates a direct Read-After-Write dependency (`A[i]` depends on `A[i-1]`), making the loop sequential.
+
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: DOFS (Sequential). The SMT query returns SAT, as the ability to choose `w=1` is independent of the loop bounds.
+
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency can exist.
+  - **Expected Outcome**: Dependency exists. The SMT query returns SAT, as the solver can easily find a configuration for `w` that creates a dependency.
 
 ### Other Cases
 
@@ -270,131 +396,178 @@ The test suite covers a range of loop structures to verify the correctness of th
       A[i] = A[i-1] + C[i] // Sequential part
   ```
 
-- **Description**: This loop contains a non-linear predicate ( `i*i <= N` ) that determines whether a parallel or sequential branch is taken. Because the parallel branch ( `A[i] = B[i] + C[i]` ) can always be taken for some `k` (e.g., for `k=0` , `0*0 <= N` is always true for `N >= 0` ), there is no data configuration that forces *all* adjacent iterations to be sequential.
-  - `test_non_linear_predicate_dofs` :
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
-  - `test_non_linear_predicate_dofs_forall_bounds` :
-    - **Description**: Analyzes the same loop logic as `test_non_linear_predicate_dofs` , but using loop bounds SMT generation.
-    - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+- **Description**: This test case analyzes a loop where a non-linear predicate (`i*i <= N`) determines whether a parallel or a sequential code path is executed. The analysis must reason about whether the sequential path can be forced for all iterations.
 
-#### `test_nested_loop.py` / `test_nested_loop_outer_dofs`
+- `test_dofs`:
+  - **Description**: Checks for Data-Oblivious Full Sequentiality (DOFS).
+  - **Expected Outcome**: Not DOFS (Parallelizable). The SMT query returns UNSAT. Because the parallel branch is always taken for at least the first iteration (`k=0`), no data configuration can make the loop *fully* sequential.
 
-- **Loop Logic**:
-  ```
-  for i = 1...N:
-    for j = 1...M:
-      A[i, j] = A[i-1, j] + B[i, j]
-  ```
+- `test_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT for the same reason as the standard DOFS test.
 
-- **Description**: The outer loop (over `i` ) has a true data dependency ( `A[i,j]` depends on `A[i-1,j]` ), making it DOFS. The inner loop (over `j` ) has no self-dependency, making it Not DOFS (parallelizable).
-- `test_nested_loop_outer_dofs_dofs` :
-  - **Expected Outcome**: Outer Loop DOFS (Sequential); Inner Loop Not DOFS (Parallel). SMT query returns SAT for the outer loop, UNSAT for the inner loop.
-- `test_nested_loop_outer_dofs_forall_bounds` :
-  - **Description**: Analyzes the same loop logic as `test_nested_loop_outer_dofs_dofs` , but using loop bounds SMT generation.
-  - **Expected Outcome**: Outer Loop DOFS (Sequential); Inner Loop Not DOFS (Parallel). SMT query returns SAT for the outer loop, UNSAT for the inner loop.
+- `test_find_dependency`:
+  - **Description**: Uses a relaxed check to find if *any* dependency can exist.
+  - **Expected Outcome**: Dependency exists. The SMT query returns SAT because the solver can find a value for `N` and iteration numbers `j, k` where the sequential branch is taken, creating a dependency.
 
-#### `test_nested_loop.py` / `test_nested_loop_inner_dofs`
+#### `test_nested_loop.py`
 
-- **Loop Logic**:
-  ```
-  for i = 1...N:
-    for j = 1...M:
-      A[i, j] = A[i, j-1] + B[i, j]
+- **Description**: Analyzes nested loops with dependencies carried by either the inner or outer loop.
+
+- **Outer-Carried Dependency**
+  - **Loop Logic**:
+    ```
+    for i = 1...N:
+      for j = 1...M:
+        A[i, j] = A[i-1, j] + B[i, j]
   ```
 
-- **Description**: The outer loop (over `i` ) has no self-dependency, making it Not DOFS (parallelizable). The inner loop (over `j` ) has a true data dependency ( `A[i,j]` depends on `A[i,j-1]` ), making it DOFS.
-- `test_nested_loop_inner_dofs_dofs` :
-  - **Expected Outcome**: Outer Loop Not DOFS (Parallel); Inner Loop DOFS (Sequential). SMT query returns UNSAT for the outer loop, SAT for the inner loop.
-- `test_nested_loop_inner_dofs_forall_bounds` :
-  - **Description**: Analyzes the same loop logic as `test_nested_loop_inner_dofs_dofs` , but using loop bounds SMT generation.
-  - **Expected Outcome**: Outer Loop Not DOFS (Parallel); Inner Loop DOFS (Sequential). SMT query returns UNSAT for the outer loop, SAT for the inner loop.
+- **Description**: The outer loop (over `i`) has a true data dependency (`A[i,j]` depends on `A[i-1,j]`), making it sequential. The inner loop (over `j`) has no self-dependency and is parallelizable.
 
-#### `test_cholesky.py` / `test_cholesky_sequential`
+- `test_outer_dofs`:
+  - **Description**: Checks for DOFS on both loops.
+  - **Expected Outcome**: The outer loop is DOFS (Sequential, SAT). The inner loop is Not DOFS (Parallel, UNSAT).
 
-- **Loop Logic**:
-  ```
-  // Simplified Cholesky
-  for i = 2...N:
-    for j = 2...i:
-      L[i, j] = L[i, j-1] + L[j-1, j-1]
-  ```
+- `test_outer_dofi`:
+  - **Description**: Checks for DOFI on both loops.
+  - **Expected Outcome**: The outer loop is Not DOFI (Sequential, UNSAT). The inner loop is DOFI (Parallel, SAT).
 
-- **Description**: This test models a simplified dependency pattern. It analyzes both the inner and outer loops of this simplified kernel. The inner loop has a true data dependency, making it DOFS. The outer loop has no self-dependency, making it Not DOFS (parallelizable).
-- `test_cholesky_sequential_inner_dofs` :
-  - **Expected Outcome**: Inner Loop DOFS (Sequential). SMT query returns SAT.
-- `test_cholesky_sequential_outer_dofs` :
-  - **Expected Outcome**: Outer Loop Not DOFS (Parallel). SMT query returns UNSAT.
-- `test_cholesky_sequential_inner_dofs_forall_bounds` :
-  - **Description**: Analyzes the inner loop logic, but using loop bounds SMT generation.
-  - **Expected Outcome**: Inner Loop DOFS (Sequential). SMT query returns SAT.
-- `test_cholesky_sequential_outer_dofs_forall_bounds` :
-  - **Description**: Analyzes the outer loop logic, but using loop bounds SMT generation.
-  - **Expected Outcome**: Outer Loop Not DOFS (Parallel). SMT query returns UNSAT.
+- `test_outer_find_dependency` / `test_outer_inner_find_dependency`:
+  - **Description**: Uses a relaxed check for any dependency.
+  - **Expected Outcome**: A dependency is found for the outer loop (SAT). No dependency is found for the inner loop (UNSAT).
 
-#### `test_cholesky.py` / `test_cholesky_full_kernel`
-
-- **Loop Logic**:
-  ```
-  // Full Cholesky Kernel (simplified for P3G modeling)
-  for i = 0 to N-1:
-    for j = 0 to i:
-      sum_val = 0
-      for k = 0 to j-1:
-        sum_val = sum_val + L[i,k] * L[j,k]
-      L[i,j] = A[i,j] - sum_val
+- **Inner-Carried Dependency**
+  - **Loop Logic**:
+    ```
+    for i = 1...N:
+      for j = 1...M:
+        A[i, j] = A[i, j-1] + B[i, j]
   ```
 
-- **Description**: This test models a more accurate Cholesky Decomposition kernel. It is highly sequential due to dependencies across all three nested loops.
-- `test_cholesky_full_kernel_dofs` :
-  - **Expected Outcome**: Full Cholesky Kernel DOFS (Sequential). SMT query returns SAT.
-- `test_cholesky_full_kernel_dofs_forall_bounds` :
-  - **Description**: Analyzes the same loop logic as `test_cholesky_full_kernel_dofs` , but using loop bounds SMT generation.
-  - **Expected Outcome**: Full Cholesky Kernel DOFS (Sequential). SMT query returns SAT.
+- **Description**: The inner loop (over `j`) has a true data dependency (`A[i,j]` depends on `A[i,j-1]`), making it sequential. The outer loop (over `i`) has no self-dependency and is parallelizable.
 
-#### `test_gauss_seidel.py` / `test_gauss_seidel_red`
+- `test_inner_dofs`:
+  - **Description**: Checks for DOFS on both loops.
+  - **Expected Outcome**: The inner loop is DOFS (Sequential, SAT). The outer loop is Not DOFS (Parallel, UNSAT).
 
-- **Loop Logic**:
-  ```
-  // Red Pass (odd indices)
-  for i = 1, 3, 5, ...:
-    A[i] = A[i-1] + A[i+1]
-  ```
+- `test_inner_dofi`:
+  - **Description**: Checks for DOFI on both loops.
+  - **Expected Outcome**: The inner loop is Not DOFI (Sequential, UNSAT). The outer loop is DOFI (Parallel, SAT).
 
-- **Description**: This test covers the Red pass of Gauss-Seidel. It involves writes to odd indices and reads from adjacent even indices. No dependency between iterations for any data configuration, making it parallel.
-- `test_gauss_seidel_red_dofs` :
-  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
-- `test_gauss_seidel_red_dofs_forall_bounds` :
-  - **Description**: Analyzes the same loop logic as `test_gauss_seidel_red_dofs` , but using loop bounds SMT generation.
-  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+- `test_inner_find_dependency` / `test_inner_inner_find_dependency`:
+  - **Description**: Uses a relaxed check for any dependency.
+  - **Expected Outcome**: A dependency is found for the inner loop (SAT). No dependency is found for the outer loop (UNSAT).
 
-#### `test_gauss_seidel.py` / `test_gauss_seidel_black`
+#### `test_cholesky.py`
 
-- **Loop Logic**:
-  ```
-  // Black Pass (even indices)
-  for i = 2, 4, 6, ...:
-    A[i] = A[i-1] + A[i+1]
+- **Description**: Models dependency patterns found in Cholesky Decomposition, which is known to be sequential.
+
+- **Simplified Kernel**
+  - **Loop Logic**:
+    ```
+    for i = 2...N:
+      for j = 2...i:
+        L[i, j] = L[i, j-1] + L[j-1, j-1]
   ```
 
-- **Description**: This test covers the Black pass of Gauss-Seidel. It involves writes to even indices and reads from adjacent odd indices. No dependency between iterations for any data configuration, making it parallel.
-- `test_gauss_seidel_black_dofs` :
-  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
-- `test_gauss_seidel_black_dofs_forall_bounds` :
-  - **Description**: Analyzes the same loop logic as `test_gauss_seidel_black_dofs` , but using loop bounds SMT generation.
-  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT, proving that no data configuration forces sequentiality.
+- **Description**: This kernel simplifies the dependency structure. It contains a true Read-After-Write (RAW) dependency on `L[i, j-1]` within the inner loop, and a loop-carried dependency across the outer loop where `L[i,j]` depends on `L[j-1, j-1]`.
 
-#### `test_gauss_seidel.py` / `test_gauss_seidel_traditional`
+- `test_sequential_dofs`:
+  - **Description**: Checks for DOFS on both the inner and outer loops.
+  - **Expected Outcome**: Both loops are DOFS (Sequential). The SMT queries return SAT, proving dependencies exist that force sequential execution.
 
-- **Loop Logic**:
+- `test_sequential_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: Both loops are DOFS (Sequential). SMT queries return SAT.
+
+- `test_sequential_find_dependency`:
+  - **Description**: Uses a relaxed check to find any dependency in both loops.
+  - **Expected Outcome**: Dependency exists. SMT queries return SAT.
+
+- **Full Kernel**
+  - **Loop Logic**:
+    ```
+    for i = 0 to N-1:
+      for j = 0 to i:
+        sum_val = 0
+        for k = 0 to j-1:
+          sum_val = sum_val + L[i,k] * L[j,k]
+        L[i,j] = A[i,j] - sum_val
   ```
-  // Traditional 1D Gauss-Seidel
-  for i = 1 to N-1:
-    A[i] = A[i-1] + A[i+1]
+
+- **Description**: This models a more complete, three-level nested loop structure for the Cholesky kernel. It is known to be fully sequential.
+
+- `test_full_kernel_dofs`:
+  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT.
+
+- `test_full_kernel_dofs_forall_bounds`:
+  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT.
+
+- `test_full_kernel_find_dependency`:
+  - **Expected Outcome**: Dependency exists. SMT query returns SAT.
+
+#### `test_gauss_seidel.py`
+
+- **Description**: Tests different variants of the Gauss-Seidel algorithm.
+
+- **Traditional 1D Gauss-Seidel**
+  - **Loop Logic**:
+    ```
+    for i = 1 to N-1:
+      A[i] = A[i-1] + A[i+1]
   ```
 
 - **Description**: This loop is inherently sequential due to a Read-After-Write (RAW) dependency where `A[i]` depends on `A[i-1]` from the current iteration.
-- `test_gauss_seidel_traditional_dofs` :
-  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
-- `test_gauss_seidel_traditional_dofs_forall_bounds` :
-  - **Description**: Analyzes the same loop logic as `test_gauss_seidel_traditional_dofs` , but using loop bounds SMT generation.
-  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT, proving that a data configuration exists that forces sequentiality.
+
+- `test_traditional_dofs`:
+  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT.
+
+- `test_traditional_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: DOFS (Sequential). SMT query returns SAT.
+
+- `test_traditional_find_dependency`:
+     - **Description**: Uses a relaxed check for any dependency.
+     - **Expected Outcome**: Dependency exists. SMT query returns SAT.
+
+- **Red Pass (Parallel)**
+  - **Loop Logic**:
+    ```
+    // Red Pass (odd indices)
+    for i = 1, 3, 5, ...:
+      A[i] = A[i-1] + A[i+1]
+  ```
+
+- **Description**: The Red pass involves writes to odd indices and reads from adjacent even indices. No dependency exists between iterations.
+
+- `test_red_dofs`:
+  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT.
+
+- `test_red_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT.
+
+- `test_red_find_dependency`:
+     - **Description**: Uses a relaxed check for any dependency.
+     - **Expected Outcome**: No dependency. SMT query returns UNSAT.
+
+- **Black Pass (Parallel)**
+  - **Loop Logic**:
+    ```
+    // Black Pass (even indices)
+    for i = 2, 4, 6, ...:
+      A[i] = A[i-1] + A[i+1]
+  ```
+
+- **Description**: The Black pass involves writes to even indices and reads from adjacent odd indices. No dependency exists between iterations.
+
+- `test_black_dofs`:
+  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT.
+
+- `test_black_dofs_forall_bounds`:
+  - **Description**: Analyzes the same logic but with universally quantified loop bounds.
+  - **Expected Outcome**: Not DOFS (Parallelizable). SMT query returns UNSAT.
+
+- `test_black_find_dependency`:
+     - **Description**: Uses a relaxed check for any dependency.
+     - **Expected Outcome**: No dependency. SMT query returns UNSAT.

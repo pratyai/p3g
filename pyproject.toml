@@ -9,7 +9,7 @@ description = "P3G to SMT Analyzer."
 readme = "README.md"
 authors = [{name = "P3G Developer"}]
 license = {text = "MIT"}
-requires-python = ">=3.9"
+requires-python = ">=3.14"
 dependencies = [
     "pysmt",
 ]
