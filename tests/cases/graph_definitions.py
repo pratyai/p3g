@@ -12,7 +12,7 @@ from pysmt.shortcuts import (
     GT,
 )
 
-from p3g.p3g import GraphBuilder
+from p3g.p3g import GraphBuilder, PysmtRange, PysmtCoordSet
 
 
 def build_array_reversal_graph():
@@ -30,8 +30,8 @@ def build_array_reversal_graph():
         "k",
         Int(0),
         Minus(N, Int(1)),
-        reads=[(A_root, (Int(0), Minus(N, Int(1))))],
-        writes=[(A_root, (Int(0), Minus(N, Int(1))))],
+        reads=[(A_root, PysmtRange(Int(0), Minus(N, Int(1))))],
+        writes=[(A_root, PysmtRange(Int(0), Minus(N, Int(1))))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -69,8 +69,15 @@ def build_cholesky_sequential_graph():
         "i",
         Int(2),
         N,
-        reads=[(L_root, ((Int(1), N), (Int(1), Minus(N, Int(1)))))],
-        writes=[(L_root, ((Int(2), N), (Int(2), N)))],
+        reads=[
+            (
+                L_root,
+                PysmtCoordSet(
+                    PysmtRange(Int(1), N), PysmtRange(Int(1), Minus(N, Int(1)))
+                ),
+            )
+        ],
+        writes=[(L_root, PysmtCoordSet(PysmtRange(Int(2), N), PysmtRange(Int(2), N)))],
     ) as L_outer:
         i = L_outer.loop_var
         outer_loop_node = L_outer
@@ -83,8 +90,20 @@ def build_cholesky_sequential_graph():
             "j",
             Int(2),
             i,
-            reads=[(L_local_outer, ((Int(1), i), (Int(1), Minus(i, Int(1)))))],
-            writes=[(L_local_outer, ((Int(2), i), (Int(2), i)))],
+            reads=[
+                (
+                    L_local_outer,
+                    PysmtCoordSet(
+                        PysmtRange(Int(1), i), PysmtRange(Int(1), Minus(i, Int(1)))
+                    ),
+                )
+            ],
+            writes=[
+                (
+                    L_local_outer,
+                    PysmtCoordSet(PysmtRange(Int(2), i), PysmtRange(Int(2), i)),
+                )
+            ],
         ) as L_inner:
             j = L_inner.loop_var
             inner_loop_node = L_inner
@@ -96,9 +115,9 @@ def build_cholesky_sequential_graph():
             # This models a RAW dependency on L[i, j-1] within the inner loop.
             # It also models a WAR/WAW dependency on L[j-1, j-1] across outer loop iterations.
             # Using tuples for 2D indexing
-            read1 = (L_local_inner, (i, Minus(j, Int(1))))
-            read2 = (L_local_inner, (Minus(j, Int(1)), Minus(j, Int(1))))
-            write = (L_local_inner, (i, j))
+            read1 = (L_local_inner, PysmtCoordSet(i, Minus(j, Int(1))))
+            read2 = (L_local_inner, PysmtCoordSet(Minus(j, Int(1)), Minus(j, Int(1))))
+            write = (L_local_inner, PysmtCoordSet(i, j))
 
             b.add_compute("T_cholesky", reads=[read1, read2], writes=[write])
     return b.root_graph, outer_loop_node, inner_loop_node, N, L_root
@@ -136,10 +155,13 @@ def build_cholesky_full_kernel_graph():
         Int(0),
         Minus(N, Int(1)),
         reads=[
-            (A_root, ((Int(0), N), (Int(0), N))),  # Reads entire A
-            (L_root, ((Int(0), N), (Int(0), N))),
+            (
+                A_root,
+                PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N)),
+            ),  # Reads entire A
+            (L_root, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N))),
         ],  # Reads entire L
-        writes=[(L_root, ((Int(0), N), (Int(0), N)))],
+        writes=[(L_root, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N)))],
     ) as L_outer:  # Writes entire L
         i = L_outer.loop_var
         outer_loop_node = L_outer
@@ -154,13 +176,31 @@ def build_cholesky_full_kernel_graph():
             Int(0),
             i,
             reads=[
-                (A_local_outer, ((Int(0), Plus(i, Int(1))), (Int(0), Plus(i, Int(1))))),
+                (
+                    A_local_outer,
+                    PysmtCoordSet(
+                        PysmtRange(Int(0), Plus(i, Int(1))),
+                        PysmtRange(Int(0), Plus(i, Int(1))),
+                    ),
+                ),
                 # Reads A[0..i, 0..i]
-                (L_local_outer, ((Int(0), Plus(i, Int(1))), (Int(0), Plus(i, Int(1))))),
+                (
+                    L_local_outer,
+                    PysmtCoordSet(
+                        PysmtRange(Int(0), Plus(i, Int(1))),
+                        PysmtRange(Int(0), Plus(i, Int(1))),
+                    ),
+                ),
             ],
             # Reads L[0..i, 0..i]
             writes=[
-                (L_local_outer, ((Int(0), Plus(i, Int(1))), (Int(0), Plus(i, Int(1)))))
+                (
+                    L_local_outer,
+                    PysmtCoordSet(
+                        PysmtRange(Int(0), Plus(i, Int(1))),
+                        PysmtRange(Int(0), Plus(i, Int(1))),
+                    ),
+                )
             ],
         ) as L_middle:  # Writes L[0..i, 0..i]
             j = L_middle.loop_var
@@ -190,7 +230,10 @@ def build_cholesky_full_kernel_graph():
                 reads=[
                     (
                         L_local_middle,
-                        ((Int(0), Plus(i, Int(1))), (Int(0), Plus(j, Int(1)))),
+                        PysmtCoordSet(
+                            PysmtRange(Int(0), Plus(i, Int(1))),
+                            PysmtRange(Int(0), Plus(j, Int(1))),
+                        ),
                     ),
                     # Reads L[0..i, 0..j]
                     (sum_val_scalar, Int(0)),
@@ -210,8 +253,8 @@ def build_cholesky_full_kernel_graph():
                     "T_sum_accum",
                     reads=[
                         (sum_val_local_inner, Int(0)),  # Read current sum_val
-                        (L_local_inner, (i, k)),  # Read L[i,k]
-                        (L_local_inner, (j, k)),
+                        (L_local_inner, PysmtCoordSet(i, k)),  # Read L[i,k]
+                        (L_local_inner, PysmtCoordSet(j, k)),
                     ],  # Read L[j,k]
                     writes=[(sum_val_local_inner, Int(0))],  # Write new sum_val
                 )
@@ -221,11 +264,11 @@ def build_cholesky_full_kernel_graph():
             b.add_compute(
                 "T_final_Lij",
                 reads=[
-                    (A_local_middle, (i, j)),  # Read A[i,j]
+                    (A_local_middle, PysmtCoordSet(i, j)),  # Read A[i,j]
                     (sum_val_scalar, Int(0)),  # Read final sum_val
-                    (L_local_middle, (j, j)),
+                    (L_local_middle, PysmtCoordSet(j, j)),
                 ],  # Read L[j,j] (for division, if modeled)
-                writes=[(L_local_middle, (i, j))],  # Write L[i,j]
+                writes=[(L_local_middle, PysmtCoordSet(i, j))],  # Write L[i,j]
             )
     return (
         b.root_graph,
@@ -257,8 +300,11 @@ def build_data_aware_bi_graph():
         "k",
         Int(1),
         N,
-        reads=[(A_root, (Int(0), Minus(N, Int(1)))), (B_root, (Int(1), N))],
-        writes=[(A_root, (Int(1), N))],
+        reads=[
+            (A_root, PysmtRange(Int(0), Minus(N, Int(1)))),
+            (B_root, PysmtRange(Int(1), N)),
+        ],
+        writes=[(A_root, PysmtRange(Int(1), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -312,11 +358,11 @@ def build_data_aware_bi_b13_graph():
         Int(1),
         N,
         reads=[
-            (A_root, (Int(0), Minus(N, Int(1)))),
-            (B_root, (Int(1), N)),
+            (A_root, PysmtRange(Int(0), Minus(N, Int(1)))),
+            (B_root, PysmtRange(Int(1), N)),
             (B_root, const_idx),
         ],
-        writes=[(A_root, (Int(1), N))],
+        writes=[(A_root, PysmtRange(Int(1), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -375,8 +421,8 @@ def build_gauss_seidel_red_graph():
         "k",
         Int(0),
         loop_end_red_k,
-        reads=[(A_red, (Int(0), Plus(N_red, Int(1))))],
-        writes=[(A_red, (Int(1), N_red))],
+        reads=[(A_red, PysmtRange(Int(0), Plus(N_red, Int(1))))],
+        writes=[(A_red, PysmtRange(Int(1), N_red))],
     ) as L_red:
         k_red = L_red.loop_var
         red_loop_node = L_red
@@ -412,8 +458,8 @@ def build_gauss_seidel_black_graph():
         "k",
         Int(0),
         loop_end_black_k,
-        reads=[(A_black, (Int(1), Plus(N_black, Int(1))))],
-        writes=[(A_black, (Int(2), N_black))],
+        reads=[(A_black, PysmtRange(Int(1), Plus(N_black, Int(1))))],
+        writes=[(A_black, PysmtRange(Int(2), N_black))],
     ) as L_black:
         k_black = L_black.loop_var
         black_loop_node = L_black
@@ -446,8 +492,8 @@ def build_gauss_seidel_traditional_graph():
         "k",
         Int(1),
         Minus(N, Int(1)),
-        reads=[(A, (Int(0), N))],
-        writes=[(A, (Int(1), Minus(N, Int(1))))],
+        reads=[(A, PysmtRange(Int(0), N))],
+        writes=[(A, PysmtRange(Int(1), Minus(N, Int(1))))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -477,8 +523,8 @@ def build_indirect_read_gather_graph():
         "k",
         Int(1),
         N,
-        reads=[(B_root, (Int(0), N)), (IDX_root, (Int(0), N))],
-        writes=[(A_root, (Int(0), N))],
+        reads=[(B_root, PysmtRange(Int(0), N)), (IDX_root, PysmtRange(Int(0), N))],
+        writes=[(A_root, PysmtRange(Int(0), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -515,8 +561,8 @@ def build_indirect_write_scatter_graph():
         "k",
         Int(1),
         N,
-        reads=[(B_root, (Int(0), N)), (IDX_root, (Int(0), N))],
-        writes=[(A_root, (Int(0), N))],
+        reads=[(B_root, PysmtRange(Int(0), N)), (IDX_root, PysmtRange(Int(0), N))],
+        writes=[(A_root, PysmtRange(Int(0), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -551,8 +597,8 @@ def build_long_distance_dependency_graph():
         "k",
         Int(2),
         N,
-        reads=[(A_root, (Int(0), N)), (B_root, (Int(2), N))],
-        writes=[(A_root, (Int(2), N))],
+        reads=[(A_root, PysmtRange(Int(0), N)), (B_root, PysmtRange(Int(2), N))],
+        writes=[(A_root, PysmtRange(Int(2), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -613,10 +659,10 @@ def build_nested_loop_outer_dofs_graph():
         Int(1),
         N,
         reads=[
-            (A_root, (Int(1), N)),
-            (B_root, (Int(1), N)),
+            (A_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
+            (B_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
         ],
-        writes=[(A_root, (Int(1), N))],
+        writes=[(A_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M)))],
     ) as L_outer:
         i_sym = L_outer.loop_var
         loop_node = L_outer
@@ -630,10 +676,14 @@ def build_nested_loop_outer_dofs_graph():
             Int(1),
             M,
             reads=[
-                (A_local_outer, (Int(1), M)),
-                (B_local_outer, (Int(1), M)),
+                (A_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
+                (
+                    A_local_outer,
+                    PysmtCoordSet(Minus(i_sym, Int(1)), PysmtRange(Int(1), M)),
+                ),
+                (B_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
             ],
-            writes=[(A_local_outer, (Int(1), M))],
+            writes=[(A_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M)))],
         ) as L_inner:
             j_sym = L_inner.loop_var
             L_inner_node = L_inner
@@ -641,9 +691,9 @@ def build_nested_loop_outer_dofs_graph():
             A_local_inner = b.add_data("A", is_output=True)
             B_local_inner = b.add_data("B")
 
-            reads_A = (A_local_inner, (Minus(i_sym, Int(1)), j_sym))
-            reads_B = (B_local_inner, (i_sym, j_sym))
-            writes_A = (A_local_inner, (i_sym, j_sym))
+            reads_A = (A_local_inner, PysmtCoordSet(Minus(i_sym, Int(1)), j_sym))
+            reads_B = (B_local_inner, PysmtCoordSet(i_sym, j_sym))
+            writes_A = (A_local_inner, PysmtCoordSet(i_sym, j_sym))
 
             b.add_compute("T_comp", reads=[reads_A, reads_B], writes=[writes_A])
     return b.root_graph, loop_node, L_inner_node, N, M, A_root, B_root
@@ -670,10 +720,10 @@ def build_nested_loop_inner_dofs_graph():
         Int(1),
         N,
         reads=[
-            (A_root, (Int(1), N)),
-            (B_root, (Int(1), N)),
+            (A_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
+            (B_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
         ],
-        writes=[(A_root, (Int(1), N))],
+        writes=[(A_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M)))],
     ) as L_outer:
         i_sym = L_outer.loop_var
         loop_node = L_outer
@@ -687,10 +737,10 @@ def build_nested_loop_inner_dofs_graph():
             Int(1),
             M,
             reads=[
-                (A_local_outer, (Int(1), M)),
-                (B_local_outer, (Int(1), M)),
+                (A_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
+                (B_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
             ],
-            writes=[(A_local_outer, (Int(1), M))],
+            writes=[(A_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M)))],
         ) as L_inner:
             j_sym = L_inner.loop_var
             L_inner_node = L_inner
@@ -698,14 +748,18 @@ def build_nested_loop_inner_dofs_graph():
             A_local_inner = b.add_data("A", is_output=True)
             B_local_inner = b.add_data("B")
 
-            reads_A = (
-                A_local_inner,
-                (i_sym, Minus(j_sym, Int(1))),
+            b.add_compute(
+                "T_comp",
+                reads=[
+                    (
+                        A_local_inner,
+                        PysmtCoordSet(i_sym, Minus(j_sym, Int(1))),
+                    ),
+                    (B_local_inner, PysmtCoordSet(i_sym, j_sym)),
+                    (A_local_inner, PysmtCoordSet(i_sym, j_sym)),
+                ],
+                writes=[(A_local_inner, PysmtCoordSet(i_sym, j_sym))],
             )
-            reads_B = (B_local_inner, (i_sym, j_sym))
-            writes_A = (A_local_inner, (i_sym, j_sym))
-
-            b.add_compute("T_comp", reads=[reads_A, reads_B], writes=[writes_A])
     return b.root_graph, loop_node, L_inner_node, N, M, A_root, B_root
 
 
@@ -730,11 +784,11 @@ def build_non_linear_predicate_graph():
         Int(0),
         N,
         reads=[
-            (A_root, (Int(0), Minus(N, Int(1)))),
-            (B_root, (Int(0), N)),
-            (C_root, (Int(0), N)),
+            (A_root, PysmtRange(Int(0), Minus(N, Int(1)))),
+            (B_root, PysmtRange(Int(0), N)),
+            (C_root, PysmtRange(Int(0), N)),
         ],
-        writes=[(A_root, (Int(0), N))],
+        writes=[(A_root, PysmtRange(Int(0), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -798,10 +852,12 @@ def build_non_linear_access_graph():
         Int(0),
         N,
         reads=[
-            (B_root, (Int(0), N)),
-            (C_root, (Int(0), N)),
+            (B_root, PysmtRange(Int(0), N)),
+            (C_root, PysmtRange(Int(0), N)),
         ],
-        writes=[(A_root, (Int(0), Times(N, N)))],  # Upper bound for A[i*i] is N*N
+        writes=[
+            (A_root, PysmtRange(Int(0), Times(N, N)))
+        ],  # Upper bound for A[i*i] is N*N
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -839,11 +895,11 @@ def build_non_linear_access_sequential_graph():
         reads=[
             (
                 A_root,
-                (Int(0), Times(Minus(N, Int(1)), Minus(N, Int(1)))),
+                PysmtRange(Int(0), Times(Minus(N, Int(1)), Minus(N, Int(1)))),
             ),  # Read from (i-1)*(i-1)
-            (B_root, (Int(1), N)),
+            (B_root, PysmtRange(Int(1), N)),
         ],
-        writes=[(A_root, (Int(1), Times(N, N)))],  # Write to i*i
+        writes=[(A_root, PysmtRange(Int(1), Times(N, N)))],  # Write to i*i
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -876,8 +932,8 @@ def build_parallel_loop_graph():
         "k",
         Int(0),
         N,
-        reads=[(B_root, (Int(0), N)), (C_root, (Int(0), N))],
-        writes=[(A_root, (Int(0), N))],
+        reads=[(B_root, PysmtRange(Int(0), N)), (C_root, PysmtRange(Int(0), N))],
+        writes=[(A_root, PysmtRange(Int(0), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -905,8 +961,11 @@ def build_sequential_loop_graph():
         "k",
         Int(2),
         N,
-        reads=[(A_root, (Int(1), Minus(N, Int(1)))), (B_root, (Int(2), N))],
-        writes=[(A_root, (Int(2), N))],
+        reads=[
+            (A_root, PysmtRange(Int(1), Minus(N, Int(1)))),
+            (B_root, PysmtRange(Int(2), N)),
+        ],
+        writes=[(A_root, PysmtRange(Int(2), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -937,8 +996,8 @@ def build_sequential_with_symbolic_max_index_graph():
         "k",
         Int(2),
         N,
-        reads=[(A, (Int(0), N)), (B, (Int(2), N))],
-        writes=[(A, (Int(2), N))],
+        reads=[(A, PysmtRange(Int(0), N)), (B, PysmtRange(Int(2), N))],
+        writes=[(A, PysmtRange(Int(2), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1

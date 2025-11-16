@@ -1,5 +1,5 @@
 import io
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Union
 
 from pysmt.shortcuts import (
     Symbol,
@@ -28,6 +28,8 @@ from p3g.p3g import (
     Map,
     PysmtFormula,
     PysmtSymbol,
+    PysmtRange,
+    PysmtCoordSet,
     ReadSet,
     WriteSet,
     create_path_model_fn,
@@ -107,52 +109,113 @@ def _get_index_from_access(access_expr: PysmtFormula) -> PysmtFormula:
         return access_expr  # It's already an index expression
 
 
-def _equal_indices(idx1, idx2):
+def _create_range_intersection_formula(
+    range1: PysmtRange, range2: PysmtRange
+) -> PysmtFormula:
     """
-    Creates a pysmt formula asserting index equality.
-    Handles single indices and multi-dimensional index tuples/lists.
+    Generates a pysmt formula asserting that two 1D ranges intersect.
+    A range is represented as a tuple (start, end).
+    Intersection condition: (start1 <= end2) AND (start2 <= end1)
     """
-    is_idx1_tuple = isinstance(idx1, (tuple, list))
-    is_idx2_tuple = isinstance(idx2, (tuple, list))
+    start1, end1 = range1
+    start2, end2 = range2
+    return And(LE(start1, end2), LE(start2, end1))
 
-    if is_idx1_tuple and is_idx2_tuple:
-        # Both are multi-dimensional: indices must be tuples of the same length
+
+def _create_intersection_formula(
+    idx1: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
+    idx2: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
+) -> PysmtFormula:
+    """
+    Creates a pysmt formula asserting that two indices or ranges intersect.
+    This function handles single indices (points), 1D ranges, and multi-dimensional
+    coordinate sets. Intersection is checked dimension by dimension.
+
+    - Point vs. Point: Intersection is equality.
+    - Range vs. Range: Intersection is classic range overlap.
+    - Point vs. Range: Intersection is checking if the point is within the range.
+    - CoordSet vs. CoordSet: Intersection is the conjunction of intersections
+      of their corresponding elements.
+
+    Args:
+        idx1: The first index, range, or coordinate set.
+        idx2: The second index, range, or coordinate set.
+
+    Returns:
+        A PysmtFormula that is TRUE if the two inputs intersect, and FALSE otherwise.
+        Returns FALSE if dimensions of CoordSets do not match.
+    """
+    is_idx1_coordset = isinstance(idx1, PysmtCoordSet)
+    is_idx2_coordset = isinstance(idx2, PysmtCoordSet)
+    is_idx1_range = isinstance(idx1, PysmtRange)
+    is_idx2_range = isinstance(idx2, PysmtRange)
+    is_idx1_formula = isinstance(idx1, PysmtFormula)
+    is_idx2_formula = isinstance(idx2, PysmtFormula)
+
+    if is_idx1_coordset and is_idx2_coordset:
         if len(idx1) != len(idx2):
-            return FALSE()  # Different dimensions, cannot be equal
+            return FALSE()  # Different dimensions cannot intersect
+        intersections = [
+            _create_intersection_formula(i1, i2) for i1, i2 in zip(idx1, idx2)
+        ]
+        return And(intersections) if intersections else TRUE()
 
-        # Create a conjunction (AND) of equality checks for each dimension
-        equalities = [Equals(i1, i2) for i1, i2 in zip(idx1, idx2)]
-        if not equalities:
-            return TRUE()  # Should not happen for arrays, but handle empty tuples
-        return And(equalities)
-    elif not is_idx1_tuple and not is_idx2_tuple:
-        # Both are single dimension
+    elif is_idx1_range and is_idx2_range:
+        return _create_range_intersection_formula(idx1, idx2)
+
+    elif is_idx1_formula and is_idx2_formula:
         return Equals(idx1, idx2)
+
+    elif is_idx1_range and is_idx2_formula:
+        start, end = idx1
+        return And(LE(start, idx2), LE(idx2, end))
+
+    elif is_idx1_formula and is_idx2_range:
+        start, end = idx2
+        return And(LE(start, idx1), LE(idx1, end))
+
     else:
-        # One is single dimension, the other is multi-dimension. Cannot be equal.
+        # This case handles invalid type combinations or future unhandled types.
+        # For safety, we assume no intersection if the types are mismatched in a way
+        # not explicitly handled above (e.g., PysmtCoordSet vs. PysmtRange).
         return FALSE()
 
 
-def _intersect_to_formula(
+def _create_set_intersection_formula(
     set_a: ReadSet, set_b: WriteSet, id_to_symbol_map: Dict[int, PysmtSymbol]
 ) -> PysmtFormula:
-    """Creates a pysmt formula for the intersection of two sets."""
+    """
+    Creates a pysmt formula representing the intersection of two access sets.
+
+    This function generates a disjunction of clauses, where each clause represents
+    a potential intersection between an access in `set_a` and an access in `set_b`.
+    An intersection occurs if two accesses are to the same array (`array_id`)
+    and their indices/ranges intersect.
+
+    Args:
+        set_a: The first set of accesses (e.g., a ReadSet).
+        set_b: The second set of accesses (e.g., a WriteSet).
+        id_to_symbol_map: A dictionary mapping array_id to its corresponding PysmtSymbol.
+
+    Returns:
+        A PysmtFormula that is TRUE if any access in `set_a` intersects with any
+        access in `set_b`. Returns FALSE if there are no intersections or if either
+        set is empty.
+    """
     clauses = []
     if not set_a or not set_b:
         return FALSE()
 
     for arr_a, idx_a in set_a:
         for arr_b, idx_b in set_b:
-            arr_a_node = id_to_symbol_map[arr_a]
-            arr_b_node = id_to_symbol_map[arr_b]
-
+            # Only check for intersection if the accesses are to the same array
             if arr_a == arr_b:
-                # Use the helper function to correctly handle multi-dimensional indices
-                index_equality = _equal_indices(idx_a, idx_b)
-                clauses.append(And(Equals(arr_a_node, arr_b_node), index_equality))
-            # If arr_a != arr_b, we simply don't add a clause, as they cannot alias.
+                arr_a_node = id_to_symbol_map[arr_a]
+                arr_b_node = id_to_symbol_map[arr_b]
+                index_intersection = _create_intersection_formula(idx_a, idx_b)
+                clauses.append(And(Equals(arr_a_node, arr_b_node), index_intersection))
 
-    if len(clauses) == 0:
+    if not clauses:
         return FALSE()
     elif len(clauses) == 1:
         return clauses[0]
@@ -160,34 +223,10 @@ def _intersect_to_formula(
         return Or(clauses)
 
 
-def _build_dependency_logic_assertions(
-    loop_node: Loop,
-    k: PysmtSymbol,
-    builder: _StringSmtBuilder,
-    id_to_symbol_map: Dict[int, PysmtSymbol],
-) -> (str, str):
-    """
-    Builds the SMT-LIB assertions for the dependency logic between adjacent loop iterations.
-    This includes generating let-bindings for WAW, RAW, WAR conflicts and the main OR body.
-
-    Args:
-        loop_node: The P3G Loop node being analyzed.
-        k: The PysmtSymbol representing the current iteration variable.
-        builder: The _StringSmtBuilder instance to serialize formulas.
-        id_to_symbol_map: A map from array_id to PysmtSymbol for data arrays.
-
-    Returns:
-        A tuple containing (let_bindings_str, main_body_str).
-    """
-    return _build_dependency_logic_assertions_general(
-        loop_node, k, Plus(k, Int(1)), builder, id_to_symbol_map
-    )
-
-
 def _build_dependency_logic_assertions_general(
     loop_node: Loop,
-    iter_var1: PysmtSymbol,
-    iter_var2: PysmtSymbol,
+    j_iter: PysmtSymbol,
+    k_iter: PysmtSymbol,
     builder: _StringSmtBuilder,
     id_to_symbol_map: Dict[int, PysmtSymbol],
 ) -> (str, str):
@@ -197,8 +236,8 @@ def _build_dependency_logic_assertions_general(
 
     Args:
         loop_node: The P3G Loop node being analyzed.
-        iter_var1: The PysmtSymbol representing the first iteration variable.
-        iter_var2: The PysmtSymbol representing the second iteration variable.
+        j_iter: The PysmtSymbol representing the first (earlier) iteration variable.
+        k_iter: The PysmtSymbol representing the second (later) iteration variable.
         builder: The _StringSmtBuilder instance to serialize formulas.
         id_to_symbol_map: A map from array_id to PysmtSymbol for data arrays.
 
@@ -206,21 +245,22 @@ def _build_dependency_logic_assertions_general(
         A tuple containing (let_bindings_str, main_body_str).
     """
     path_model_fn = create_path_model_fn(loop_node)
-    paths_k = path_model_fn(iter_var1)
-    paths_j = path_model_fn(iter_var2)
+    paths_j = path_model_fn(j_iter)
+    paths_k = path_model_fn(k_iter)
 
     let_bindings_list = []
     dep_var_names = []
 
-    for idx_k, (pred_k, W_k, R_k) in enumerate(paths_k):
-        for idx_j, (pred_j, W_j, R_j) in enumerate(paths_j):
-            waw = _intersect_to_formula(W_k, W_j, id_to_symbol_map)
-            raw = _intersect_to_formula(W_k, R_j, id_to_symbol_map)
-            war = _intersect_to_formula(R_k, W_j, id_to_symbol_map)
+    for idx_j, (pred_j, W_j, R_j) in enumerate(paths_j):
+        for idx_k, (pred_k, W_k, R_k) in enumerate(paths_k):
+            # Dependencies are from j to k
+            waw = _create_set_intersection_formula(W_j, W_k, id_to_symbol_map)
+            raw = _create_set_intersection_formula(W_j, R_k, id_to_symbol_map)
+            war = _create_set_intersection_formula(R_j, W_k, id_to_symbol_map)
 
-            waw_var = f"p{idx_k}p{idx_j}_waw"
-            raw_var = f"p{idx_k}p{idx_j}_raw"
-            war_var = f"p{idx_k}p{idx_j}_war"
+            waw_var = f"p{idx_j}p{idx_k}_waw"
+            raw_var = f"p{idx_j}p{idx_k}_raw"
+            war_var = f"p{idx_j}p{idx_k}_war"
 
             # Store variables and their formulas for dynamic OR construction
             conflict_vars = [
@@ -249,21 +289,21 @@ def _build_dependency_logic_assertions_general(
                     f"({name} {builder._serialize(formula)})"
                 )
 
-            pred_k_str = builder._serialize(pred_k)
             pred_j_str = builder._serialize(pred_j)
+            pred_k_str = builder._serialize(pred_k)
 
             # The conflict_let_str itself
             conflict_let_str = f"""
-(let (
-    {"\n    ".join(let_bindings_for_conflict)}
-    ) {path_pair_conflict_or_str})
+            (let (
+                {"\n                ".join(let_bindings_for_conflict)}
+                ) {path_pair_conflict_or_str})
 """
             # Collect active components for the AND
             and_components = []
-            if pred_k_str != "true":
-                and_components.append(pred_k_str)
             if pred_j_str != "true":
                 and_components.append(pred_j_str)
+            if pred_k_str != "true":
+                and_components.append(pred_k_str)
 
             # Only add conflict_let_str if it's not effectively "true"
             # A let expression (let (...) true) is logically equivalent to true.
@@ -277,9 +317,9 @@ def _build_dependency_logic_assertions_general(
             else:
                 full_path_dependency_str = f"(and {' '.join(and_components)})"
 
-            dep_var_name = f"p{idx_k}p{idx_j}_dep"
+            dep_var_name = f"p{idx_j}p{idx_k}_dep"
 
-            let_bindings_list.append(f"; p{idx_k}(k) <-> p{idx_j}(j) dependency")
+            let_bindings_list.append(f"; p{idx_j}(j) <-> p{idx_k}(k) dependency")
             let_bindings_list.append(f"({dep_var_name} {full_path_dependency_str})")
             let_bindings_list.append("")  # Add a blank line for readability
 
@@ -300,11 +340,11 @@ def _build_dependency_logic_assertions_general(
 
 # Helper for recursive free variable extraction (needed for multi-dimensional access tuples)
 def _get_free_variables_recursive(
-    formula_or_tuple: [PysmtFormula, tuple, list],
+    formula_or_tuple: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
 ) -> Set[PysmtSymbol]:
     """Recursively extracts free variables from a formula or a tuple/list of formulas."""
 
-    if isinstance(formula_or_tuple, (tuple, list)):
+    if isinstance(formula_or_tuple, (PysmtRange, PysmtCoordSet)):
         # Recursive case: Traverse all elements in the multi-dimensional index tuple/list
         free_vars = set()
         for item in formula_or_tuple:
@@ -346,7 +386,11 @@ def _find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
                            will be added.
     """
     for node in graph.nodes:
-        if isinstance(node, Compute):
+        if isinstance(node, (Compute, Loop, Map, Reduce)):
+            if isinstance(
+                node, (Loop, Map, Reduce)
+            ):  # Add loop_var for Loop/Map/Reduce nodes
+                collected_symbols.add(node.loop_var)
             access_sets = node.get_read_set() + node.get_write_set()
             for arr_id, subset in access_sets:
                 for free_var in _get_free_variables_recursive(subset):
@@ -356,8 +400,6 @@ def _find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
                 for free_var in _get_free_variables_recursive(pred):
                     collected_symbols.add(free_var)
                 _find_data_symbols(g, collected_symbols)
-        elif isinstance(node, (Loop, Map)):
-            _find_data_symbols(node.nested_graph, collected_symbols)
 
 
 def _get_existential_quantifier_vars(
@@ -495,8 +537,8 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     loop_runs_at_least_two_iterations = GE(loop_end, Plus(loop_start, Int(1)))
     k_lower_bound = GE(k, loop_start)
 
-    let_bindings, main_body_str = _build_dependency_logic_assertions(
-        loop_node, k, builder, id_to_symbol_map
+    let_bindings, main_body_str = _build_dependency_logic_assertions_general(
+        loop_node, k, Plus(k, Int(1)), builder, id_to_symbol_map
     )
 
     loop_bound_str = f"""(and
@@ -632,8 +674,8 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
     loop_runs_at_least_two_iterations = GE(loop_end, Plus(loop_start, Int(1)))
     k_lower_bound = GE(k, loop_start)
 
-    let_bindings, main_body_str = _build_dependency_logic_assertions(
-        loop_node, k, builder, id_to_symbol_map
+    let_bindings, main_body_str = _build_dependency_logic_assertions_general(
+        loop_node, k, Plus(k, Int(1)), builder, id_to_symbol_map
     )
 
     loop_bound_str = f"""(and

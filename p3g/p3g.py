@@ -8,9 +8,52 @@ from pysmt.shortcuts import Symbol, INT, And, TRUE, substitute, simplify, Or
 PysmtFormula = FNode
 PysmtSymbol = FNode
 
+
+class PysmtRange(Tuple[PysmtFormula, PysmtFormula]):
+    """
+    Represents a 1D range using two PysmtFormulas for start and end.
+    Inherits from tuple to maintain tuple-like behavior.
+    """
+
+    def __new__(cls, start: PysmtFormula, end: PysmtFormula):
+        # Ensure that the elements are PysmtFormula instances
+        if not isinstance(start, PysmtFormula) or not isinstance(end, PysmtFormula):
+            raise TypeError("PysmtRange elements must be PysmtFormula instances.")
+        return super().__new__(cls, (start, end))
+
+    @property
+    def start(self) -> PysmtFormula:
+        return self[0]
+
+    @property
+    def end(self) -> PysmtFormula:
+        return self[1]
+
+    def __repr__(self):
+        return f"PysmtRange({self.start}, {self.end})"
+
+
+class PysmtCoordSet(Tuple[Union[PysmtFormula, PysmtRange], ...]):
+    """
+    Represents a multi-dimensional coordinate or a set of ranges.
+    It's a tuple of PysmtFormula and/or PysmtRange objects.
+    """
+
+    def __new__(cls, *elements: Union[PysmtFormula, PysmtRange]):
+        for element in elements:
+            if not isinstance(element, (PysmtFormula, PysmtRange)):
+                raise TypeError(
+                    "PysmtCoordSet elements must be PysmtFormula or PysmtRange instances."
+                )
+        return super().__new__(cls, elements)
+
+    def __repr__(self):
+        return f"PysmtCoordSet{super().__repr__()}"
+
+
 # Type aliases
-ReadSet = List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]
-WriteSet = List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]
+ReadSet = List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]
+WriteSet = List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]
 PathModel = List[Tuple[PysmtFormula, WriteSet, ReadSet]]
 
 # Define __all__ for 'from p3g import *'
@@ -29,10 +72,12 @@ __all__ = [
     "PathContext",
     "PysmtFormula",
     "PysmtSymbol",
+    "PysmtRange",
+    "PysmtCoordSet",
     "create_path_model_fn",
     "PathModel",
     "ReadSet",
-    "WriteSet",  # Export type aliases
+    "WriteSet",
 ]
 
 
@@ -64,13 +109,15 @@ class Edge:
         self,
         src: Node,
         dst: Node,
-        subset: Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]],
+        subset: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
     ):
         self.src = src
         self.dst = dst
         self.subset = subset
 
-        # Assertion to check if a Store operation is being passed as subset
+        assert isinstance(subset, (PysmtFormula, PysmtRange, PysmtCoordSet)), (
+            f"Subset ({type(subset)}) must be a PysmtFormula or PysmtRange or PysmtCoordSet object."
+        )
         if isinstance(subset, PysmtFormula) and subset.is_store():
             assert False, (
                 f"ERROR: Store operation '{subset}' found in Edge subset. "
@@ -106,7 +153,7 @@ class Graph:
         self,
         src: Node,
         dst: Node,
-        subset: Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]],
+        subset: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
     ) -> Edge:
         edge = Edge(src, dst, subset)
         self.edges.append(edge)
@@ -147,7 +194,7 @@ class Compute(Node):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -159,7 +206,7 @@ class Compute(Node):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -209,7 +256,7 @@ class Map(Structure):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -221,7 +268,7 @@ class Map(Structure):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -258,7 +305,7 @@ class Loop(Structure):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -270,7 +317,7 @@ class Loop(Structure):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -307,7 +354,7 @@ class Branch(Structure):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -319,7 +366,7 @@ class Branch(Structure):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -369,7 +416,7 @@ class Reduce(Structure):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -381,7 +428,7 @@ class Reduce(Structure):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]:
+    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -478,7 +525,7 @@ class GraphBuilder:
         self,
         src: Node,
         dst: Node,
-        subset: Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]],
+        subset: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
     ) -> Edge:
         """Adds a generic edge to the *current* graph."""
         return self.current_graph.add_edge(src, dst, subset)
@@ -486,12 +533,8 @@ class GraphBuilder:
     def add_reads_and_writes(
         self,
         node: Node,
-        reads: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
-        writes: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
+        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
     ):
         """
         Adds dataflow edges for a given node based on its read and write sets.
@@ -518,12 +561,8 @@ class GraphBuilder:
     def add_compute(
         self,
         name: str,
-        reads: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
-        writes: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
+        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
     ) -> Compute:
         """
         Adds a Compute node and its access edges to the *current* graph.
@@ -540,12 +579,8 @@ class GraphBuilder:
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
-        reads: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
-        writes: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
+        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
     ) -> Loop:
         """
         Adds a sequential Loop and its dataflow edges to the *current* graph.
@@ -562,12 +597,8 @@ class GraphBuilder:
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
-        reads: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
-        writes: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
+        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
     ) -> Map:
         """Adds a parallel Map to the *current* graph."""
         map_node = Map(name, self, loop_var_name, start, end)
@@ -579,12 +610,8 @@ class GraphBuilder:
     def add_branch(
         self,
         name: str,
-        reads: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
-        writes: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
+        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
     ) -> Branch:
         """Adds a Branch to the *current* graph."""
         branch_node = Branch(name, self)
@@ -600,12 +627,8 @@ class GraphBuilder:
         start: PysmtFormula,
         end: PysmtFormula,
         wcr: PysmtFormula,
-        reads: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
-        writes: List[
-            Tuple[Data, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]
-        ],
+        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
     ) -> Reduce:
         """Adds a parallel Reduce to the *current* graph."""
         reduce_node = Reduce(name, self, loop_var_name, start, end, wcr)
@@ -647,8 +670,8 @@ def _extract_reads_from_formula(
 # ===================================================================
 
 # Type aliases
-ReadSet = List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]
-WriteSet = List[Tuple[int, Union[PysmtFormula, Tuple[PysmtFormula, PysmtFormula]]]]
+ReadSet = List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]
+WriteSet = List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]
 PathModel = List[Tuple[PysmtFormula, WriteSet, ReadSet]]
 
 
@@ -670,7 +693,7 @@ def create_path_model_fn(loop_node: Loop) -> Callable[[PysmtSymbol], PathModel]:
 
         for node in graph.nodes:
             # Collect accesses from Compute nodes
-            if isinstance(node, Compute):  # Only for Compute nodes
+            if isinstance(node, (Compute, Loop, Map, Reduce)):  # Only for Compute nodes
                 W_set_node = node.get_write_set()
                 R_set_node = node.get_read_set()
                 if W_set_node or R_set_node:
@@ -711,24 +734,25 @@ def create_path_model_fn(loop_node: Loop) -> Callable[[PysmtSymbol], PathModel]:
                     new_predicate = simplify(And(current_predicate, predicate))
                     branch_paths = _traverse(nested_graph, new_predicate)
                     all_paths.extend(branch_paths)
-            elif isinstance(node, (Loop, Map, Reduce)):
-                nested_paths = _traverse(node.nested_graph, current_predicate)
-                all_paths.extend(nested_paths)
 
         return all_paths
 
-    def recursive_substitute(formula_or_tuple, substitution_map):
+    def recursive_substitute(subset_expr, substitution_map):
         """Recursively applies substitution to all components of a multi-dimensional index tuple."""
-        # Check if it's a collection (tuple or list)
-        if isinstance(formula_or_tuple, (tuple, list)):
-            # Recursively apply substitution to each element
-            return type(formula_or_tuple)(
-                recursive_substitute(item, substitution_map)
-                for item in formula_or_tuple
+        if isinstance(subset_expr, PysmtRange):
+            # Reconstruct PysmtRange explicitly
+            return PysmtRange(
+                recursive_substitute(subset_expr.start, substitution_map),
+                recursive_substitute(subset_expr.end, substitution_map),
+            )
+        elif isinstance(subset_expr, PysmtCoordSet):
+            # Reconstruct PysmtCoordSet explicitly
+            return PysmtCoordSet(
+                *(recursive_substitute(item, substitution_map) for item in subset_expr)
             )
         else:
             # Base case: The item is a PysmtFormula; perform the substitution
-            return substitute(formula_or_tuple, substitution_map)
+            return substitute(subset_expr, substitution_map)
 
     internal_loop_var = loop_node.loop_var
     pre_calculated_paths = _traverse(loop_node.nested_graph, TRUE())

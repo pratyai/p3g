@@ -1,5 +1,3 @@
-from pysmt.shortcuts import Int, Minus
-
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
@@ -8,11 +6,11 @@ from p3g.smt import (
     generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
     generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
 )
+from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_parallel_loop_graph
-from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
-class TestProveExistsDataForallIterIsdep:
+class TestParallelLoop:
     def test_parallel_loop_dofs(self):
         """
         Test case for a Parallel Loop: for i in 0:n { a[i] = b[i] + c[i] }.
@@ -23,31 +21,13 @@ class TestProveExistsDataForallIterIsdep:
         meaning it is parallelizable.
         The SMT query should return UNSAT, indicating Not DOFS (parallel).
         """
-        print("\n--- Running Test: Parallel Loop (Expected: Not DOFS/Parallel) ---")
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_parallel_loop_graph()
-
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        loop_end = Minus(N, Int(1))
-        print(f"Generating SMT query for N (symbolic).")
-        smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
-            loop_node, verbose=False
+        run_test_case(
+            build_parallel_loop_graph,
+            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            "parallel_loop_dofs",
+            False,
         )
-        print("\n--- Generated SMT Query (parallel_loop_dofs) ---")
-        print(smt_query)
-        print("-------------------------------------------")
 
-        # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
-        # across all adjacent iterations, as each iteration is independent.
-        result = solve_smt_string(smt_query, "parallel_loop_dofs")
-        assert not result, (
-            "Expected parallel loop to be Not DOFS (parallel) but SMT solver returned SAT."
-        )
-        print("\nVerdict: PASSED. Parallel Loop is Not DOFS (Parallel) as expected.")
-
-
-class TestProveExistsDataForallLoopBoundsIterIsdep:
     def test_parallel_loop_dofs_forall_bounds(self):
         """
         Test case for a Parallel Loop using loop bounds SMT: for i in 0:n { a[i] = b[i] + c[i] }.
@@ -58,35 +38,13 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         meaning it is parallelizable.
         The SMT query should return UNSAT, indicating Not DOFS (parallel).
         """
-        print(
-            "\n--- Running Test: Parallel Loop (Loop Bounds) (Expected: Not DOFS/Parallel) ---"
-        )
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_parallel_loop_graph()
-
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        loop_end = Minus(N, Int(1))
-        print(f"Generating SMT query for N (symbolic).")
-        smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
-            loop_node, verbose=False
-        )
-        print("\n--- Generated SMT Query (parallel_loop_dofs_forall_bounds) ---")
-        print(smt_query)
-        print("-------------------------------------------")
-
-        # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
-        # across all adjacent iterations, as each iteration is independent.
-        result = solve_smt_string(smt_query, "parallel_loop_dofs_forall_bounds")
-        assert not result, (
-            "Expected parallel loop (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
-        )
-        print(
-            "\nVerdict: PASSED. Parallel Loop (Loop Bounds) is Not DOFS (Parallel) as expected."
+        run_test_case(
+            build_parallel_loop_graph,
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            "parallel_loop_dofs_forall_bounds",
+            False,
         )
 
-
-class TestProveExistsDataForallIterIsindep:
     def test_parallel_loop_dofi(self):
         """
         Test case for a Parallel Loop: for i in 0:n { a[i] = b[i] + c[i] }.
@@ -95,31 +53,13 @@ class TestProveExistsDataForallIterIsindep:
         meaning it is parallelizable.
         The SMT query should return SAT, indicating DOFI (parallel).
         """
-        print("\n--- Running Test: Parallel Loop (Expected: DOFI/Parallel) ---")
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_parallel_loop_graph()
-
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        loop_end = Minus(N, Int(1))
-        print(f"Generating SMT query for N (symbolic).")
-        smt_query = generate_smt_for_prove_exists_data_forall_iter_isindep(
-            loop_node, verbose=False
+        run_test_case(
+            build_parallel_loop_graph,
+            generate_smt_for_prove_exists_data_forall_iter_isindep,
+            "parallel_loop_dofi",
+            True,
         )
-        print("\n--- Generated SMT Query (parallel_loop_dofi) ---")
-        print(smt_query)
-        print("-------------------------------------------")
 
-        # EXPECT: sat (True) - A data configuration exists where no dependencies
-        # force sequentiality across any pair of iterations (j < k).
-        result = solve_smt_string(smt_query, "parallel_loop_dofi")
-        assert result, (
-            "Expected parallel loop to be DOFI (parallel) but SMT solver returned UNSAT."
-        )
-        print("\nVerdict: PASSED. Parallel Loop is DOFI (Parallel) as expected.")
-
-
-class TestProveExistsDataForallLoopBoundsIterIsindep:
     def test_parallel_loop_dofi_forall_bounds(self):
         """
         Test case for a Parallel Loop using loop bounds SMT: for i in 0:n { a[i] = b[i] + c[i] }.
@@ -128,35 +68,13 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
         meaning it is parallelizable, even with symbolic loop bounds.
         The SMT query should return SAT, indicating DOFI (parallel).
         """
-        print(
-            "\n--- Running Test: Parallel Loop (Loop Bounds) (Expected: DOFI/Parallel) ---"
-        )
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_parallel_loop_graph()
-
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        loop_end = Minus(N, Int(1))
-        print(f"Generating SMT query for N (symbolic).")
-        smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
-            loop_node, verbose=False
-        )
-        print("\n--- Generated SMT Query (parallel_loop_dofi_forall_bounds) ---")
-        print(smt_query)
-        print("-------------------------------------------")
-
-        # EXPECT: sat (True) - A data configuration exists where no dependencies
-        # force sequentiality across any pair of iterations (j < k), for all loop bounds.
-        result = solve_smt_string(smt_query, "parallel_loop_dofi_forall_bounds")
-        assert result, (
-            "Expected parallel loop (loop bounds) to be DOFI (parallel) but SMT solver returned UNSAT."
-        )
-        print(
-            "\nVerdict: PASSED. Parallel Loop (Loop Bounds) is DOFI (Parallel) as expected."
+        run_test_case(
+            build_parallel_loop_graph,
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+            "parallel_loop_dofi_forall_bounds",
+            True,
         )
 
-
-class TestProveForallDataForallLoopBoundsIterIsindep:
     def test_parallel_loop_forall_data_forall_bounds(self):
         """
         Test case for a Parallel Loop using SMT with universally quantified data and loop bounds:
@@ -166,35 +84,13 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
         meaning it is parallelizable for all data configurations and all symbolic loop bounds.
         The SMT query should return SAT, indicating DOFI (parallel).
         """
-        print(
-            "\n--- Running Test: Parallel Loop (Forall Data, Forall Loop Bounds) (Expected: DOFI/Parallel) ---"
-        )
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_parallel_loop_graph()
-
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        loop_end = Minus(N, Int(1))
-        print(f"Generating SMT query for N (symbolic).")
-        smt_query = generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep(
-            loop_node, verbose=False
-        )
-        print("\n--- Generated SMT Query (parallel_loop_forall_data_forall_bounds) ---")
-        print(smt_query)
-        print("-------------------------------------------")
-
-        # EXPECT: sat (True) - For all data configurations and all loop bounds, no dependencies
-        # force sequentiality across any pair of iterations (j < k).
-        result = solve_smt_string(smt_query, "parallel_loop_forall_data_forall_bounds")
-        assert result, (
-            "Expected parallel loop (forall data, forall loop bounds) to be DOFI (parallel) but SMT solver returned UNSAT."
-        )
-        print(
-            "\nVerdict: PASSED. Parallel Loop (Forall Data, Forall Loop Bounds) is DOFI (Parallel) as expected."
+        run_test_case(
+            build_parallel_loop_graph,
+            generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+            "parallel_loop_forall_data_forall_bounds",
+            True,
         )
 
-
-class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
     def test_parallel_loop_find_dependency(self):
         """
         Test case for a Parallel Loop: for i in 0:n { a[i] = b[i] + c[i] }.
@@ -202,27 +98,9 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
         This loop is fully parallel, so no dependency should be found.
         The SMT query should return UNSAT.
         """
-        print(
-            "\n--- Running Test: Parallel Loop (Find Dependency) (Expected: UNSAT) ---"
+        run_test_case(
+            build_parallel_loop_graph,
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            "parallel_loop_find_dependency",
+            False,
         )
-        b_root_graph, loop_node, N, A_root, B_root, C_root = build_parallel_loop_graph()
-
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        print(f"Generating SMT query for N (symbolic).")
-        smt_query = (
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
-                loop_node, verbose=False
-            )
-        )
-        print("\n--- Generated SMT Query (parallel_loop_find_dependency) ---")
-        print(smt_query)
-        print("-------------------------------------------")
-
-        # EXPECT: unsat (False) - No dependency should be found.
-        result = solve_smt_string(smt_query, "parallel_loop_find_dependency")
-        assert not result, (
-            "Expected to find no dependency for parallel loop but SMT solver returned SAT."
-        )
-        print("\nVerdict: PASSED. Found no dependency for Parallel Loop as expected.")

@@ -3,12 +3,13 @@ from pysmt.shortcuts import Int, GE
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
 )
+from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_array_reversal_graph
-from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
-class TestProveExistsDataForallIterIsdep:
+class TestArrayReversal:
     def test_array_reversal_dofs(self):
         """
         Test case for Array Reversal: for i = 0...N-1: swap(A[i], A[N-1-i]).
@@ -19,28 +20,12 @@ class TestProveExistsDataForallIterIsdep:
         If N is symbolic, the solver can pick N=2, which is sequential.
         The SMT query should return SAT, indicating DOFS (sequential).
         """
-        print("\n--- Running Test: Array Reversal (Expected: DOFS/Sequential) ---")
-        b_root_graph, loop_node, N, A_root = build_array_reversal_graph()
-
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        print(f"Generating SMT query for N (symbolic) with no extra assertions.")
-        smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
-            loop_node, verbose=False
+        run_test_case(
+            build_array_reversal_graph,
+            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            "array_reversal_dofs",
+            True,
         )
-        print("\n--- Generated SMT Query (array_reversal_dofs) ---")
-        print(smt_query)
-        print("--------------------------------------------------")
-
-        # EXPECT: sat (True) - A data configuration exists that forces sequentiality.
-        # For example, if N=2, k=0, j=1, A[0] and A[1] are swapped.
-        # If N is symbolic, the solver can pick N=2, which is sequential.
-        result = solve_smt_string(smt_query, "array_reversal_dofs")
-        assert result, (
-            "Expected array reversal to be DOFS (sequential) but SMT solver returned UNSAT."
-        )
-        print("\nVerdict: PASSED. Array reversal is DOFS (Sequential) as expected.")
 
     def test_array_reversal_high_N_dofs(self):
         """
@@ -53,34 +38,15 @@ class TestProveExistsDataForallIterIsdep:
         across all adjacent iterations.
         The SMT query should return UNSAT, indicating Not DOFS (parallel).
         """
-        print(
-            "\n--- Running Test: Array Reversal (Expected: Not DOFS/Parallel for N >= 3) ---"
-        )
         b_root_graph, loop_node, N, A_root = build_array_reversal_graph()
-
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        print(f"Generating SMT query for N (symbolic) with extra assertion: N >= 3.")
-        smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
-            loop_node, extra_assertions=[GE(N, Int(3))], verbose=False
-        )
-        print("\n--- Generated SMT Query (array_reversal_high_N_dofs) ---")
-        print(smt_query)
-        print("---------------------------------------------------------")
-
-        # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
-        # across all adjacent iterations when N >= 3.
-        result = solve_smt_string(smt_query, "array_reversal_high_N_dofs")
-        assert not result, (
-            "Expected array reversal to be Not DOFS (parallel) but SMT solver returned SAT."
-        )
-        print(
-            "\nVerdict: PASSED. Array reversal is Not DOFS (Parallel) as expected for N >= 3."
+        run_test_case(
+            lambda: (b_root_graph, loop_node, N, A_root),
+            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            "array_reversal_high_N_dofs",
+            False,
+            extra_assertions=[GE(N, Int(3))],
         )
 
-
-class TestProveExistsDataForallLoopBoundsIterIsdep:
     def test_array_reversal_dofs_forall_bounds(self):
         """
         Test case for Array Reversal using generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep.
@@ -91,29 +57,24 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         If N is symbolic, the solver can pick N=2, which is sequential.
         The SMT query should return SAT, indicating DOFS (sequential).
         """
-        print(
-            "\n--- Running Test: Array Reversal (Loop Bounds) (Expected: DOFS/Sequential) ---"
+        run_test_case(
+            build_array_reversal_graph,
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            "array_reversal_dofs_forall_bounds",
+            False,
         )
-        b_root_graph, loop_node, N, A_root = build_array_reversal_graph()
 
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        print(f"Generating SMT query for N (symbolic) with no extra assertions.")
-        smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
-            loop_node, verbose=False
-        )
-        print("\n--- Generated SMT Query (array_reversal_dofs_forall_bounds) ---")
-        print(smt_query)
-        print("-------------------------------------------------------------")
-
-        # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
-        # across all adjacent iterations when N is universally quantified, because
-        # for N >= 3, the loop is parallelizable.
-        result = solve_smt_string(smt_query, "array_reversal_dofs_forall_bounds")
-        assert not result, (
-            "Expected array reversal (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
-        )
-        print(
-            "\nVerdict: PASSED. Array reversal (Loop Bounds) is Not DOFS (Parallel) as expected."
+    def test_array_reversal_find_dependency(self):
+        """
+        Test case for Array Reversal: for i = 0...N-1: swap(A[i], A[N-1-i]).
+        This test uses the relaxed SMT query to find *any* dependency.
+        A dependency exists if we can find a data configuration for N such that
+        the swap operation creates a dependency. For N=2, k=0, j=1, we have a dependency.
+        The SMT query should return SAT.
+        """
+        run_test_case(
+            build_array_reversal_graph,
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            "array_reversal_find_dependency",
+            True,
         )

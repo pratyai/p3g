@@ -1,15 +1,13 @@
 import io
 import os
-import sys
-import multiprocessing
 from multiprocessing import Process, Queue
 
-from z3 import Z3Exception
-
-from p3g.p3g import Graph, Compute, Branch, Loop, Map, Reduce, Data, WriteSet, ReadSet
 from pysmt.exceptions import SolverReturnedUnknownResultError
 from pysmt.shortcuts import Solver
 from pysmt.smtlib.parser import SmtLibParser
+from z3 import Z3Exception
+
+from p3g.p3g import Graph, Compute, Branch, Loop, Map, Reduce, Data, WriteSet, ReadSet
 
 
 # Custom Timeout Exception

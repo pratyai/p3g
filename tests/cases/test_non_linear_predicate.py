@@ -1,12 +1,13 @@
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
     generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
 )
+from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_non_linear_predicate_graph
-from tests.test_utils import print_p3g_structure, solve_smt_string
 
 
-class TestProveExistsDataForallIterIsdep:
+class TestNonLinearPredicate:
     def test_non_linear_predicate_dofs(self):
         """
         Test case for a loop with a Non-linear Predicate:
@@ -21,36 +22,13 @@ class TestProveExistsDataForallIterIsdep:
         that forces *all* adjacent iterations to be sequential.
         The SMT query should return UNSAT, indicating Not DOFS (parallel).
         """
-        print(
-            "\n--- Running Test: Non-linear Predicate (Expected: DOFS/Sequential) ---"
-        )
-        b_root_graph, loop_node, N, A_root, B_root, C_root = (
-            build_non_linear_predicate_graph()
-        )
-
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        print(f"Generating SMT query for N (symbolic).")
-        smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
-            loop_node, verbose=False
-        )
-        print("\n--- Generated SMT Query (non_linear_predicate_dofs) ---")
-        print(smt_query)
-        print("--------------------------------------------------")
-
-        # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
-        # across all adjacent iterations, as the parallel branch can always be taken.
-        result = solve_smt_string(smt_query, "non_linear_predicate_dofs")
-        assert not result, (
-            "Expected non-linear predicate loop to be Not DOFS (parallel) but SMT solver returned SAT."
-        )
-        print(
-            "\nVerdict: PASSED. Non-linear Predicate loop is Not DOFS (Parallel) as expected."
+        run_test_case(
+            build_non_linear_predicate_graph,
+            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            "non_linear_predicate_dofs",
+            False,
         )
 
-
-class TestProveExistsDataForallLoopBoundsIterIsdep:
     def test_non_linear_predicate_dofs_forall_bounds(self):
         """
         Test case for a loop with a Non-linear Predicate using loop bounds SMT:
@@ -65,30 +43,28 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         that forces *all* adjacent iterations to be sequential.
         The SMT query should return UNSAT, indicating Not DOFS (parallel).
         """
-        print(
-            "\n--- Running Test: Non-linear Predicate (Loop Bounds) (Expected: DOFS/Sequential) ---"
-        )
-        b_root_graph, loop_node, N, A_root, B_root, C_root = (
-            build_non_linear_predicate_graph()
+        run_test_case(
+            build_non_linear_predicate_graph,
+            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            "non_linear_predicate_dofs_forall_bounds",
+            False,
         )
 
-        # Print constructed P3G
-        print_p3g_structure(b_root_graph)
-
-        print(f"Generating SMT query for N (symbolic).")
-        smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
-            loop_node, verbose=False
-        )
-        print("\n--- Generated SMT Query (non_linear_predicate_dofs_forall_bounds) ---")
-        print(smt_query)
-        print("--------------------------------------------------")
-
-        # EXPECT: unsat (False) - No data configuration exists that forces sequentiality
-        # across all adjacent iterations, as the parallel branch can always be taken.
-        result = solve_smt_string(smt_query, "non_linear_predicate_dofs_forall_bounds")
-        assert not result, (
-            "Expected non-linear predicate loop (loop bounds) to be Not DOFS (parallel) but SMT solver returned SAT."
-        )
-        print(
-            "\nVerdict: PASSED. Non-linear Predicate loop (Loop Bounds) is Not DOFS (Parallel) as expected."
+    def test_non_linear_predicate_find_dependency(self):
+        """
+        Test case for a loop with a Non-linear Predicate:
+        for i=0:N {
+          if i*i <= N: A[i] = B[i] + C[i]  // Parallel part
+          else: A[i] = A[i-1] + C[i]       // Sequential part
+        }
+        This test uses the relaxed SMT query to find *any* dependency.
+        A dependency exists if we can find a data configuration for N such that
+        the sequential branch is taken for some j and k.
+        The SMT query should return SAT.
+        """
+        run_test_case(
+            build_non_linear_predicate_graph,
+            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            "non_linear_predicate_find_dependency",
+            True,
         )

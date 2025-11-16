@@ -8,7 +8,6 @@ from pysmt.shortcuts import (
     GE,
     LE,
     ArrayType,
-    Store,
     Select,
     LT,
 )
