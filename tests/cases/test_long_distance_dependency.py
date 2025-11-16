@@ -8,7 +8,7 @@ from tests.cases.graph_definitions import build_long_distance_dependency_graph
 
 
 class TestLongDistanceDependency:
-    def test_long_distance_dependency_dofs(self):
+    def test_dofs(self):
         """
         Test case for a loop with long-distance dependency: for i = 2...N: A[i] = A[max(i-10, 0)] + B[i].
         The dependency is A[i] <- A[max(i-10, 0)]. Due to the 'max(i-10, 0)' term,
@@ -26,7 +26,7 @@ class TestLongDistanceDependency:
             False,
         )
 
-    def test_long_distance_dependency_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for a loop with long-distance dependency using loop bounds SMT:
         for i = 2...N: A[i] = A[max(i-10, 0)] + B[i].
@@ -41,7 +41,7 @@ class TestLongDistanceDependency:
             False,
         )
 
-    def test_long_distance_dependency_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for a loop with long-distance dependency: for i = 2...N: A[i] = A[max(i-10, 0)] + B[i].
         This test uses the relaxed SMT query to find *any* dependency.

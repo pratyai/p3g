@@ -11,7 +11,7 @@ from tests.cases.graph_definitions import (
 
 
 class TestCholesky:
-    def test_cholesky_sequential_dofs(self):
+    def test_sequential_dofs(self):
         """
         Cholesky Decomposition-like kernel (fully sequential)
         for i = 2...N:
@@ -47,7 +47,7 @@ class TestCholesky:
             loop_node_index=1,
         )
 
-    def test_cholesky_full_kernel_dofs(self):
+    def test_full_kernel_dofs(self):
         """
         More accurate Cholesky Decomposition kernel (fully sequential)
         for i = 0 to N-1:
@@ -70,7 +70,7 @@ class TestCholesky:
             True,
         )
 
-    def test_cholesky_sequential_dofs_forall_bounds(self):
+    def test_sequential_dofs_forall_bounds(self):
         """
         Cholesky Decomposition-like kernel (fully sequential)
         for i = 2...N:
@@ -98,7 +98,7 @@ class TestCholesky:
             loop_node_index=1,
         )
 
-    def test_cholesky_full_kernel_dofs_forall_bounds(self):
+    def test_full_kernel_dofs_forall_bounds(self):
         """
         More accurate Cholesky Decomposition kernel (fully sequential)
         This test expects the full Cholesky kernel to be Data-Oblivious Full Sequential (DOFS),
@@ -113,7 +113,7 @@ class TestCholesky:
             True,
         )
 
-    def test_cholesky_sequential_find_dependency(self):
+    def test_sequential_find_dependency(self):
         """
         Cholesky Decomposition-like kernel (fully sequential)
         for i = 2...N:
@@ -138,7 +138,7 @@ class TestCholesky:
             loop_node_index=1,
         )
 
-    def test_cholesky_full_kernel_find_dependency(self):
+    def test_full_kernel_find_dependency(self):
         """
         More accurate Cholesky Decomposition kernel (fully sequential)
         This test uses the relaxed SMT query to find *any* dependency.

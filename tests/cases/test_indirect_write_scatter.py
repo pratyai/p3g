@@ -14,7 +14,7 @@ from tests.test_utils import TimeoutError
 
 
 class TestIndirectWriteScatter:
-    def test_indirect_write_scatter_dofs(self):
+    def test_dofs(self):
         """
         Test case for Indirect Write (Scatter) operation: for i = 1...N: A[ IDX[i] ] = B[i].
         This operation is generally sequential because multiple iterations can write to the same
@@ -34,7 +34,7 @@ class TestIndirectWriteScatter:
             True,
         )
 
-    def test_indirect_write_scatter_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for Indirect Write (Scatter) operation using loop bounds SMT: for i = 1...N: A[ IDX[i] ] = B[i].
         This operation is generally sequential because multiple iterations can write to the same
@@ -54,7 +54,7 @@ class TestIndirectWriteScatter:
             True,
         )
 
-    def test_indirect_write_scatter_dofi(self):
+    def test_dofi(self):
         """
         Test case for Indirect Write (Scatter) operation: for i = 1...N: A[ IDX[i] ] = B[i].
         This operation can be parallel if the index array `IDX` is configured to avoid conflicts
@@ -70,7 +70,7 @@ class TestIndirectWriteScatter:
             True,
         )
 
-    def test_indirect_write_scatter_dofi_forall_bounds(self):
+    def test_dofi_forall_bounds(self):
         """
         Test case for Indirect Write (Scatter) operation using loop bounds SMT: for i = 1...N: A[ IDX[i] ] = B[i].
         This operation can be parallel if the index array `IDX` is configured to avoid conflicts
@@ -90,7 +90,7 @@ class TestIndirectWriteScatter:
         except TimeoutError as e:
             pytest.skip(f"Skipping due to timeout: {e}")
 
-    def test_indirect_write_scatter_forall_data_forall_bounds(self):
+    def test_forall_data_forall_bounds(self):
         """
         Test case for Indirect Write (Scatter) operation using SMT with universally quantified data and loop bounds:
         for i = 1...N: A[ IDX[i] ] = B[i].
@@ -111,7 +111,7 @@ class TestIndirectWriteScatter:
         except TimeoutError as e:
             pytest.skip(f"Skipping due to timeout: {e}")
 
-    def test_indirect_write_scatter_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for Indirect Write (Scatter) operation: for i = 1...N: A[ IDX[i] ] = B[i].
         This test uses the relaxed SMT query to find *any* dependency.

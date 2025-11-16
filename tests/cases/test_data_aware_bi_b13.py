@@ -10,7 +10,7 @@ from tests.cases.graph_definitions import build_data_aware_bi_b13_graph
 
 
 class TestDataAwareBiB13:
-    def test_data_aware_bi_b13_dofs(self):
+    def test_dofs(self):
         """
         Test case for a Data-Aware loop: for i = 1...N: if (B[i] - B[13] > 0) then A[i] = A[i-1].
         This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
@@ -26,7 +26,7 @@ class TestDataAwareBiB13:
             True,
         )
 
-    def test_data_aware_bi_b13_high_N_dofs(self):
+    def test_high_N_dofs(self):
         """
         Test case for a Data-Aware loop: for i = 1...N: if (B[i] - B[13] > 0) then A[i] = A[i-1].
         This test adds an assertion N >= 15.
@@ -47,7 +47,7 @@ class TestDataAwareBiB13:
             extra_assertions=[GE(N, Int(15))],
         )
 
-    def test_data_aware_bi_b13_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for a Data-Aware loop: for i = 1...N: if (B[i] - B[13] > 0) then A[i] = A[i-1].
         This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
@@ -63,7 +63,7 @@ class TestDataAwareBiB13:
             False,
         )
 
-    def test_data_aware_bi_b13_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for a Data-Aware loop: for i = 1...N: if (B[i] - B[13] > 0) then A[i] = A[i-1].
         This test uses the relaxed SMT query to find *any* dependency.

@@ -19,7 +19,7 @@ extra_assertions = [GT(M, Int(0))]
 
 
 class TestNestedLoop:
-    def test_nested_loop_outer_dofs(self):
+    def test_outer_dofs(self):
         """
         Test case for a Nested Loop where the OUTER loop is DOFS:
         for i = 1...N:
@@ -45,7 +45,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_inner_dofs(self):
+    def test_inner_dofs(self):
         """
         Test case for a Nested Loop with inner loop DOFS:
         for i = 1...N:
@@ -72,7 +72,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_outer_dofs_forall_bounds(self):
+    def test_outer_dofs_forall_bounds(self):
         """
         Test case for a Nested Loop where the OUTER loop is DOFS using loop bounds SMT:
         for i = 1...N:
@@ -95,7 +95,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_inner_dofs_forall_bounds(self):
+    def test_inner_dofs_forall_bounds(self):
         """
         Test case for a Nested Loop with inner loop DOFS using loop bounds SMT:
         for i = 1...N:
@@ -118,7 +118,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_outer_dofs_dofi(self):
+    def test_outer_dofi(self):
         """
         Test case for a Nested Loop where the OUTER loop is DOFS:
         for i = 1...N:
@@ -144,7 +144,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_inner_dofs_dofi(self):
+    def test_inner_dofi(self):
         """
         Test case for a Nested Loop with inner loop DOFS:
         for i = 1...N:
@@ -170,7 +170,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_outer_dofs_dofi_forall_bounds(self):
+    def test_outer_dofi_forall_bounds(self):
         """
         Test case for a Nested Loop where the OUTER loop is DOFS:
         for i = 1...N:
@@ -197,7 +197,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_inner_dofs_dofi_forall_bounds(self):
+    def test_inner_dofi_forall_bounds(self):
         """
         Test case for a Nested Loop with inner loop DOFS:
         for i = 1...N:
@@ -224,7 +224,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_outer_dofs_forall_data_forall_bounds(self):
+    def test_outer_forall_data_forall_bounds(self):
         """
         Test case for a Nested Loop where the OUTER loop is DOFS:
         for i = 1...N:
@@ -251,7 +251,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_inner_dofs_forall_data_forall_bounds(self):
+    def test_inner_forall_data_forall_bounds(self):
         """
         Test case for a Nested Loop with inner loop DOFS:
         for i = 1...N:
@@ -278,7 +278,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_outer_dofs_find_dependency(self):
+    def test_outer_find_dependency(self):
         """
         Test case for a Nested Loop where the OUTER loop is DOFS:
         for i = 1...N:
@@ -297,7 +297,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_outer_dofs_inner_find_dependency(self):
+    def test_outer_inner_find_dependency(self):
         """
         Test case for a Nested Loop where the OUTER loop is DOFS:
         for i = 1...N:
@@ -316,7 +316,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_inner_dofs_find_dependency(self):
+    def test_inner_find_dependency(self):
         """
         Test case for a Nested Loop with inner loop DOFS:
         for i = 1...N:
@@ -335,7 +335,7 @@ class TestNestedLoop:
             extra_assertions=extra_assertions,
         )
 
-    def test_nested_loop_inner_dofs_inner_find_dependency(self):
+    def test_inner_inner_find_dependency(self):
         """
         Test case for a Nested Loop with inner loop DOFS:
         for i = 1...N:

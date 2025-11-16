@@ -8,7 +8,7 @@ from tests.cases.graph_definitions import build_non_linear_predicate_graph
 
 
 class TestNonLinearPredicate:
-    def test_non_linear_predicate_dofs(self):
+    def test_dofs(self):
         """
         Test case for a loop with a Non-linear Predicate:
         for i=0:N {
@@ -29,7 +29,7 @@ class TestNonLinearPredicate:
             False,
         )
 
-    def test_non_linear_predicate_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for a loop with a Non-linear Predicate using loop bounds SMT:
         for i=0:N {
@@ -50,7 +50,7 @@ class TestNonLinearPredicate:
             False,
         )
 
-    def test_non_linear_predicate_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for a loop with a Non-linear Predicate:
         for i=0:N {

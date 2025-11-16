@@ -11,7 +11,7 @@ from tests.cases.graph_definitions import build_parallel_loop_graph
 
 
 class TestParallelLoop:
-    def test_parallel_loop_dofs(self):
+    def test_dofs(self):
         """
         Test case for a Parallel Loop: for i in 0:n { a[i] = b[i] + c[i] }.
         Each iteration of this loop is independent, as it only reads from B and C
@@ -28,7 +28,7 @@ class TestParallelLoop:
             False,
         )
 
-    def test_parallel_loop_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for a Parallel Loop using loop bounds SMT: for i in 0:n { a[i] = b[i] + c[i] }.
         Each iteration of this loop is independent, as it only reads from B and C
@@ -45,7 +45,7 @@ class TestParallelLoop:
             False,
         )
 
-    def test_parallel_loop_dofi(self):
+    def test_dofi(self):
         """
         Test case for a Parallel Loop: for i in 0:n { a[i] = b[i] + c[i] }.
         Each iteration of this loop is independent.
@@ -60,7 +60,7 @@ class TestParallelLoop:
             True,
         )
 
-    def test_parallel_loop_dofi_forall_bounds(self):
+    def test_dofi_forall_bounds(self):
         """
         Test case for a Parallel Loop using loop bounds SMT: for i in 0:n { a[i] = b[i] + c[i] }.
         Each iteration of this loop is independent.
@@ -75,7 +75,7 @@ class TestParallelLoop:
             True,
         )
 
-    def test_parallel_loop_forall_data_forall_bounds(self):
+    def test_forall_data_forall_bounds(self):
         """
         Test case for a Parallel Loop using SMT with universally quantified data and loop bounds:
         for i in 0:n { a[i] = b[i] + c[i] }.
@@ -91,7 +91,7 @@ class TestParallelLoop:
             True,
         )
 
-    def test_parallel_loop_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for a Parallel Loop: for i in 0:n { a[i] = b[i] + c[i] }.
         This test uses the relaxed SMT query to find *any* dependency.

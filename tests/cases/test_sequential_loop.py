@@ -11,7 +11,7 @@ from tests.cases.graph_definitions import build_sequential_loop_graph
 
 
 class TestSequentialLoop:
-    def test_sequential_loop_dofs(self):
+    def test_dofs(self):
         """
         Test case for a Sequential Loop: for i = 2...N: A[i] = A[i-1] + B[i].
         This loop has a Read-After-Write (RAW) dependency: A[i] reads A[i-1],
@@ -28,7 +28,7 @@ class TestSequentialLoop:
             True,
         )
 
-    def test_sequential_loop_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for a Sequential Loop using loop bounds SMT: for i = 2...N: A[i] = A[i-1] + B[i].
         This loop has a Read-After-Write (RAW) dependency: A[i] reads A[i-1],
@@ -45,7 +45,7 @@ class TestSequentialLoop:
             True,
         )
 
-    def test_sequential_loop_dofi(self):
+    def test_dofi(self):
         """
         Test case for a Sequential Loop: for i = 2...N: A[i] = A[i-1] + B[i].
         This loop has a Read-After-Write (RAW) dependency.
@@ -60,7 +60,7 @@ class TestSequentialLoop:
             False,
         )
 
-    def test_sequential_loop_dofi_forall_bounds(self):
+    def test_dofi_forall_bounds(self):
         """
         Test case for a Sequential Loop using loop bounds SMT: for i = 2...N: A[i] = A[i-1] + B[i].
         This loop has a Read-After-Write (RAW) dependency.
@@ -75,7 +75,7 @@ class TestSequentialLoop:
             False,
         )
 
-    def test_sequential_loop_forall_data_forall_bounds(self):
+    def test_forall_data_forall_bounds(self):
         """
         Test case for a Sequential Loop using SMT with universally quantified data and loop bounds:
         for i = 2...N: A[i] = A[i-1] + B[i].
@@ -91,7 +91,7 @@ class TestSequentialLoop:
             False,
         )
 
-    def test_sequential_loop_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for a Sequential Loop: for i = 2...N: A[i] = A[i-1] + B[i].
         This test uses the relaxed SMT query to find *any* dependency.

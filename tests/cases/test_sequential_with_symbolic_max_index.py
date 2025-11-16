@@ -10,7 +10,7 @@ from tests.cases.graph_definitions import (
 
 
 class TestSequentialWithSymbolicMaxIndex:
-    def test_sequential_with_symbolic_max_index_dofs(self):
+    def test_dofs(self):
         """
         Test case for a Sequential Loop with max(i-w, 0) index, where w is a symbolic variable.
         for i = 2...N: A[i] = A[max(i-w, 0)] + B[i]
@@ -27,7 +27,7 @@ class TestSequentialWithSymbolicMaxIndex:
             True,
         )
 
-    def test_sequential_with_symbolic_max_index_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for a Sequential Loop with max(i-w, 0) index, where w is a symbolic variable.
         for i = 2...N: A[i] = A[max(i-w, 0)] + B[i]
@@ -44,7 +44,7 @@ class TestSequentialWithSymbolicMaxIndex:
             True,
         )
 
-    def test_sequential_with_symbolic_max_index_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for a Sequential Loop with max(i-w, 0) index, where w is a symbolic variable.
         for i = 2...N: A[i] = A[max(i-w, 0)] + B[i]

@@ -10,7 +10,7 @@ from tests.cases.graph_definitions import build_array_reversal_graph
 
 
 class TestArrayReversal:
-    def test_array_reversal_dofs(self):
+    def test_dofs(self):
         """
         Test case for Array Reversal: for i = 0...N-1: swap(A[i], A[N-1-i]).
         This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
@@ -27,7 +27,7 @@ class TestArrayReversal:
             True,
         )
 
-    def test_array_reversal_high_N_dofs(self):
+    def test_high_N_dofs(self):
         """
         Test case for Array Reversal with N >= 3.
         This test expects the loop to be NOT Data-Oblivious Full Sequential (DOFS),
@@ -47,7 +47,7 @@ class TestArrayReversal:
             extra_assertions=[GE(N, Int(3))],
         )
 
-    def test_array_reversal_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for Array Reversal using generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep.
         This test expects the loop to be Data-Oblivious Full Sequential (DOFS),
@@ -64,7 +64,7 @@ class TestArrayReversal:
             False,
         )
 
-    def test_array_reversal_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for Array Reversal: for i = 0...N-1: swap(A[i], A[N-1-i]).
         This test uses the relaxed SMT query to find *any* dependency.

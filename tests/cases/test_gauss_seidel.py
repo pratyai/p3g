@@ -12,7 +12,7 @@ from tests.cases.graph_definitions import (
 
 
 class TestGaussSeidel:
-    def test_gauss_seidel_red_dofs(self):
+    def test_red_dofs(self):
         """
         Test case for Gauss-Seidel Red Pass (1D).
         Expected to be Not Data-Oblivious Full Sequential (Not DOFS), meaning parallelizable.
@@ -28,7 +28,7 @@ class TestGaussSeidel:
             False,
         )
 
-    def test_gauss_seidel_black_dofs(self):
+    def test_black_dofs(self):
         """
         Test case for Gauss-Seidel Black Pass (1D).
         Expected to be Not Data-Oblivious Full Sequential (Not DOFS), meaning parallelizable.
@@ -44,7 +44,7 @@ class TestGaussSeidel:
             False,
         )
 
-    def test_gauss_seidel_traditional_dofs(self):
+    def test_traditional_dofs(self):
         """
         Test case for the Traditional 1D Gauss-Seidel loop.
         for i = 1 to N-1:
@@ -63,7 +63,7 @@ class TestGaussSeidel:
             True,
         )
 
-    def test_gauss_seidel_red_dofs_forall_bounds(self):
+    def test_red_dofs_forall_bounds(self):
         """
         Test case for Gauss-Seidel Red Pass (1D) using loop bounds SMT.
         Expected to be Not Data-Oblivious Full Sequential (Not DOFS), meaning parallelizable.
@@ -75,7 +75,7 @@ class TestGaussSeidel:
             False,
         )
 
-    def test_gauss_seidel_black_dofs_forall_bounds(self):
+    def test_black_dofs_forall_bounds(self):
         """
         Test case for Gauss-Seidel Black Pass (1D) using loop bounds SMT.
         Expected to be Not Data-Oblivious Full Sequential (Not DOFS), meaning parallelizable.
@@ -87,7 +87,7 @@ class TestGaussSeidel:
             False,
         )
 
-    def test_gauss_seidel_traditional_dofs_forall_bounds(self):
+    def test_traditional_dofs_forall_bounds(self):
         """
         Test case for the Traditional 1D Gauss-Seidel loop using loop bounds SMT.
         This loop is inherently sequential because A[i] depends on A[i-1],
@@ -100,7 +100,7 @@ class TestGaussSeidel:
             True,
         )
 
-    def test_gauss_seidel_red_find_dependency(self):
+    def test_red_find_dependency(self):
         """
         Test case for Gauss-Seidel Red Pass (1D).
         This test uses the relaxed SMT query to find *any* dependency.
@@ -113,7 +113,7 @@ class TestGaussSeidel:
             False,
         )
 
-    def test_gauss_seidel_black_find_dependency(self):
+    def test_black_find_dependency(self):
         """
         Test case for Gauss-Seidel Black Pass (1D).
         This test uses the relaxed SMT query to find *any* dependency.
@@ -126,7 +126,7 @@ class TestGaussSeidel:
             False,
         )
 
-    def test_gauss_seidel_traditional_find_dependency(self):
+    def test_traditional_find_dependency(self):
         """
         Test case for the Traditional 1D Gauss-Seidel loop.
         This test uses the relaxed SMT query to find *any* dependency.

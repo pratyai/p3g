@@ -11,7 +11,7 @@ from tests.cases.graph_definitions import (
 
 
 class TestNonLinearAccess:
-    def test_non_linear_access_dofs(self):
+    def test_dofs(self):
         """
         Test case for a loop with a Non-linear Array Access:
         for i=0:N: A[i*i] = B[i] + C[i]
@@ -28,7 +28,7 @@ class TestNonLinearAccess:
             False,
         )
 
-    def test_non_linear_access_sequential_dofs(self):
+    def test_sequential_dofs(self):
         """
         Test case for a loop with a Non-linear Array Access that is sequential:
         for i = 1...N: A[i*i] = A[(i-1)*(i-1)] + B[i]
@@ -46,7 +46,7 @@ class TestNonLinearAccess:
             True,
         )
 
-    def test_non_linear_access_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for a loop with a Non-linear Array Access using loop bounds SMT:
         for i=0:N: A[i*i] = B[i] + C[i]
@@ -63,7 +63,7 @@ class TestNonLinearAccess:
             False,
         )
 
-    def test_non_linear_access_sequential_dofs_forall_bounds(self):
+    def test_sequential_dofs_forall_bounds(self):
         """
         Test case for a loop with a Non-linear Array Access that is sequential using loop bounds SMT:
         for i = 1...N: A[i*i] = A[(i-1)*(i-1)] + B[i]
@@ -81,7 +81,7 @@ class TestNonLinearAccess:
             True,
         )
 
-    def test_non_linear_access_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for a loop with a Non-linear Array Access:
         for i=0:N: A[i*i] = B[i] + C[i]
@@ -95,7 +95,7 @@ class TestNonLinearAccess:
             False,
         )
 
-    def test_non_linear_access_sequential_find_dependency(self):
+    def test_sequential_find_dependency(self):
         """
         Test case for a loop with a Non-linear Array Access that is sequential:
         for i = 1...N: A[i*i] = A[(i-1)*(i-1)] + B[i]

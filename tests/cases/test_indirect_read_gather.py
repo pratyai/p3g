@@ -11,7 +11,7 @@ from tests.cases.graph_definitions import build_indirect_read_gather_graph
 
 
 class TestIndirectReadGather:
-    def test_indirect_read_gather_dofs(self):
+    def test_dofs(self):
         """
         Test case for Indirect Read (Gather) operation: for i = 1...N: A[i] = B[ IDX[i] ].
         This operation is generally parallelizable because writes to A[i] are independent
@@ -29,7 +29,7 @@ class TestIndirectReadGather:
             False,
         )
 
-    def test_indirect_read_gather_dofs_forall_bounds(self):
+    def test_dofs_forall_bounds(self):
         """
         Test case for Indirect Read (Gather) operation using loop bounds SMT: for i = 1...N: A[i] = B[ IDX[i] ].
         This operation is generally parallelizable because writes to A[i] are independent
@@ -47,7 +47,7 @@ class TestIndirectReadGather:
             False,
         )
 
-    def test_indirect_read_gather_dofi(self):
+    def test_dofi(self):
         """
         Test case for Indirect Read (Gather) operation: for i = 1...N: A[i] = B[ IDX[i] ].
         This operation is generally parallelizable.
@@ -62,7 +62,7 @@ class TestIndirectReadGather:
             True,
         )
 
-    def test_indirect_read_gather_dofi_forall_bounds(self):
+    def test_dofi_forall_bounds(self):
         """
         Test case for Indirect Read (Gather) operation using loop bounds SMT: for i = 1...N: A[i] = B[ IDX[i] ].
         This operation is generally parallelizable.
@@ -77,7 +77,7 @@ class TestIndirectReadGather:
             True,
         )
 
-    def test_indirect_read_gather_forall_data_forall_bounds(self):
+    def test_forall_data_forall_bounds(self):
         """
         Test case for Indirect Read (Gather) operation using SMT with universally quantified data and loop bounds:
         for i = 1...N: A[i] = B[ IDX[i] ].
@@ -93,7 +93,7 @@ class TestIndirectReadGather:
             True,
         )
 
-    def test_indirect_read_gather_find_dependency(self):
+    def test_find_dependency(self):
         """
         Test case for Indirect Read (Gather) operation: for i = 1...N: A[i] = B[ IDX[i] ].
         This test uses the relaxed SMT query to find *any* dependency.
