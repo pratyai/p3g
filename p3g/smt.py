@@ -514,10 +514,12 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
 
     builder.assertions.append("; --- Data Definitions ---")
     for node in all_data_nodes:  # Iterate over all collected Data nodes
-        sym = Symbol(f"DATA!{node.name}", INT)
+        sym = Symbol(f"DATA!{node.graph._array_id_to_name[node.array_id]}", INT)
         id_to_symbol_map[node.array_id] = sym
         defn = Equals(sym, Int(node.array_id))
-        builder.add_assertion(defn, f"Define DATA!{node.name}")
+        builder.add_assertion(
+            defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
+        )
 
     # NEW BLOCK: Add human-provided assertions
     if extra_assertions:
@@ -651,10 +653,12 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
 
     builder.assertions.append("; --- Data Definitions ---")
     for node in all_data_nodes:  # Iterate over all collected Data nodes
-        sym = Symbol(f"DATA!{node.name}", INT)
+        sym = Symbol(f"DATA!{node.graph._array_id_to_name[node.array_id]}", INT)
         id_to_symbol_map[node.array_id] = sym
         defn = Equals(sym, Int(node.array_id))
-        builder.add_assertion(defn, f"Define DATA!{node.name}")
+        builder.add_assertion(
+            defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
+        )
 
     # NEW BLOCK: Add human-provided assertions
     if extra_assertions:
@@ -756,10 +760,12 @@ def generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
 
     builder.assertions.append("; --- Data Definitions ---")
     for node in all_data_nodes:
-        sym = Symbol(f"DATA!{node.name}", INT)
+        sym = Symbol(f"DATA!{node.graph._array_id_to_name[node.array_id]}", INT)
         id_to_symbol_map[node.array_id] = sym
         defn = Equals(sym, Int(node.array_id))
-        builder.add_assertion(defn, f"Define DATA!{node.name}")
+        builder.add_assertion(
+            defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
+        )
 
     if extra_assertions:
         builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
@@ -851,11 +857,13 @@ def generate_smt_for_prove_exists_data_forall_iter_isindep(
     )  # Collect from the entire graph
 
     builder.assertions.append("; --- Data Definitions ---")
-    for node in all_data_nodes:  # Iterate over all collected Data nodes
-        sym = Symbol(f"DATA!{node.name}", INT)
+    for node in all_data_nodes:
+        sym = Symbol(f"DATA!{node.graph._array_id_to_name[node.array_id]}", INT)
         id_to_symbol_map[node.array_id] = sym
-        # Explicitly add DATA! symbols to declarations
-        builder.declarations.add(sym)
+        defn = Equals(sym, Int(node.array_id))
+        builder.add_assertion(
+            defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
+        )
 
     existential_quantifier_vars = list(id_to_symbol_map.values())
 
@@ -983,12 +991,13 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
         loop_node.builder.root_graph, all_data_nodes
     )  # Collect from the entire graph
 
-    builder.assertions.append("; --- Data Definitions ---")
-    for node in all_data_nodes:  # Iterate over all collected Data nodes
-        sym = Symbol(f"DATA!{node.name}", INT)
+    for node in all_data_nodes:
+        sym = Symbol(f"DATA!{node.graph._array_id_to_name[node.array_id]}", INT)
         id_to_symbol_map[node.array_id] = sym
-        # Explicitly add DATA! symbols to declarations
-        builder.declarations.add(sym)
+        defn = Equals(sym, Int(node.array_id))
+        builder.add_assertion(
+            defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
+        )
 
     existential_quantifier_vars = list(id_to_symbol_map.values())
 
@@ -1123,15 +1132,24 @@ def generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep(
     )  # Collect from the entire graph
 
     builder.assertions.append("; --- Data Definitions ---")
-    forall_data_quantifier_vars = []  # NEW: Collect data symbols for universal quantification
+    # Add DATA! symbols as constants (array IDs)
     for node in all_data_nodes:  # Iterate over all collected Data nodes
-        sym = Symbol(f"DATA!{node.name}", INT)
+        sym = Symbol(f"DATA!{node.graph._array_id_to_name[node.array_id]}", INT)
         id_to_symbol_map[node.array_id] = sym
-        # Explicitly add DATA! symbols to declarations
+        defn = Equals(sym, Int(node.array_id))
+        builder.add_assertion(
+            defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
+        )
         builder.declarations.add(sym)
+
+    forall_data_quantifier_vars = []  # Collect data symbols for universal quantification
+    # Collect and declare VAL! symbols (PysmtSymbols representing array content)
+    # These are stored as keys in loop_node.builder._pysmt_array_sym_to_array_id
+    for val_sym in loop_node.builder._pysmt_array_sym_to_array_id.keys():
+        builder.declarations.add(val_sym)
         forall_data_quantifier_vars.append(
-            f"({sym.symbol_name()} {sym.get_type()})"
-        )  # NEW
+            f"({val_sym.symbol_name()} (Array {val_sym.get_type().index_type} {val_sym.get_type().elem_type}))"
+        )
 
     # existential_quantifier_vars = list(id_to_symbol_map.values()) # REMOVE/COMMENT OUT
 

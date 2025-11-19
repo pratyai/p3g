@@ -20,16 +20,18 @@ class TestCompute:
         # Justification: Verify that the name of the Compute node is correctly set during initialization.
         assert compute_node.name == "C1"
         # Justification: Verify that the string representation of the Compute node matches the expected format.
-        assert repr(compute_node) == "Compute(C1)"
+        assert repr(compute_node) == "COMPUTE(C1)"
 
     def test_get_read_write_set(self):
         builder = GraphBuilder()
-        A = builder.add_data("A")
-        B = builder.add_data("B")
-        C = builder.add_data("C")
+        A = builder.add_read_data("A")
+        B = builder.add_read_data("B")
+        C_in, C_out = builder.add_write_data("C")
 
         c_node = builder.add_compute(
-            "C1", reads=[(A, Int(0)), (B, Int(1))], writes=[(C, Int(2))]
+            "C1",
+            reads=[(A, Int(0)), (B, Int(1)), (C_in, Int(2))],
+            writes=[(C_out, Int(2))],
         )
 
         read_set = c_node.get_read_set()
@@ -41,11 +43,11 @@ class TestCompute:
         assert len(read_set) == 3
         assert (A.array_id, Int(0)) in read_set
         assert (B.array_id, Int(1)) in read_set
-        assert (C.array_id, Int(2)) in read_set
+        assert (C_in.array_id, Int(2)) in read_set
 
         # Justification: The write set should only include the explicitly written data (C).
         assert len(write_set) == 1
-        expected_write_set = {(C.array_id, Int(2))}
+        expected_write_set = {(C_out.array_id, Int(2))}
         actual_write_set = {item for item in write_set}
         assert actual_write_set == expected_write_set
 
@@ -71,32 +73,32 @@ class TestGraphBuilder:
     def test_add_data(self):
         builder = GraphBuilder()
         A = builder.add_data("A")
-        B = builder.add_data("B", is_output=True)
+        B = builder.add_data("B")
 
         # Justification: Verify that the name of the data node A is correctly set.
-        assert A.name == "A"
+        assert A.name == "A(0)"
         # Justification: Verify that the array_id for data node A is assigned sequentially.
         assert A.array_id == 10001
         # Justification: Verify that data node A is added to the root graph's nodes.
         assert A in builder.root_graph.nodes
 
         # Justification: Verify that the name of the data node B is correctly set.
-        assert B.name == "B"
+        assert B.name == "B(0)"
         # Justification: Verify that the array_id for data node B is assigned sequentially.
         assert B.array_id == 10002
         # Justification: Verify that data node B is added to the root graph's nodes.
         assert B in builder.root_graph.nodes
-        # Justification: Verify that data node B is correctly marked as an output in the root graph.
-        assert B in builder.root_graph.outputs
 
     def test_add_compute(self):
         builder = GraphBuilder()
-        A = builder.add_data("A")
-        B = builder.add_data("B")
-        C = builder.add_data("C")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
+        C_in, C_out = builder.add_write_data("C")
 
         compute_node = builder.add_compute(
-            "C1", reads=[(A, Int(0))], writes=[(B, Int(1)), (C, Int(2))]
+            "C1",
+            reads=[(A, Int(0)), (B_in, Int(1)), (C_in, Int(2))],
+            writes=[(B_out, Int(1)), (C_out, Int(2))],
         )
 
         # Justification: Verify that the compute node is added to the root graph's nodes.
@@ -106,8 +108,8 @@ class TestGraphBuilder:
         assert len(compute_node.in_edges) == 3
         expected_in_edges = {
             (A, compute_node, Int(0)),
-            (B, compute_node, Int(1)),
-            (C, compute_node, Int(2)),
+            (B_in, compute_node, Int(1)),
+            (C_in, compute_node, Int(2)),
         }
         actual_in_edges = {
             (edge.src, edge.dst, edge.subset) for edge in compute_node.in_edges
@@ -118,7 +120,10 @@ class TestGraphBuilder:
         # Justification: Verify the correct number of outgoing edges (writes).
         # Writes: B, C. Total 2.
         assert len(compute_node.out_edges) == 2
-        expected_out_edges = {(compute_node, B, Int(1)), (compute_node, C, Int(2))}
+        expected_out_edges = {
+            (compute_node, B_out, Int(1)),
+            (compute_node, C_out, Int(2)),
+        }
         actual_out_edges = {
             (edge.src, edge.dst, edge.subset) for edge in compute_node.out_edges
         }
@@ -129,16 +134,16 @@ class TestGraphBuilder:
         builder = GraphBuilder()
         i = builder.add_symbol("i")
         N = builder.add_symbol("N")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
 
         with builder.add_loop(
             "loop1",
             "i",
             Int(0),
             N,
-            reads=[(A, PysmtRange(Int(0), N))],
-            writes=[(B, PysmtRange(Int(0), N))],
+            reads=[(A, PysmtRange(Int(0), N)), (B_in, PysmtRange(Int(0), N))],
+            writes=[(B_out, PysmtRange(Int(0), N))],
         ) as loop:
             # Justification: Verify that the loop variable is correctly set.
             assert loop.loop_var == i
@@ -155,7 +160,7 @@ class TestGraphBuilder:
             # Justification: Verify the correct number of incoming hierarchical edges for the loop.
             # Reads: A. Writes: B. Total 2.
             assert len(loop.in_edges) == 2
-            expected_in_edges = {(A, loop, (Int(0), N)), (B, loop, (Int(0), N))}
+            expected_in_edges = {(A, loop, (Int(0), N)), (B_in, loop, (Int(0), N))}
             actual_in_edges = {
                 (edge.src, edge.dst, edge.subset) for edge in loop.in_edges
             }
@@ -165,35 +170,37 @@ class TestGraphBuilder:
             # Justification: Verify the correct number of outgoing hierarchical edges for the loop.
             # Writes: B. Total 1.
             assert len(loop.out_edges) == 1
-            expected_out_edges = {(loop, B, (Int(0), N))}
+            expected_out_edges = {(loop, B_out, (Int(0), N))}
             actual_out_edges = {
                 (edge.src, edge.dst, edge.subset) for edge in loop.out_edges
             }
             # Justification: Verify that the outgoing hierarchical edges correctly represent the writes.
             assert actual_out_edges == expected_out_edges
 
-            C = builder.add_data("C")
-            builder.add_compute("inner_comp", reads=[(A, i)], writes=[(C, i)])
+            C_in, C_out = builder.add_write_data("C")
+            builder.add_compute(
+                "inner_comp", reads=[(A, i), (C_in, i)], writes=[(C_out, i)]
+            )
 
         # Justification: Verify that the current graph context is restored to the root graph after exiting the loop.
         assert builder.current_graph == builder.root_graph
         # Justification: Verify that the nested graph of the loop contains the newly added data node C and compute node inner_comp.
-        assert len(loop.nested_graph.nodes) == 2  # C and inner_comp
+        assert len(loop.nested_graph.nodes) == 3  # C_in, C_out and inner_comp
 
     def test_add_map(self):
         builder = GraphBuilder()
         i = builder.add_symbol("i")
         N = builder.add_symbol("N")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
 
         with builder.add_map(
             "map1",
             "i",
             Int(0),
             N,
-            reads=[(A, PysmtRange(Int(0), N))],
-            writes=[(B, PysmtRange(Int(0), N))],
+            reads=[(A, PysmtRange(Int(0), N)), (B_in, PysmtRange(Int(0), N))],
+            writes=[(B_out, PysmtRange(Int(0), N))],
         ) as map_node:
             # Justification: Verify that the loop variable is correctly set for the map node.
             assert map_node.loop_var == i
@@ -210,7 +217,10 @@ class TestGraphBuilder:
             # Justification: Verify the correct number of incoming hierarchical edges for the map node.
             # Reads: A. Writes: B. Total 2.
             assert len(map_node.in_edges) == 2
-            expected_in_edges = {(A, map_node, (Int(0), N)), (B, map_node, (Int(0), N))}
+            expected_in_edges = {
+                (A, map_node, (Int(0), N)),
+                (B_in, map_node, (Int(0), N)),
+            }
             actual_in_edges = {
                 (edge.src, edge.dst, edge.subset) for edge in map_node.in_edges
             }
@@ -220,29 +230,31 @@ class TestGraphBuilder:
             # Justification: Verify the correct number of outgoing hierarchical edges for the map node.
             # Writes: B. Total 1.
             assert len(map_node.out_edges) == 1
-            expected_out_edges = {(map_node, B, (Int(0), N))}
+            expected_out_edges = {(map_node, B_out, (Int(0), N))}
             actual_out_edges = {
                 (edge.src, edge.dst, edge.subset) for edge in map_node.out_edges
             }
             # Justification: Verify that the outgoing hierarchical edges correctly represent the writes.
             assert actual_out_edges == expected_out_edges
 
-            C = builder.add_data("C")
-            builder.add_compute("inner_comp", reads=[(A, i)], writes=[(C, i)])
+            C_in, C_out = builder.add_write_data("C")
+            builder.add_compute(
+                "inner_comp", reads=[(A, i), (C_in, i)], writes=[(C_out, i)]
+            )
 
         # Justification: Verify that the current graph context is restored to the root graph after exiting the map block.
         assert builder.current_graph == builder.root_graph
         # Justification: Verify that the nested graph of the map node contains the newly added data node C and compute node inner_comp.
-        assert len(map_node.nested_graph.nodes) == 2  # C and inner_comp
+        assert len(map_node.nested_graph.nodes) == 3  # C_in, C_out and inner_comp
 
     def test_add_branch(self):
         builder = GraphBuilder()
         x = builder.add_symbol("x")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
 
         with builder.add_branch(
-            "branch1", reads=[(A, Int(0))], writes=[(B, Int(0))]
+            "branch1", reads=[(A, Int(0)), (B_in, Int(0))], writes=[(B_out, Int(0))]
         ) as branch:
             # Justification: Verify that the branch node is added to the root graph's nodes.
             assert branch in builder.root_graph.nodes
@@ -251,7 +263,7 @@ class TestGraphBuilder:
             # Justification: Verify the correct number of incoming hierarchical edges for the branch node.
             # Reads: A. Writes: B. Total 2.
             assert len(branch.in_edges) == 2
-            expected_in_edges = {(A, branch, Int(0)), (B, branch, Int(0))}
+            expected_in_edges = {(A, branch, Int(0)), (B_in, branch, Int(0))}
             actual_in_edges = {
                 (edge.src, edge.dst, edge.subset) for edge in branch.in_edges
             }
@@ -261,7 +273,7 @@ class TestGraphBuilder:
             # Justification: Verify the correct number of outgoing hierarchical edges for the branch node.
             # Writes: B. Total 1.
             assert len(branch.out_edges) == 1
-            expected_out_edges = {(branch, B, Int(0))}
+            expected_out_edges = {(branch, B_out, Int(0))}
             actual_out_edges = {
                 (edge.src, edge.dst, edge.subset) for edge in branch.out_edges
             }
@@ -269,15 +281,19 @@ class TestGraphBuilder:
             assert actual_out_edges == expected_out_edges
 
             with branch.add_path(GE(x, Int(0))):
-                C = builder.add_data("C")
+                C_in, C_out = builder.add_write_data("C")
                 builder.add_compute(
-                    "comp_true", reads=[(A, Int(0))], writes=[(C, Int(0))]
+                    "comp_true",
+                    reads=[(A, Int(0)), (C_in, Int(0))],
+                    writes=[(C_out, Int(0))],
                 )
 
             with branch.add_path(LE(x, Int(-1))):
-                D = builder.add_data("D")
+                D_in, D_out = builder.add_write_data("D")
                 builder.add_compute(
-                    "comp_false", reads=[(A, Int(0))], writes=[(D, Int(0))]
+                    "comp_false",
+                    reads=[(A, Int(0)), (D_in, Int(0))],
+                    writes=[(D_out, Int(0))],
                 )
 
         # Justification: Verify that the current graph context is restored to the root graph after exiting the branch block.
@@ -289,16 +305,16 @@ class TestGraphBuilder:
         # Justification: Verify the predicate of the second path.
         assert branch.branches[1][0] == LE(x, Int(-1))
         # Justification: Verify that the nested graph of the first path contains the newly added data node C and compute node comp_true.
-        assert len(branch.branches[0][1].nodes) == 2  # C and comp_true
+        assert len(branch.branches[0][1].nodes) == 3  # C_in, C_out and comp_true
         # Justification: Verify that the nested graph of the second path contains the newly added data node D and compute node comp_false.
-        assert len(branch.branches[1][1].nodes) == 2  # D and comp_false
+        assert len(branch.branches[1][1].nodes) == 3  # D_in, D_out and comp_false
 
     def test_add_reduce(self):
         builder = GraphBuilder()
         i = builder.add_symbol("i")
         N = builder.add_symbol("N")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
 
         with builder.add_reduce(
             "reduce1",
@@ -306,8 +322,8 @@ class TestGraphBuilder:
             Int(0),
             N,
             TRUE(),
-            reads=[(A, PysmtRange(Int(0), N))],
-            writes=[(B, Int(0))],
+            reads=[(A, PysmtRange(Int(0), N)), (B_in, Int(0))],
+            writes=[(B_out, Int(0))],
         ) as reduce_node:
             # Justification: Verify that the loop variable is correctly set for the reduce node.
             assert reduce_node.loop_var == i
@@ -328,7 +344,7 @@ class TestGraphBuilder:
             assert len(reduce_node.in_edges) == 2
             expected_in_edges = {
                 (A, reduce_node, (Int(0), N)),
-                (B, reduce_node, Int(0)),
+                (B_in, reduce_node, Int(0)),
             }
             actual_in_edges = {
                 (edge.src, edge.dst, edge.subset) for edge in reduce_node.in_edges
@@ -339,20 +355,22 @@ class TestGraphBuilder:
             # Justification: Verify the correct number of outgoing hierarchical edges for the reduce node.
             # Writes: B. Total 1.
             assert len(reduce_node.out_edges) == 1
-            expected_out_edges = {(reduce_node, B, Int(0))}
+            expected_out_edges = {(reduce_node, B_out, Int(0))}
             actual_out_edges = {
                 (edge.src, edge.dst, edge.subset) for edge in reduce_node.out_edges
             }
             # Justification: Verify that the outgoing hierarchical edges correctly represent the writes.
             assert actual_out_edges == expected_out_edges
 
-            C = builder.add_data("C")
-            builder.add_compute("inner_comp", reads=[(A, i)], writes=[(C, i)])
+            C_in, C_out = builder.add_write_data("C")
+            builder.add_compute(
+                "inner_comp", reads=[(A, i), (C_in, i)], writes=[(C_out, i)]
+            )
 
         # Justification: Verify that the current graph context is restored to the root graph after exiting the reduce block.
         assert builder.current_graph == builder.root_graph
         # Justification: Verify that the nested graph of the reduce node contains the newly added data node C and compute node inner_comp.
-        assert len(reduce_node.nested_graph.nodes) == 2  # C and inner_comp
+        assert len(reduce_node.nested_graph.nodes) == 3  # C_in, C_out and inner_comp
 
 
 class TestPathModelFn:
@@ -360,18 +378,18 @@ class TestPathModelFn:
         builder = GraphBuilder()
         i = builder.add_symbol("i")
         N = builder.add_symbol("N")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
 
         with builder.add_loop(
             "loop1",
             "i",
             Int(0),
             N,
-            reads=[(A, PysmtRange(Int(0), N))],
-            writes=[(B, PysmtRange(Int(0), N))],
+            reads=[(A, PysmtRange(Int(0), N)), (B_in, PysmtRange(Int(0), N))],
+            writes=[(B_out, PysmtRange(Int(0), N))],
         ) as loop:
-            builder.add_compute("comp1", reads=[(A, i)], writes=[(B, i)])
+            builder.add_compute("comp1", reads=[(A, i), (B_in, i)], writes=[(B_out, i)])
 
         path_model_fn = create_path_model_fn(loop)
 
@@ -395,38 +413,46 @@ class TestPathModelFn:
         # The `write_set` should reflect the writes of the `comp1` node.
         # The `comp1`'s writes are `[(B, i)]`.
         # After substituting `i` with `k`, this becomes `[(B.array_id, k)]`.
-        assert write_set == [(B.array_id, k)]
+        assert write_set == [(B_out.array_id, k)]
         # Justification:
         # The `read_set` should reflect the reads of the `comp1` node.
         # The `comp1`'s reads are `[(A, i)]` and its writes are `[(B, i)]`.
         # As per `add_reads_and_writes` in `p3g.py`, writes are also considered reads for dependency analysis.
         # After substituting `i` with `k`, this becomes:
         # `[(A.array_id, k), (B.array_id, k)]`.
-        assert read_set == [(A.array_id, k), (B.array_id, k)]
+        assert read_set == [(A.array_id, k), (B_in.array_id, k)]
 
     def test_create_path_model_fn_loop_with_branch(self):
         builder = GraphBuilder()
         i = builder.add_symbol("i")
         N = builder.add_symbol("N")
         x = builder.add_symbol("x")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
-        C = builder.add_data("C")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
+        C_in, C_out = builder.add_write_data("C")
 
         with builder.add_loop(
             "loop1",
             "i",
             Int(0),
             N,
-            reads=[(A, PysmtRange(Int(0), N))],
-            writes=[(B, PysmtRange(Int(0), N))],
+            reads=[
+                (A, PysmtRange(Int(0), N)),
+                (B_in, PysmtRange(Int(0), N)),
+                (C_in, PysmtRange(Int(0), N)),
+            ],
+            writes=[(B_out, PysmtRange(Int(0), N)), (C_out, PysmtRange(Int(0), N))],
         ) as loop:
             with builder.add_branch("branch1", reads=[], writes=[]) as branch:
                 with branch.add_path(GE(x, Int(0))):
-                    builder.add_compute("comp_true", reads=[(A, i)], writes=[(B, i)])
+                    builder.add_compute(
+                        "comp_true", reads=[(A, i), (B_in, i)], writes=[(B_out, i)]
+                    )
                 with branch.add_path(LE(x, Int(-1))):
                     builder.add_compute(
-                        "comp_false", reads=[(A, Plus(i, Int(1)))], writes=[(C, i)]
+                        "comp_false",
+                        reads=[(A, Plus(i, Int(1))), (C_in, i)],
+                        writes=[(C_out, i)],
                     )
 
         path_model_fn = create_path_model_fn(loop)
@@ -448,10 +474,10 @@ class TestPathModelFn:
         assert simplify(predicate1) == simplify(GE(x, Int(0)))
         # Justification: The `write_set` for this path comes from `comp_true`'s writes.
         # `comp_true` writes `[(B, i)]`. After substituting `i` with `k`, this becomes `[(B.array_id, k)]`.
-        assert write_set1 == [(B.array_id, k)]
+        assert write_set1 == [(B_out.array_id, k)]
         # Justification: The `read_set` for this path comes from `comp_true`'s reads and writes.
         # `comp_true` reads `[(A, i)]` and writes `[(B, i)]`. After substituting `i` with `k`, this becomes `[(A.array_id, k), (B.array_id, k)]`.
-        assert read_set1 == [(A.array_id, k), (B.array_id, k)]
+        assert read_set1 == [(A.array_id, k), (B_in.array_id, k)]
 
         # Path 2: LE(x, -1)
         predicate2, write_set2, read_set2 = path_model[1]
@@ -459,10 +485,10 @@ class TestPathModelFn:
         assert simplify(predicate2) == simplify(LE(x, Int(-1)))
         # Justification: The `write_set` for this path comes from `comp_false`'s writes.
         # `comp_false` writes `[(C, i)]`. After substituting `i` with `k`, this becomes `[(C.array_id, k)]`.
-        assert write_set2 == [(C.array_id, k)]
+        assert write_set2 == [(C_out.array_id, k)]
         # Justification: The `read_set` for this path comes from `comp_false`'s reads and writes.
         # `comp_false` reads `[(A, Plus(i, Int(1)))]` and writes `[(C, i)]`. After substituting `i` with `k`, this becomes `[(A.array_id, Plus(k, Int(1))), (C.array_id, k)]`.
-        assert read_set2 == [(A.array_id, Plus(k, Int(1))), (C.array_id, k)]
+        assert read_set2 == [(A.array_id, Plus(k, Int(1))), (C_in.array_id, k)]
 
     def test_create_path_model_fn_loop_with_nested_loop(self):
         builder = GraphBuilder()
@@ -470,27 +496,32 @@ class TestPathModelFn:
         j = builder.add_symbol("j")
         N = builder.add_symbol("N")
         M = builder.add_symbol("M")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
 
         with builder.add_loop(
             "outer_loop",
             "i",
             Int(0),
             N,
-            reads=[(A, PysmtRange(Int(0), N + M))],
-            writes=[(B, PysmtRange(Int(0), N + M))],
+            reads=[(A, PysmtRange(Int(0), N + M)), (B_in, PysmtRange(Int(0), N + M))],
+            writes=[(B_out, PysmtRange(Int(0), N + M))],
         ) as outer_loop:
             with builder.add_loop(
                 "inner_loop",
                 "j",
                 Int(0),
                 M,
-                reads=[(A, PysmtRange(Plus(i, Int(0)), Plus(i, M)))],
-                writes=[(B, PysmtRange(Plus(i, Int(0)), Plus(i, M)))],
+                reads=[
+                    (A, PysmtRange(Plus(i, Int(0)), Plus(i, M))),
+                    (B_in, PysmtRange(Plus(i, Int(0)), Plus(i, M))),
+                ],
+                writes=[(B_out, PysmtRange(Plus(i, Int(0)), Plus(i, M)))],
             ) as inner_loop:
                 builder.add_compute(
-                    "comp_inner", reads=[(A, Plus(i, j))], writes=[(B, Plus(i, j))]
+                    "comp_inner",
+                    reads=[(A, Plus(i, j)), (B_in, Plus(i, j))],
+                    writes=[(B_out, Plus(i, j))],
                 )
 
         path_model_fn = create_path_model_fn(outer_loop)
@@ -518,7 +549,9 @@ class TestPathModelFn:
         # The `write_set` should reflect the hierarchical writes of the `inner_loop`.
         # The `inner_loop`'s writes are `[(B, (Plus(i, Int(0)), Plus(i, M)))]`.
         # After substituting `i` with `k_outer`, this becomes `[(B.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M)))]`.
-        assert write_set == [(B.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M)))]
+        assert write_set == [
+            (B_out.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M)))
+        ]
 
         # Justification:
         # The `read_set` should reflect the hierarchical reads of the `inner_loop`.
@@ -529,7 +562,7 @@ class TestPathModelFn:
         # `[(A.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))), (B.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M)))]`.
         assert read_set == [
             (A.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))),
-            (B.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))),
+            (B_in.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))),
         ]
 
     def test_create_path_model_fn_loop_with_map(self):
@@ -538,27 +571,32 @@ class TestPathModelFn:
         j = builder.add_symbol("j")
         N = builder.add_symbol("N")
         M = builder.add_symbol("M")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
 
         with builder.add_loop(
             "outer_loop",
             "i",
             Int(0),
             N,
-            reads=[(A, PysmtRange(Int(0), N))],
-            writes=[(B, PysmtRange(Int(0), N))],
+            reads=[(A, PysmtRange(Int(0), N)), (B_in, PysmtRange(Int(0), N))],
+            writes=[(B_out, PysmtRange(Int(0), N))],
         ) as outer_loop:
             with builder.add_map(
                 "inner_map",
                 "j",
                 Int(0),
                 M,
-                reads=[(A, PysmtRange(Plus(i, Int(0)), Plus(i, M)))],
-                writes=[(B, PysmtRange(Plus(i, Int(0)), Plus(i, M)))],
+                reads=[
+                    (A, PysmtRange(Plus(i, Int(0)), Plus(i, M))),
+                    (B_in, PysmtRange(Plus(i, Int(0)), Plus(i, M))),
+                ],
+                writes=[(B_out, PysmtRange(Plus(i, Int(0)), Plus(i, M)))],
             ) as inner_map:
                 builder.add_compute(
-                    "comp_inner", reads=[(A, Plus(i, j))], writes=[(B, Plus(i, j))]
+                    "comp_inner",
+                    reads=[(A, Plus(i, j)), (B_in, Plus(i, j))],
+                    writes=[(B_out, Plus(i, j))],
                 )
 
             path_model_fn = create_path_model_fn(outer_loop)
@@ -587,7 +625,7 @@ class TestPathModelFn:
             # The `inner_map`'s writes are `[(B, (Plus(i, Int(0)), Plus(i, M)))]`.
             # After substituting `i` with `k_outer`, this becomes `[(B.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M)))]`.
             assert write_set == [
-                (B.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M)))
+                (B_out.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M)))
             ]
 
             # Justification:
@@ -599,7 +637,7 @@ class TestPathModelFn:
             # `[(A.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))), (B.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M)))]`.
             assert read_set == [
                 (A.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))),
-                (B.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))),
+                (B_in.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))),
             ]
 
     def test_create_path_model_fn_loop_with_reduce(self):
@@ -608,16 +646,16 @@ class TestPathModelFn:
         j = builder.add_symbol("j")
         N = builder.add_symbol("N")
         M = builder.add_symbol("M")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
 
         with builder.add_loop(
             "outer_loop",
             "i",
             Int(0),
             N,
-            reads=[(A, PysmtRange(Int(0), N))],
-            writes=[(B, PysmtRange(Int(0), N))],
+            reads=[(A, PysmtRange(Int(0), N)), (B_in, PysmtRange(Int(0), N))],
+            writes=[(B_out, PysmtRange(Int(0), N))],
         ) as outer_loop:
             with builder.add_reduce(
                 "inner_reduce",
@@ -625,11 +663,13 @@ class TestPathModelFn:
                 Int(0),
                 M,
                 TRUE(),
-                reads=[(A, PysmtRange(Plus(i, Int(0)), Plus(i, M)))],
-                writes=[(B, Int(0))],
+                reads=[(A, PysmtRange(Plus(i, Int(0)), Plus(i, M))), (B_in, Int(0))],
+                writes=[(B_out, Int(0))],
             ) as inner_reduce:
                 builder.add_compute(
-                    "comp_inner", reads=[(A, Plus(i, j))], writes=[(B, Plus(i, j))]
+                    "comp_inner",
+                    reads=[(A, Plus(i, j)), (B_in, Plus(i, j))],
+                    writes=[(B_out, Plus(i, j))],
                 )
 
         path_model_fn = create_path_model_fn(outer_loop)
@@ -657,7 +697,7 @@ class TestPathModelFn:
         # The `write_set` should reflect the hierarchical writes of the `inner_reduce`.
         # The `inner_reduce`'s writes are `[(B, Int(0))]`.
         # After substituting `i` with `k_outer`, this remains `[(B.array_id, Int(0))]`.
-        assert write_set == [(B.array_id, Int(0))]
+        assert write_set == [(B_out.array_id, Int(0))]
 
         # Justification:
         # The `read_set` should reflect the hierarchical reads of the `inner_reduce`.
@@ -668,7 +708,7 @@ class TestPathModelFn:
         # `[(A.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))), (B.array_id, Int(0))]`.
         assert read_set == [
             (A.array_id, (Plus(k_outer, Int(0)), Plus(k_outer, M))),
-            (B.array_id, Int(0)),
+            (B_in.array_id, Int(0)),
         ]
 
     def test_recursive_substitute_tuple(self):
@@ -689,21 +729,29 @@ class TestPathModelFn:
         # Since recursive_substitute is an inner function, we'll test its effect via create_path_model_fn
         # Create a dummy loop and a compute node with a tuple subset
         N = builder.add_symbol("N")
-        A = builder.add_data("A")
-        B = builder.add_data("B")
+        A = builder.add_read_data("A")
+        B_in, B_out = builder.add_write_data("B")
 
         with builder.add_loop(
             "loop_tuple",
             "i",
             Int(0),
             N,
-            reads=[(A, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N)))],
-            writes=[(B, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N)))],
+            reads=[
+                (A, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N))),
+                (B_in, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N))),
+            ],
+            writes=[
+                (B_out, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N)))
+            ],
         ) as loop:
             builder.add_compute(
                 "comp_tuple",
-                reads=[(A, PysmtRange(i, Plus(i, Int(1))))],
-                writes=[(B, PysmtRange(i, Plus(i, Int(1))))],
+                reads=[
+                    (A, PysmtRange(i, Plus(i, Int(1)))),
+                    (B_in, PysmtRange(i, Plus(i, Int(1)))),
+                ],
+                writes=[(B_out, PysmtRange(i, Plus(i, Int(1))))],
             )
 
         path_model_fn = create_path_model_fn(loop)
@@ -724,7 +772,7 @@ class TestPathModelFn:
         # The `write_set` should reflect the writes of the `comp_tuple` node.
         # The `comp_tuple`'s writes are `[(B, (i, Plus(i, Int(1))))]`.
         # After substituting `i` with `solver_k`, this becomes `[(B.array_id, (solver_k, Plus(solver_k, Int(1))))]`.
-        assert write_set == [(B.array_id, (solver_k, Plus(solver_k, Int(1))))]
+        assert write_set == [(B_out.array_id, (solver_k, Plus(solver_k, Int(1))))]
         # Justification:
         # The `read_set` should reflect the reads of the `comp_tuple` node.
         # The `comp_tuple`'s reads are `[(A, (i, Plus(i, Int(1))))]` and its writes are `[(B, (i, Plus(i, Int(1))))]`.
@@ -733,5 +781,5 @@ class TestPathModelFn:
         # `[(A.array_id, (solver_k, Plus(solver_k, Int(1)))), (B.array_id, (solver_k, Plus(solver_k, Int(1))))]`.
         assert read_set == [
             (A.array_id, (solver_k, Plus(solver_k, Int(1)))),
-            (B.array_id, (solver_k, Plus(solver_k, Int(1)))),
+            (B_in.array_id, (solver_k, Plus(solver_k, Int(1)))),
         ]

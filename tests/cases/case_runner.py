@@ -1,7 +1,7 @@
 from typing import Callable, List, Tuple, Any
 
 from p3g.p3g import Graph, Loop, PysmtFormula
-from tests.test_utils import print_p3g_structure, solve_smt_string
+from tests.utils import print_p3g_structure, solve_smt_string
 
 
 def run_test_case(

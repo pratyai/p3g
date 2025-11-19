@@ -22,16 +22,17 @@ def build_array_reversal_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
 
     loop_node = None
     with b.add_loop(
-        "L1",
+        "L_k",
         "k",
         Int(0),
         Minus(N, Int(1)),
-        reads=[(A_root, PysmtRange(Int(0), Minus(N, Int(1))))],
-        writes=[(A_root, PysmtRange(Int(0), Minus(N, Int(1))))],
+        reads=[(A_root_in, PysmtRange(Int(0), Minus(N, Int(1))))],
+        writes=[(A_root_out, PysmtRange(Int(0), Minus(N, Int(1))))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
@@ -39,14 +40,14 @@ def build_array_reversal_graph():
         idx_rev = Minus(Minus(N, Int(1)), k)
 
         # Get local references to the data containers for this scope
-        A_local = b.add_data("A", is_output=True)
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
 
         b.add_compute(
-            "T1_swap",
-            reads=[(A_local, k), (A_local, idx_rev)],
-            writes=[(A_local, k), (A_local, idx_rev)],
+            "swap",
+            reads=[(A_local_in, k), (A_local_in, idx_rev)],
+            writes=[(A_local_out, k), (A_local_out, idx_rev)],
         )
-    return b.root_graph, loop_node, N, A_root
+    return b.root_graph, loop_node, N, A_root_in
 
 
 def build_cholesky_sequential_graph():
@@ -58,7 +59,8 @@ def build_cholesky_sequential_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    L_root = b.add_data("L", is_output=True)
+    L_val = b.add_symbol("L_val", ArrayType(INT, INT))
+    L_root_in, L_root_out = b.add_write_data("L", pysmt_array_sym=L_val)
 
     outer_loop_node = None
     inner_loop_node = None
@@ -71,19 +73,24 @@ def build_cholesky_sequential_graph():
         N,
         reads=[
             (
-                L_root,
+                L_root_in,
                 PysmtCoordSet(
                     PysmtRange(Int(1), N), PysmtRange(Int(1), Minus(N, Int(1)))
                 ),
-            )
+            ),
+            (L_root_in, PysmtCoordSet(PysmtRange(Int(2), N), PysmtRange(Int(2), N))),
         ],
-        writes=[(L_root, PysmtCoordSet(PysmtRange(Int(2), N), PysmtRange(Int(2), N)))],
+        writes=[
+            (L_root_out, PysmtCoordSet(PysmtRange(Int(2), N), PysmtRange(Int(2), N)))
+        ],
     ) as L_outer:
         i = L_outer.loop_var
         outer_loop_node = L_outer
 
         # Get local references to the data containers for this scope
-        L_local_outer = b.add_data("L", is_output=True)
+        L_local_outer_in, L_local_outer_out = b.add_write_data(
+            "L", pysmt_array_sym=L_val
+        )
 
         with b.add_loop(
             "L_inner",
@@ -92,15 +99,19 @@ def build_cholesky_sequential_graph():
             i,
             reads=[
                 (
-                    L_local_outer,
+                    L_local_outer_in,
                     PysmtCoordSet(
                         PysmtRange(Int(1), i), PysmtRange(Int(1), Minus(i, Int(1)))
                     ),
-                )
+                ),
+                (
+                    L_local_outer_in,
+                    PysmtCoordSet(PysmtRange(Int(2), i), PysmtRange(Int(2), i)),
+                ),
             ],
             writes=[
                 (
-                    L_local_outer,
+                    L_local_outer_out,
                     PysmtCoordSet(PysmtRange(Int(2), i), PysmtRange(Int(2), i)),
                 )
             ],
@@ -109,18 +120,27 @@ def build_cholesky_sequential_graph():
             inner_loop_node = L_inner
 
             # Get local references to the data containers for this scope
-            L_local_inner = b.add_data("L", is_output=True)
+            L_local_inner_in, L_local_inner_out = b.add_write_data(
+                "L", pysmt_array_sym=L_val
+            )
 
             # L[i, j] = L[i, j-1] + L[j-1, j-1]
             # This models a RAW dependency on L[i, j-1] within the inner loop.
             # It also models a WAR/WAW dependency on L[j-1, j-1] across outer loop iterations.
             # Using tuples for 2D indexing
-            read1 = (L_local_inner, PysmtCoordSet(i, Minus(j, Int(1))))
-            read2 = (L_local_inner, PysmtCoordSet(Minus(j, Int(1)), Minus(j, Int(1))))
-            write = (L_local_inner, PysmtCoordSet(i, j))
-
-            b.add_compute("T_cholesky", reads=[read1, read2], writes=[write])
-    return b.root_graph, outer_loop_node, inner_loop_node, N, L_root
+            b.add_compute(
+                "T_cholesky",
+                reads=[
+                    (L_local_inner_in, PysmtCoordSet(i, Minus(j, Int(1)))),
+                    (
+                        L_local_inner_in,
+                        PysmtCoordSet(Minus(j, Int(1)), Minus(j, Int(1))),
+                    ),
+                    (L_local_inner_in, PysmtCoordSet(i, j)),
+                ],
+                writes=[(L_local_inner_out, PysmtCoordSet(i, j))],
+            )
+    return b.root_graph, outer_loop_node, inner_loop_node, N, L_root_in
 
 
 def build_cholesky_full_kernel_graph():
@@ -137,12 +157,12 @@ def build_cholesky_full_kernel_graph():
     N = b.add_symbol("N", INT)
 
     # Pysmt symbols for array content (needed for Select operations)
-    A_val = Symbol("A_val", ArrayType(INT, INT))
-    L_val = Symbol("L_val", ArrayType(INT, INT))
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    L_val = b.add_symbol("L_val", ArrayType(INT, INT))
 
     # Link Pysmt symbols to Data nodes
-    A_root = b.add_data("A", is_output=False, pysmt_array_sym=A_val)
-    L_root = b.add_data("L", is_output=True, pysmt_array_sym=L_val)
+    A_root = b.add_read_data("A", pysmt_array_sym=A_val)
+    L_root_in, L_root_out = b.add_write_data("L", pysmt_array_sym=L_val)
 
     outer_loop_node = None
     middle_loop_node = None
@@ -159,15 +179,20 @@ def build_cholesky_full_kernel_graph():
                 A_root,
                 PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N)),
             ),  # Reads entire A
-            (L_root, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N))),
+            (L_root_in, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N))),
+            (L_root_out, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N))),
         ],  # Reads entire L
-        writes=[(L_root, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N)))],
+        writes=[
+            (L_root_out, PysmtCoordSet(PysmtRange(Int(0), N), PysmtRange(Int(0), N)))
+        ],
     ) as L_outer:  # Writes entire L
         i = L_outer.loop_var
         outer_loop_node = L_outer
 
-        L_local_outer = b.add_data("L", is_output=True, pysmt_array_sym=L_val)
-        A_local_outer = b.add_data("A", is_output=False, pysmt_array_sym=A_val)
+        L_local_outer_in, L_local_outer_out = b.add_write_data(
+            "L", pysmt_array_sym=L_val
+        )
+        A_local_outer_in = b.add_read_data("A", pysmt_array_sym=A_val)
 
         # Middle loop: for j = 0 to i
         with b.add_loop(
@@ -177,7 +202,7 @@ def build_cholesky_full_kernel_graph():
             i,
             reads=[
                 (
-                    A_local_outer,
+                    A_local_outer_in,
                     PysmtCoordSet(
                         PysmtRange(Int(0), Plus(i, Int(1))),
                         PysmtRange(Int(0), Plus(i, Int(1))),
@@ -185,7 +210,14 @@ def build_cholesky_full_kernel_graph():
                 ),
                 # Reads A[0..i, 0..i]
                 (
-                    L_local_outer,
+                    L_local_outer_in,
+                    PysmtCoordSet(
+                        PysmtRange(Int(0), Plus(i, Int(1))),
+                        PysmtRange(Int(0), Plus(i, Int(1))),
+                    ),
+                ),
+                (
+                    L_local_outer_out,
                     PysmtCoordSet(
                         PysmtRange(Int(0), Plus(i, Int(1))),
                         PysmtRange(Int(0), Plus(i, Int(1))),
@@ -195,7 +227,7 @@ def build_cholesky_full_kernel_graph():
             # Reads L[0..i, 0..i]
             writes=[
                 (
-                    L_local_outer,
+                    L_local_outer_out,
                     PysmtCoordSet(
                         PysmtRange(Int(0), Plus(i, Int(1))),
                         PysmtRange(Int(0), Plus(i, Int(1))),
@@ -206,19 +238,21 @@ def build_cholesky_full_kernel_graph():
             j = L_middle.loop_var
             middle_loop_node = L_middle
 
-            L_local_middle = b.add_data("L", is_output=True, pysmt_array_sym=L_val)
-            A_local_middle = b.add_data("A", is_output=False, pysmt_array_sym=A_val)
+            L_local_middle_in, L_local_middle_out = b.add_write_data(
+                "L", pysmt_array_sym=L_val
+            )
+            A_local_middle_in = b.add_read_data("A", pysmt_array_sym=A_val)
 
             # Scalar for sum_val
-            sum_val_scalar = b.add_data(
-                "sum_val", is_output=False
+            sum_val_scalar_in, sum_val_scalar_out = b.add_write_data(
+                "sum_val"
             )  # Scalar, so no pysmt_array_sym
 
             # Initialize sum_val = 0 (as a compute node)
             b.add_compute(
                 "T_init_sum",
-                reads=[],
-                writes=[(sum_val_scalar, Int(0))],  # Write 0 to sum_val
+                reads=[(sum_val_scalar_out, Int(0))],
+                writes=[(sum_val_scalar_out, Int(0))],  # Write 0 to sum_val
             )
 
             # Innermost loop: for k = 0 to j-1 (if j > 0)
@@ -229,22 +263,25 @@ def build_cholesky_full_kernel_graph():
                 Minus(j, Int(1)),
                 reads=[
                     (
-                        L_local_middle,
+                        L_local_middle_in,
                         PysmtCoordSet(
                             PysmtRange(Int(0), Plus(i, Int(1))),
                             PysmtRange(Int(0), Plus(j, Int(1))),
                         ),
                     ),
                     # Reads L[0..i, 0..j]
-                    (sum_val_scalar, Int(0)),
+                    (sum_val_scalar_in, Int(0)),
+                    (sum_val_scalar_out, Int(0)),
                 ],  # Reads previous sum_val
-                writes=[(sum_val_scalar, Int(0))],
+                writes=[(sum_val_scalar_out, Int(0))],
             ) as L_inner:  # Writes new sum_val
                 k = L_inner.loop_var
                 inner_loop_node = L_inner
 
-                L_local_inner = b.add_data("L", is_output=True, pysmt_array_sym=L_val)
-                sum_val_local_inner = b.add_data("sum_val", is_output=False)
+                L_local_inner_in = b.add_read_data("L", pysmt_array_sym=L_val)
+                sum_val_local_inner_in, sum_val_local_inner_out = b.add_write_data(
+                    "sum_val"
+                )
 
                 # Compute: sum_val = sum_val + L[i,k] * L[j,k]
                 # We need to model the multiplication and addition.
@@ -252,11 +289,12 @@ def build_cholesky_full_kernel_graph():
                 b.add_compute(
                     "T_sum_accum",
                     reads=[
-                        (sum_val_local_inner, Int(0)),  # Read current sum_val
-                        (L_local_inner, PysmtCoordSet(i, k)),  # Read L[i,k]
-                        (L_local_inner, PysmtCoordSet(j, k)),
+                        (sum_val_local_inner_in, Int(0)),  # Read current sum_val
+                        (L_local_inner_in, PysmtCoordSet(i, k)),  # Read L[i,k]
+                        (L_local_inner_in, PysmtCoordSet(j, k)),
+                        (sum_val_local_inner_out, Int(0)),
                     ],  # Read L[j,k]
-                    writes=[(sum_val_local_inner, Int(0))],  # Write new sum_val
+                    writes=[(sum_val_local_inner_out, Int(0))],  # Write new sum_val
                 )
 
             # Final computation for L[i,j] = A[i,j] - sum_val (simplified)
@@ -264,11 +302,12 @@ def build_cholesky_full_kernel_graph():
             b.add_compute(
                 "T_final_Lij",
                 reads=[
-                    (A_local_middle, PysmtCoordSet(i, j)),  # Read A[i,j]
-                    (sum_val_scalar, Int(0)),  # Read final sum_val
-                    (L_local_middle, PysmtCoordSet(j, j)),
+                    (A_local_middle_in, PysmtCoordSet(i, j)),  # Read A[i,j]
+                    (sum_val_scalar_in, Int(0)),  # Read final sum_val
+                    (L_local_middle_in, PysmtCoordSet(j, j)),
+                    (L_local_middle_out, PysmtCoordSet(i, j)),
                 ],  # Read L[j,j] (for division, if modeled)
-                writes=[(L_local_middle, PysmtCoordSet(i, j))],  # Write L[i,j]
+                writes=[(L_local_middle_out, PysmtCoordSet(i, j))],  # Write L[i,j]
             )
     return (
         b.root_graph,
@@ -277,7 +316,7 @@ def build_cholesky_full_kernel_graph():
         inner_loop_node,
         N,
         A_root,
-        L_root,
+        L_root_in,
         A_val,
         L_val,
     )
@@ -290,9 +329,10 @@ def build_data_aware_bi_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
-    B_val = Symbol("B_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
 
     loop_node = None
     with b.add_loop(
@@ -301,41 +341,40 @@ def build_data_aware_bi_graph():
         Int(1),
         N,
         reads=[
-            (A_root, PysmtRange(Int(0), Minus(N, Int(1)))),
+            (A_root_in, PysmtRange(Int(0), Minus(N, Int(1)))),
+            (A_root_in, PysmtRange(Int(1), N)),
             (B_root, PysmtRange(Int(1), N)),
         ],
-        writes=[(A_root, PysmtRange(Int(1), N))],
+        writes=[(A_root_out, PysmtRange(Int(1), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
         # Get local references to the data containers for this scope
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
 
         with b.add_branch(
             "B1",
-            reads=[(A_local, Minus(k, Int(1))), (B_local, k)],
-            writes=[(A_local, k)],
+            reads=[(A_local_in, Minus(k, Int(1))), (A_local_in, k), (B_local_in, k)],
+            writes=[(A_local_out, k)],
         ) as B1:
             P1 = GT(Select(B_val, k), Int(0))
             with B1.add_path(P1):
                 # Data nodes local to this path's graph
-                A_path1 = b.add_data("A", is_output=True)
-                B_path1 = b.add_data("B")
+                A_path1_in, A_path1_out = b.add_write_data("A", pysmt_array_sym=A_val)
                 b.add_compute(
                     "T1_seq",
-                    reads=[(B_path1, k), (A_path1, Minus(k, Int(1)))],
-                    writes=[(A_path1, k)],
+                    reads=[(A_path1_in, Minus(k, Int(1))), (A_path1_in, k)],
+                    writes=[(A_path1_out, k)],
                 )
 
-        with b.add_branch("B2", reads=[(B_local, k)], writes=[]) as B2:
+        with b.add_branch("B2", reads=[(B_local_in, k)], writes=[]) as B2:
             P2 = LE(Select(B_val, k), Int(0))
             with B2.add_path(P2):
                 # Data nodes local to this path's graph
-                B_path2 = b.add_data("B")
-                b.add_compute("T2_skip", reads=[(B_path2, k)], writes=[])
-    return b.root_graph, loop_node, N, A_root, B_root, B_val
+                b.add_compute("T2_skip", reads=[], writes=[])
+    return b.root_graph, loop_node, N, A_root_in, B_root, B_val
 
 
 def build_data_aware_bi_b13_graph():
@@ -345,9 +384,10 @@ def build_data_aware_bi_b13_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    B_val = Symbol("B_val", ArrayType(INT, INT))
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B", pysmt_array_sym=B_val)
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
 
     const_idx = Int(13)
 
@@ -358,28 +398,29 @@ def build_data_aware_bi_b13_graph():
         Int(1),
         N,
         reads=[
-            (A_root, PysmtRange(Int(0), Minus(N, Int(1)))),
+            (A_root_in, PysmtRange(Int(0), Minus(N, Int(1)))),
+            (A_root_in, PysmtRange(Int(1), N)),
             (B_root, PysmtRange(Int(1), N)),
             (B_root, const_idx),
         ],
-        writes=[(A_root, PysmtRange(Int(1), N))],
+        writes=[(A_root_out, PysmtRange(Int(1), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
         # Get local references to the data containers for this scope
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
 
         with b.add_branch(
             "B1",
             reads=[
-                (A_local, Minus(k, Int(1))),
-                (A_local, k),
-                (B_local, k),
-                (B_local, const_idx),
+                (A_local_in, Minus(k, Int(1))),
+                (A_local_in, k),
+                (B_local_in, k),
+                (B_local_in, const_idx),
             ],
-            writes=[(A_local, k)],
+            writes=[(A_local_out, k)],
         ) as B1:
             val_k = Select(B_val, k)
             val_13 = Select(B_val, const_idx)
@@ -387,19 +428,16 @@ def build_data_aware_bi_b13_graph():
             P1 = GT(Minus(val_k, val_13), Int(0))
             with B1.add_path(P1):
                 # Data nodes local to this path's graph
-                A_path1 = b.add_data("A", is_output=True)
-                B_path1 = b.add_data("B")
+                A_path1_in, A_path1_out = b.add_write_data("A", pysmt_array_sym=A_val)
                 b.add_compute(
                     "T1_seq",
                     reads=[
-                        (B_path1, k),
-                        (B_path1, const_idx),
-                        (A_path1, Minus(k, Int(1))),
-                        (A_path1, k),
+                        (A_path1_in, Minus(k, Int(1))),
+                        (A_path1_in, k),
                     ],
-                    writes=[(A_path1, k)],
+                    writes=[(A_path1_out, k)],
                 )
-    return b.root_graph, loop_node, N, A_root, B_root, B_val, const_idx
+    return b.root_graph, loop_node, N, A_root_in, B_root, B_val, const_idx
 
 
 def build_gauss_seidel_red_graph():
@@ -411,7 +449,8 @@ def build_gauss_seidel_red_graph():
     """
     b_red = GraphBuilder()
     N_red = b_red.add_symbol("N", INT)
-    A_red = b_red.add_data("A", is_output=True)
+    A_val = b_red.add_symbol("A_val", ArrayType(INT, INT))
+    A_red_root_in, A_red_root_out = b_red.add_write_data("A", pysmt_array_sym=A_val)
 
     red_loop_node = None
     # Loop for k from 0 up to (N/2 - 1)
@@ -421,11 +460,16 @@ def build_gauss_seidel_red_graph():
         "k",
         Int(0),
         loop_end_red_k,
-        reads=[(A_red, PysmtRange(Int(0), Plus(N_red, Int(1))))],
-        writes=[(A_red, PysmtRange(Int(1), N_red))],
+        reads=[
+            (A_red_root_in, PysmtRange(Int(0), Plus(N_red, Int(1)))),
+            (A_red_root_out, PysmtRange(Int(1), N_red)),
+        ],
+        writes=[(A_red_root_out, PysmtRange(Int(1), N_red))],
     ) as L_red:
         k_red = L_red.loop_var
         red_loop_node = L_red
+
+        A_red_in, A_red_out = b_red.add_write_data("A", pysmt_array_sym=A_val)
 
         # Original index i = 2*k + 1
         i = Plus(Times(Int(2), k_red), Int(1))
@@ -433,10 +477,14 @@ def build_gauss_seidel_red_graph():
         # A[i] = A[i-1] + A[i+1]
         b_red.add_compute(
             "T_red",
-            reads=[(A_red, Minus(i, Int(1))), (A_red, Plus(i, Int(1)))],
-            writes=[(A_red, i)],
+            reads=[
+                (A_red_in, Minus(i, Int(1))),
+                (A_red_in, Plus(i, Int(1))),
+                (A_red_out, i),
+            ],
+            writes=[(A_red_out, i)],
         )
-    return b_red.root_graph, red_loop_node, N_red, A_red
+    return b_red.root_graph, red_loop_node, N_red, A_red_root_in
 
 
 def build_gauss_seidel_black_graph():
@@ -448,7 +496,10 @@ def build_gauss_seidel_black_graph():
     """
     b_black = GraphBuilder()
     N_black = b_black.add_symbol("N", INT)
-    A_black = b_black.add_data("A", is_output=True)
+    A_val = b_black.add_symbol("A_val", ArrayType(INT, INT))
+    A_black_root_in, A_black_root_out = b_black.add_write_data(
+        "A", pysmt_array_sym=A_val
+    )
 
     black_loop_node = None
     # Loop for k from 0 up to (N/2 - 2)
@@ -458,11 +509,16 @@ def build_gauss_seidel_black_graph():
         "k",
         Int(0),
         loop_end_black_k,
-        reads=[(A_black, PysmtRange(Int(1), Plus(N_black, Int(1))))],
-        writes=[(A_black, PysmtRange(Int(2), N_black))],
+        reads=[
+            (A_black_root_in, PysmtRange(Int(1), Plus(N_black, Int(1)))),
+            (A_black_root_out, PysmtRange(Int(2), N_black)),
+        ],
+        writes=[(A_black_root_out, PysmtRange(Int(2), N_black))],
     ) as L_black:
         k_black = L_black.loop_var
         black_loop_node = L_black
+
+        A_black_in, A_black_out = b_black.add_write_data("A", pysmt_array_sym=A_val)
 
         # Original index i = 2*k + 2
         i = Plus(Times(Int(2), k_black), Int(2))
@@ -470,10 +526,14 @@ def build_gauss_seidel_black_graph():
         # A[i] = A[i-1] + A[i+1]
         b_black.add_compute(
             "T_black",
-            reads=[(A_black, Minus(i, Int(1))), (A_black, Plus(i, Int(1)))],
-            writes=[(A_black, i)],
+            reads=[
+                (A_black_in, Minus(i, Int(1))),
+                (A_black_in, Plus(i, Int(1))),
+                (A_black_out, i),
+            ],
+            writes=[(A_black_out, i)],
         )
-    return b_black.root_graph, black_loop_node, N_black, A_black
+    return b_black.root_graph, black_loop_node, N_black, A_black_root_in
 
 
 def build_gauss_seidel_traditional_graph():
@@ -484,7 +544,8 @@ def build_gauss_seidel_traditional_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A = b.add_data("A", is_output=True)
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    A_in, A_out = b.add_write_data("A", pysmt_array_sym=A_val)
 
     loop_node = None
     with b.add_loop(
@@ -492,17 +553,28 @@ def build_gauss_seidel_traditional_graph():
         "k",
         Int(1),
         Minus(N, Int(1)),
-        reads=[(A, PysmtRange(Int(0), N))],
-        writes=[(A, PysmtRange(Int(1), Minus(N, Int(1))))],
+        reads=[
+            (A_in, PysmtRange(Int(0), N)),
+            (A_in, PysmtRange(Int(1), Minus(N, Int(1)))),
+        ],
+        writes=[(A_out, PysmtRange(Int(1), Minus(N, Int(1))))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+
         # A[i] = A[i-1] + A[i+1]
         b.add_compute(
-            "T1", reads=[(A, Minus(k, Int(1))), (A, Plus(k, Int(1)))], writes=[(A, k)]
+            "T1",
+            reads=[
+                (A_local_in, Minus(k, Int(1))),
+                (A_local_in, k),
+                (A_local_in, Plus(k, Int(1))),
+            ],
+            writes=[(A_local_out, k)],
         )
-    return b.root_graph, loop_node, N, A
+    return b.root_graph, loop_node, N, A_in
 
 
 def build_indirect_read_gather_graph():
@@ -512,10 +584,12 @@ def build_indirect_read_gather_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
-    IDX_val = Symbol("IDX_val", ArrayType(INT, INT))
-    IDX_root = b.add_data("IDX", pysmt_array_sym=IDX_val)
+    IDX_val = b.add_symbol("IDX_val", ArrayType(INT, INT))
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
+    IDX_root = b.add_read_data("IDX", pysmt_array_sym=IDX_val)
 
     loop_node = None
     with b.add_loop(
@@ -523,24 +597,28 @@ def build_indirect_read_gather_graph():
         "k",
         Int(1),
         N,
-        reads=[(B_root, PysmtRange(Int(0), N)), (IDX_root, PysmtRange(Int(0), N))],
-        writes=[(A_root, PysmtRange(Int(0), N))],
+        reads=[
+            (A_root_in, PysmtRange(Int(0), N)),
+            (B_root, PysmtRange(Int(0), N)),
+            (IDX_root, PysmtRange(Int(0), N)),
+        ],
+        writes=[(A_root_out, PysmtRange(Int(0), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
-        IDX_local = b.add_data("IDX")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
+        IDX_local_in = b.add_read_data("IDX", pysmt_array_sym=IDX_val)
 
         read_idx = Select(IDX_val, k)
 
         b.add_compute(
             "T1_gather",
-            reads=[(B_local, read_idx), (IDX_local, k)],
-            writes=[(A_local, k)],
+            reads=[(A_local_in, k), (B_local_in, read_idx), (IDX_local_in, k)],
+            writes=[(A_local_out, k)],
         )
-    return b.root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val
+    return b.root_graph, loop_node, N, A_root_in, B_root, IDX_root, IDX_val
 
 
 def build_indirect_write_scatter_graph():
@@ -550,10 +628,12 @@ def build_indirect_write_scatter_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
-    IDX_val = Symbol("IDX_val", ArrayType(INT, INT))
-    IDX_root = b.add_data("IDX", pysmt_array_sym=IDX_val)
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
+    IDX_val = b.add_symbol("IDX_val", ArrayType(INT, INT))
+    IDX_root = b.add_read_data("IDX", pysmt_array_sym=IDX_val)
 
     loop_node = None
     with b.add_loop(
@@ -561,24 +641,28 @@ def build_indirect_write_scatter_graph():
         "k",
         Int(1),
         N,
-        reads=[(B_root, PysmtRange(Int(0), N)), (IDX_root, PysmtRange(Int(0), N))],
-        writes=[(A_root, PysmtRange(Int(0), N))],
+        reads=[
+            (A_root_in, PysmtRange(Int(0), N)),
+            (B_root, PysmtRange(Int(0), N)),
+            (IDX_root, PysmtRange(Int(0), N)),
+        ],
+        writes=[(A_root_out, PysmtRange(Int(0), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
-        IDX_local = b.add_data("IDX")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
+        IDX_local_in = b.add_read_data("IDX", pysmt_array_sym=IDX_val)
 
         write_idx = Select(IDX_val, k)
 
         b.add_compute(
             "T1_scatter",
-            reads=[(B_local, k), (IDX_local, k)],
-            writes=[(A_local, write_idx)],
+            reads=[(B_local_in, k), (IDX_local_in, k), (A_local_in, write_idx)],
+            writes=[(A_local_out, write_idx)],
         )
-    return b.root_graph, loop_node, N, A_root, B_root, IDX_root, IDX_val
+    return b.root_graph, loop_node, N, A_root_in, B_root, IDX_root, IDX_val
 
 
 def build_long_distance_dependency_graph():
@@ -588,8 +672,10 @@ def build_long_distance_dependency_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
 
     loop_node = None
     with b.add_loop(
@@ -597,45 +683,57 @@ def build_long_distance_dependency_graph():
         "k",
         Int(2),
         N,
-        reads=[(A_root, PysmtRange(Int(0), N)), (B_root, PysmtRange(Int(2), N))],
-        writes=[(A_root, PysmtRange(Int(2), N))],
+        reads=[
+            (A_root_in, PysmtRange(Int(0), N)),
+            (A_root_in, PysmtRange(Int(2), N)),
+            (B_root, PysmtRange(Int(2), N)),
+        ],
+        writes=[(A_root_out, PysmtRange(Int(2), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
         # Get local references to the data containers for this scope
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
 
         idx = Minus(k, Int(10))
 
         with b.add_branch(
-            "B1", reads=[(A_local, idx), (B_local, k)], writes=[(A_local, k)]
+            "B1",
+            reads=[(A_local_in, idx), (A_local_in, k), (B_local_in, k)],
+            writes=[(A_local_out, k)],
         ) as B1:
             # if k - 10 > 0
             P1 = GT(Minus(k, Int(10)), Int(0))
             with B1.add_path(P1):
                 # Data nodes local to this path's graph
-                A_path1 = b.add_data("A", is_output=True)
-                B_path1 = b.add_data("B")
+                A_path1_in, A_path1_out = b.add_write_data("A", pysmt_array_sym=A_val)
+                B_path1_in = b.add_read_data("B", pysmt_array_sym=B_val)
                 b.add_compute(
-                    "T1_gt", reads=[(A_path1, idx), (B_path1, k)], writes=[(A_path1, k)]
+                    "T1_gt",
+                    reads=[(A_path1_in, idx), (A_path1_in, k), (B_path1_in, k)],
+                    writes=[(A_path1_out, k)],
                 )
 
-        idx = Int(0)
+        A_local_out = b.add_data("A", pysmt_array_sym=A_val)
         with b.add_branch(
-            "B2", reads=[(A_local, idx), (B_local, k)], writes=[(A_local, k)]
+            "B2",
+            reads=[(A_local_in, Int(0)), (A_local_in, k), (B_local_in, k)],
+            writes=[(A_local_out, k)],
         ) as B2:
             # else
             P2 = LE(Minus(k, Int(10)), Int(0))
             with B2.add_path(P2):
                 # Data nodes local to this path's graph
-                A_path2 = b.add_data("A", is_output=True)
-                B_path2 = b.add_data("B")
+                A_path2_in, A_path2_out = b.add_write_data("A", pysmt_array_sym=A_val)
+                B_path2_in = b.add_read_data("B", pysmt_array_sym=B_val)
                 b.add_compute(
-                    "T2_le", reads=[(A_path2, idx), (B_path2, k)], writes=[(A_path2, k)]
+                    "T2_le",
+                    reads=[(A_path2_in, Int(0)), (A_path2_in, k), (B_path2_in, k)],
+                    writes=[(A_path2_out, k)],
                 )
-    return b.root_graph, loop_node, N, A_root, B_root
+    return b.root_graph, loop_node, N, A_root_in, B_root
 
 
 def build_nested_loop_outer_dofs_graph():
@@ -647,8 +745,10 @@ def build_nested_loop_outer_dofs_graph():
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     M = b.add_symbol("M", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
 
     loop_node = None
     L_inner_node = None
@@ -659,16 +759,20 @@ def build_nested_loop_outer_dofs_graph():
         Int(1),
         N,
         reads=[
-            (A_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
+            (A_root_in, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
             (B_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
         ],
-        writes=[(A_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M)))],
+        writes=[
+            (A_root_out, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M)))
+        ],
     ) as L_outer:
         i_sym = L_outer.loop_var
         loop_node = L_outer
 
-        A_local_outer = b.add_data("A", is_output=True)
-        B_local_outer = b.add_data("B")
+        A_local_outer_in, A_local_outer_out = b.add_write_data(
+            "A", pysmt_array_sym=A_val
+        )
+        B_local_outer_in = b.add_read_data("B", pysmt_array_sym=B_val)
 
         with b.add_loop(
             "L_inner",
@@ -676,27 +780,33 @@ def build_nested_loop_outer_dofs_graph():
             Int(1),
             M,
             reads=[
-                (A_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
+                (A_local_outer_in, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
                 (
-                    A_local_outer,
+                    A_local_outer_in,
                     PysmtCoordSet(Minus(i_sym, Int(1)), PysmtRange(Int(1), M)),
                 ),
-                (B_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
+                (B_local_outer_in, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
             ],
-            writes=[(A_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M)))],
+            writes=[(A_local_outer_out, PysmtCoordSet(i_sym, PysmtRange(Int(1), M)))],
         ) as L_inner:
             j_sym = L_inner.loop_var
             L_inner_node = L_inner
 
-            A_local_inner = b.add_data("A", is_output=True)
-            B_local_inner = b.add_data("B")
+            A_local_inner_in, A_local_inner_out = b.add_write_data(
+                "A", pysmt_array_sym=A_val
+            )
+            B_local_inner_in = b.add_read_data("B", pysmt_array_sym=B_val)
 
-            reads_A = (A_local_inner, PysmtCoordSet(Minus(i_sym, Int(1)), j_sym))
-            reads_B = (B_local_inner, PysmtCoordSet(i_sym, j_sym))
-            writes_A = (A_local_inner, PysmtCoordSet(i_sym, j_sym))
-
-            b.add_compute("T_comp", reads=[reads_A, reads_B], writes=[writes_A])
-    return b.root_graph, loop_node, L_inner_node, N, M, A_root, B_root
+            b.add_compute(
+                "T_comp",
+                reads=[
+                    (A_local_inner_in, PysmtCoordSet(Minus(i_sym, Int(1)), j_sym)),
+                    (B_local_inner_in, PysmtCoordSet(i_sym, j_sym)),
+                    (A_local_inner_in, PysmtCoordSet(i_sym, j_sym)),
+                ],
+                writes=[(A_local_inner_out, PysmtCoordSet(i_sym, j_sym))],
+            )
+    return b.root_graph, loop_node, L_inner_node, N, M, A_root_in, B_root
 
 
 def build_nested_loop_inner_dofs_graph():
@@ -708,8 +818,10 @@ def build_nested_loop_inner_dofs_graph():
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     M = b.add_symbol("M", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
 
     loop_node = None
     L_inner_node = None
@@ -720,16 +832,20 @@ def build_nested_loop_inner_dofs_graph():
         Int(1),
         N,
         reads=[
-            (A_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
+            (A_root_in, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
             (B_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M))),
         ],
-        writes=[(A_root, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M)))],
+        writes=[
+            (A_root_out, PysmtCoordSet(PysmtRange(Int(1), N), PysmtRange(Int(1), M)))
+        ],
     ) as L_outer:
         i_sym = L_outer.loop_var
         loop_node = L_outer
 
-        A_local_outer = b.add_data("A", is_output=True)
-        B_local_outer = b.add_data("B")
+        A_local_outer_in, A_local_outer_out = b.add_write_data(
+            "A", pysmt_array_sym=A_val
+        )
+        B_local_outer_in = b.add_read_data("B", pysmt_array_sym=B_val)
 
         with b.add_loop(
             "L_inner",
@@ -737,30 +853,32 @@ def build_nested_loop_inner_dofs_graph():
             Int(1),
             M,
             reads=[
-                (A_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
-                (B_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
+                (A_local_outer_in, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
+                (B_local_outer_in, PysmtCoordSet(i_sym, PysmtRange(Int(1), M))),
             ],
-            writes=[(A_local_outer, PysmtCoordSet(i_sym, PysmtRange(Int(1), M)))],
+            writes=[(A_local_outer_out, PysmtCoordSet(i_sym, PysmtRange(Int(1), M)))],
         ) as L_inner:
             j_sym = L_inner.loop_var
             L_inner_node = L_inner
 
-            A_local_inner = b.add_data("A", is_output=True)
-            B_local_inner = b.add_data("B")
+            A_local_inner_in, A_local_inner_out = b.add_write_data(
+                "A", pysmt_array_sym=A_val
+            )
+            B_local_inner_in = b.add_read_data("B", pysmt_array_sym=B_val)
 
             b.add_compute(
                 "T_comp",
                 reads=[
                     (
-                        A_local_inner,
+                        A_local_inner_in,
                         PysmtCoordSet(i_sym, Minus(j_sym, Int(1))),
                     ),
-                    (B_local_inner, PysmtCoordSet(i_sym, j_sym)),
-                    (A_local_inner, PysmtCoordSet(i_sym, j_sym)),
+                    (A_local_inner_in, PysmtCoordSet(i_sym, j_sym)),
+                    (B_local_inner_in, PysmtCoordSet(i_sym, j_sym)),
                 ],
-                writes=[(A_local_inner, PysmtCoordSet(i_sym, j_sym))],
+                writes=[(A_local_inner_out, PysmtCoordSet(i_sym, j_sym))],
             )
-    return b.root_graph, loop_node, L_inner_node, N, M, A_root, B_root
+    return b.root_graph, loop_node, L_inner_node, N, M, A_root_in, B_root
 
 
 def build_non_linear_predicate_graph():
@@ -773,9 +891,12 @@ def build_non_linear_predicate_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
-    C_root = b.add_data("C")
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    C_val = b.add_symbol("C_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
+    C_root = b.add_read_data("C", pysmt_array_sym=C_val)
 
     loop_node = None
     with b.add_loop(
@@ -784,54 +905,64 @@ def build_non_linear_predicate_graph():
         Int(0),
         N,
         reads=[
-            (A_root, PysmtRange(Int(0), Minus(N, Int(1)))),
+            (A_root_in, PysmtRange(Int(0), Minus(N, Int(1)))),
             (B_root, PysmtRange(Int(0), N)),
             (C_root, PysmtRange(Int(0), N)),
+            (A_root_out, PysmtRange(Int(0), N)),
         ],
-        writes=[(A_root, PysmtRange(Int(0), N))],
+        writes=[(A_root_out, PysmtRange(Int(0), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
         # Get local references to the data containers for this scope
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
-        C_local = b.add_data("C")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
+        C_local_in = b.add_read_data("C", pysmt_array_sym=C_val)
 
         with b.add_branch(
-            "B1", reads=[(B_local, k), (C_local, k)], writes=[(A_local, k)]
+            "B1",
+            reads=[(B_local_in, k), (C_local_in, k), (A_local_out, k)],
+            writes=[(A_local_out, k)],
         ) as B1:
             P1 = LE(Times(k, k), N)
             with B1.add_path(P1):
                 # Data nodes local to this path's graph
-                A_path1 = b.add_data("A", is_output=True)
-                B_path1 = b.add_data("B")
-                C_path1 = b.add_data("C")
+                A_path1_in, A_path1_out = b.add_write_data("A", pysmt_array_sym=A_val)
+                B_path1_in = b.add_read_data("B", pysmt_array_sym=B_val)
+                C_path1_in = b.add_read_data("C", pysmt_array_sym=C_val)
                 b.add_compute(
-                    "T1_par", reads=[(B_path1, k), (C_path1, k)], writes=[(A_path1, k)]
+                    "T1_par",
+                    reads=[(A_path1_in, k), (B_path1_in, k), (C_path1_in, k)],
+                    writes=[(A_path1_out, k)],
                 )
 
         with b.add_branch(
             "B2",
             reads=[
-                (A_local, Minus(k, Int(1))),
-                (A_local, k),
-                (B_local, k),
-                (C_local, k),
+                (A_local_in, Minus(k, Int(1))),
+                (A_local_in, k),
+                (B_local_in, k),
+                (C_local_in, k),
+                (A_local_out, k),
             ],
-            writes=[(A_local, k)],
+            writes=[(A_local_out, k)],
         ) as B2:
             P2 = GT(Times(k, k), N)
             with B2.add_path(P2):
                 # Data nodes local to this path's graph
-                A_path2 = b.add_data("A", is_output=True)
-                C_path2 = b.add_data("C")
+                A_path2_in, A_path2_out = b.add_write_data("A", pysmt_array_sym=A_val)
+                C_path2_in = b.add_read_data("C", pysmt_array_sym=C_val)
                 b.add_compute(
                     "T2_seq",
-                    reads=[(A_path2, Minus(k, Int(1))), (C_path2, k)],
-                    writes=[(A_path2, k)],
+                    reads=[
+                        (A_path2_in, Minus(k, Int(1))),
+                        (C_path2_in, k),
+                        (A_path2_out, k),
+                    ],
+                    writes=[(A_path2_out, k)],
                 )
-    return b.root_graph, loop_node, N, A_root, B_root, C_root
+    return b.root_graph, loop_node, N, A_root_in, B_root, C_root
 
 
 def build_non_linear_access_graph():
@@ -841,9 +972,12 @@ def build_non_linear_access_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
-    C_root = b.add_data("C")
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    C_val = b.add_symbol("C_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
+    C_root = b.add_read_data("C", pysmt_array_sym=C_val)
 
     loop_node = None
     with b.add_loop(
@@ -854,26 +988,27 @@ def build_non_linear_access_graph():
         reads=[
             (B_root, PysmtRange(Int(0), N)),
             (C_root, PysmtRange(Int(0), N)),
+            (A_root_out, PysmtRange(Int(0), Times(N, N))),
         ],
         writes=[
-            (A_root, PysmtRange(Int(0), Times(N, N)))
+            (A_root_out, PysmtRange(Int(0), Times(N, N)))
         ],  # Upper bound for A[i*i] is N*N
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
         # Get local references to the data containers for this scope
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
-        C_local = b.add_data("C")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
+        C_local_in = b.add_read_data("C", pysmt_array_sym=C_val)
 
         # A[k*k] = B[k] + C[k]
         b.add_compute(
             "T1_comp",
-            reads=[(B_local, k), (C_local, k)],
-            writes=[(A_local, Times(k, k))],
+            reads=[(A_local_in, Times(k, k)), (B_local_in, k), (C_local_in, k)],
+            writes=[(A_local_out, Times(k, k))],
         )
-    return b.root_graph, loop_node, N, A_root, B_root, C_root
+    return b.root_graph, loop_node, N, A_root_in, B_root, C_root
 
 
 def build_non_linear_access_sequential_graph():
@@ -883,8 +1018,10 @@ def build_non_linear_access_sequential_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
 
     loop_node = None
     with b.add_loop(
@@ -894,26 +1031,31 @@ def build_non_linear_access_sequential_graph():
         N,
         reads=[
             (
-                A_root,
+                A_root_in,
                 PysmtRange(Int(0), Times(Minus(N, Int(1)), Minus(N, Int(1)))),
             ),  # Read from (i-1)*(i-1)
             (B_root, PysmtRange(Int(1), N)),
+            (A_root_out, PysmtRange(Int(1), Times(N, N))),
         ],
-        writes=[(A_root, PysmtRange(Int(1), Times(N, N)))],  # Write to i*i
+        writes=[(A_root_out, PysmtRange(Int(1), Times(N, N)))],  # Write to i*i
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
 
         # A[k*k] = A[(k-1)*(k-1)] + B[k]
         b.add_compute(
             "T1_comp",
-            reads=[(A_local, Times(Minus(k, Int(1)), Minus(k, Int(1)))), (B_local, k)],
-            writes=[(A_local, Times(k, k))],
+            reads=[
+                (A_local_in, Times(Minus(k, Int(1)), Minus(k, Int(1)))),
+                (B_local_in, k),
+                (A_local_out, Times(k, k)),
+            ],
+            writes=[(A_local_out, Times(k, k))],
         )
-    return b.root_graph, loop_node, N, A_root, B_root
+    return b.root_graph, loop_node, N, A_root_in, B_root
 
 
 def build_parallel_loop_graph():
@@ -922,9 +1064,12 @@ def build_parallel_loop_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
-    C_root = b.add_data("C")
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    C_val = b.add_symbol("C_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
+    C_root = b.add_read_data("C", pysmt_array_sym=C_val)
 
     loop_node = None
     with b.add_loop(
@@ -932,18 +1077,26 @@ def build_parallel_loop_graph():
         "k",
         Int(0),
         N,
-        reads=[(B_root, PysmtRange(Int(0), N)), (C_root, PysmtRange(Int(0), N))],
-        writes=[(A_root, PysmtRange(Int(0), N))],
+        reads=[
+            (A_root_in, PysmtRange(Int(0), N)),
+            (B_root, PysmtRange(Int(0), N)),
+            (C_root, PysmtRange(Int(0), N)),
+        ],
+        writes=[(A_root_out, PysmtRange(Int(0), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
-        C_local = b.add_data("C")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
+        C_local_in = b.add_read_data("C", pysmt_array_sym=C_val)
 
-        b.add_compute("T1", reads=[(B_local, k), (C_local, k)], writes=[(A_local, k)])
-    return b.root_graph, loop_node, N, A_root, B_root, C_root
+        b.add_compute(
+            "T1",
+            reads=[(A_local_in, k), (B_local_in, k), (C_local_in, k)],
+            writes=[(A_local_out, k)],
+        )
+    return b.root_graph, loop_node, N, A_root_in, B_root, C_root
 
 
 def build_sequential_loop_graph():
@@ -952,8 +1105,10 @@ def build_sequential_loop_graph():
     """
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
-    A_root = b.add_data("A", is_output=True)
-    B_root = b.add_data("B")
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
 
     loop_node = None
     with b.add_loop(
@@ -962,21 +1117,22 @@ def build_sequential_loop_graph():
         Int(2),
         N,
         reads=[
-            (A_root, PysmtRange(Int(1), Minus(N, Int(1)))),
+            (A_root_in, PysmtRange(Int(1), Minus(N, Int(1)))),
+            (A_root_in, PysmtRange(Int(2), N)),
             (B_root, PysmtRange(Int(2), N)),
         ],
-        writes=[(A_root, PysmtRange(Int(2), N))],
+        writes=[(A_root_out, PysmtRange(Int(2), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
-        A_local = b.add_data("A", is_output=True)
-        B_local = b.add_data("B")
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
         b.add_compute(
             "T1",
-            reads=[(A_local, Minus(k, Int(1))), (B_local, k)],
-            writes=[(A_local, k)],
+            reads=[(A_local_in, Minus(k, Int(1))), (A_local_in, k), (B_local_in, k)],
+            writes=[(A_local_out, k)],
         )
-    return b.root_graph, loop_node, N, A_root, B_root
+    return b.root_graph, loop_node, N, A_root_in, B_root
 
 
 def build_sequential_with_symbolic_max_index_graph():
@@ -987,8 +1143,10 @@ def build_sequential_with_symbolic_max_index_graph():
     b = GraphBuilder()
     N = b.add_symbol("N", INT)
     w = b.add_symbol("w", INT)
-    A = b.add_data("A", is_output=True)
-    B = b.add_data("B")
+    A_val = b.add_symbol("A_val", ArrayType(INT, INT))
+    B_val = b.add_symbol("B_val", ArrayType(INT, INT))
+    A_root_in, A_root_out = b.add_write_data("A", pysmt_array_sym=A_val)
+    B_root = b.add_read_data("B", pysmt_array_sym=B_val)
 
     loop_node = None
     with b.add_loop(
@@ -996,23 +1154,54 @@ def build_sequential_with_symbolic_max_index_graph():
         "k",
         Int(2),
         N,
-        reads=[(A, PysmtRange(Int(0), N)), (B, PysmtRange(Int(2), N))],
-        writes=[(A, PysmtRange(Int(2), N))],
+        reads=[
+            (A_root_in, PysmtRange(Int(0), N)),
+            (A_root_in, PysmtRange(Int(2), N)),
+            (B_root, PysmtRange(Int(2), N)),
+        ],
+        writes=[(A_root_out, PysmtRange(Int(2), N))],
     ) as L1:
         k = L1.loop_var
         loop_node = L1
 
+        A_local_in, A_local_out = b.add_write_data("A", pysmt_array_sym=A_val)
+        B_local_in = b.add_read_data("B", pysmt_array_sym=B_val)
         with b.add_branch(
-            "B1", reads=[(A, Minus(k, w)), (A, Int(0)), (B, k)], writes=[(A, k)]
+            "B1",
+            reads=[(A_local_in, Minus(k, w)), (A_local_in, k), (B_local_in, k)],
+            writes=[(A_local_out, k)],
         ) as B1:
             # if k - w > 0
             P1 = GT(Minus(k, w), Int(0))
             with B1.add_path(P1):
-                idx = Minus(k, w)
-                b.add_compute("T1_gt", reads=[(A, idx), (B, k)], writes=[(A, k)])
+                # Data nodes local to this path's graph
+                A_path1_in, A_path1_out = b.add_write_data("A", pysmt_array_sym=A_val)
+                B_path1_in = b.add_read_data("B", pysmt_array_sym=B_val)
+                b.add_compute(
+                    "T1_gt",
+                    reads=[
+                        (A_path1_in, Minus(k, w)),
+                        (A_path1_in, k),
+                        (B_path1_in, k),
+                    ],
+                    writes=[(A_path1_out, k)],
+                )
+
+        A_local_out = b.add_data("A", pysmt_array_sym=A_val)
+        with b.add_branch(
+            "B2",
+            reads=[(A_local_in, Int(0)), (A_local_in, k), (B_local_in, k)],
+            writes=[(A_local_out, k)],
+        ) as B2:
             # else
             P2 = LE(Minus(k, w), Int(0))
-            with B1.add_path(P2):
-                idx = Int(0)
-                b.add_compute("T2_le", reads=[(A, idx), (B, k)], writes=[(A, k)])
-    return b.root_graph, loop_node, N, w, A, B
+            with B2.add_path(P2):
+                # Data nodes local to this path's graph
+                A_path2_in, A_path2_out = b.add_write_data("A", pysmt_array_sym=A_val)
+                B_path2_in = b.add_read_data("B", pysmt_array_sym=B_val)
+                b.add_compute(
+                    "T2_le",
+                    reads=[(A_path2_in, Int(0)), (A_path2_in, k), (B_path2_in, k)],
+                    writes=[(A_path2_out, k)],
+                )
+    return b.root_graph, loop_node, N, w, A_root_in, B_root

@@ -1,0 +1,778 @@
+# p3g/parser.py
+
+import collections
+import re
+from typing import List, Union, Tuple, Optional
+
+from pysmt.shortcuts import (
+    INT,
+    Plus,
+    Minus,
+    Int,
+    GT,
+    LE,
+    LT,
+    GE,
+    Equals,
+    Not,
+    Select,
+    ArrayType,
+)
+
+from p3g.p3g import (
+    GraphBuilder,
+    Graph,
+    Data,
+    PysmtFormula,
+    PysmtRange,
+    PysmtCoordSet,
+    Loop,
+    Branch,
+)
+
+Token = collections.namedtuple("Token", ["type", "value", "line", "column"])
+
+
+class PseudocodeParser:
+    """
+    Parses a pseudocode-like language into a P3G graph using a recursive
+    descent strategy. This is a simple frontend for the P3G tool.
+    """
+
+    def __init__(self):
+        self.builder = GraphBuilder()
+        self.known_symbols: dict[str, PysmtFormula] = {}
+        self.tokens: list[Token] = []
+        self.pos = 0
+        self.output_data_names: set[str] = set()
+        self._declared_arrays: set[str] = set()  # Track declared arrays
+
+        self._array_state: dict[
+            Tuple[Graph, str, str], Data
+        ] = {}  # Graph -> State -> Array -> Ref.
+        self._current_array_state_stack: list[str] = ["."]
+        self._current_scope_inputs_stack: List[Dict[str, Data]] = [{}]
+
+    def parse(self, code: str) -> Graph:
+        """
+        Parses a block of pseudocode and returns the constructed P3G graph.
+        """
+        self.tokens = self._tokenize(code)
+        self.pos = 0
+        self._preprocess_declarations()  # Call the new preprocessing method
+        self.pos = 0  # Reset pos for the main parsing pass
+        while self._peek().type in ["DECL", "OUT", "NEWLINE"]:
+            peek_type = self._peek().type
+            if peek_type == "DECL":
+                self._parse_decl_statement()
+            elif peek_type == "OUT":
+                self._parse_out_statement()
+            elif peek_type == "NEWLINE":
+                self._consume("NEWLINE")
+        self._parse_block()
+        return self.builder.root_graph
+
+    # --- Tokenizer ---
+
+    def _tokenize(self, code: str) -> list[Token]:
+        """Converts code string into a stream of tokens."""
+        token_specification = [
+            ("DECL", r"decl"),
+            ("OUT", r"out"),
+            ("FOR", r"for"),
+            ("TO", r"to"),
+            ("IF", r"if"),
+            ("ELSE", r"else"),
+            ("OP", r"op"),
+            ("NUMBER", r"\d+"),
+            ("ID", r"[A-Za-z_]\w*"),
+            ("ARROW", r"=>"),
+            ("PIPE", r"\|"),
+            ("GE", r">="),
+            ("LE", r"<="),
+            ("EQ", r"=="),
+            ("GT", r">"),
+            ("LT", r"<"),
+            ("ASSIGN", r"="),
+            ("COLON", r":"),
+            ("LPAREN", r"\("),
+            ("RPAREN", r"\)"),
+            ("LBRACKET", r"\["),
+            ("RBRACKET", r"\]"),
+            ("PLUS", r"\+"),
+            ("MINUS", r"-"),
+            ("TIMES", r"\*"),
+            ("COMMA", r","),
+            ("DOT", r"\."),
+            ("SKIP", r"[ \t]+"),
+            ("MISMATCH", r"."),
+        ]
+        tok_regex = "|".join("(?P<%s>%s)" % pair for pair in token_specification)
+        line_num = 0
+        indent_stack = [0]
+        tokens = []
+
+        lines = code.strip().split("\n")
+        for line in lines:
+            line_num += 1
+            if not line.strip():
+                continue
+
+            indent = len(line) - len(line.lstrip(" "))
+            if indent > indent_stack[-1]:
+                indent_stack.append(indent)
+                tokens.append(Token("INDENT", indent, line_num, 0))
+            while indent < indent_stack[-1]:
+                indent_stack.pop()
+                tokens.append(Token("DEDENT", indent_stack[-1], line_num, 0))
+
+            if indent != indent_stack[-1]:
+                raise IndentationError(
+                    "unindent does not match any outer indentation level"
+                )
+
+            for mo in re.finditer(tok_regex, line.lstrip(" ")):
+                kind = mo.lastgroup
+                value = mo.group()
+                column = mo.start()
+                if kind == "SKIP":
+                    continue
+                if kind == "MISMATCH":
+                    raise RuntimeError(f"{value!r} unexpected on line {line_num}")
+                tokens.append(Token(kind, value, line_num, column))
+            tokens.append(Token("NEWLINE", "\n", line_num, len(line)))
+
+        while len(indent_stack) > 1:
+            indent_stack.pop()
+            tokens.append(Token("DEDENT", indent_stack[-1], line_num, 0))
+
+        tokens.append(Token("EOF", "", line_num + 1, 0))
+        return tokens
+
+    # --- Token Stream Helpers ---
+
+    def _peek(self, offset=0) -> Token:
+        if self.pos + offset < len(self.tokens):
+            return self.tokens[self.pos + offset]
+        return self.tokens[-1]  # EOF
+
+    def _consume(self, expected_type: str | list[str] | None = None) -> Token:
+        token = self._peek()
+        if isinstance(expected_type, str) and token.type != expected_type:
+            raise ValueError(
+                f"Expected {expected_type}, got {token.type} at line {token.line}"
+            )
+        if isinstance(expected_type, list) and token.type not in expected_type:
+            raise ValueError(
+                f"Expected one of {expected_type}, got {token.type} at line {token.line}"
+            )
+        self.pos += 1
+        return token
+
+    # --- Recursive Descent Parser ---
+
+    def _parse_block(self) -> tuple[list, list]:
+        """Parses a block of statements."""
+        block_reads = []
+        block_writes = []
+
+        while self._peek().type not in ["DEDENT", "EOF"]:
+            statement_reads, statement_writes = self._parse_statement()
+            block_reads.extend(statement_reads)
+            block_writes.extend(statement_writes)
+
+        return block_reads, block_writes
+
+    def _parse_statement(self) -> tuple[list, list]:
+        """Parses a single statement."""
+
+        # Parse the access descriptions.
+        self._consume("LPAREN")
+        hierarchical_reads_raw, _ = self._parse_read_access_list()
+        self._consume("ARROW")
+        hierarchical_writes_raw, _ = self._parse_write_access_list()
+        self._consume("RPAREN")
+
+        # Handle follow_statements and disjoint paths
+        follow_statements: List[str] = []
+        if self._peek().type == "LPAREN":
+            self._consume("LPAREN")
+            # Consume comma delimited list of prior statements.
+            while self._peek().type != "RPAREN":
+                # Bug fix: append value, not token. Also fix comma consumption.
+                follow_statements.append(self._consume("ID").value)
+                if self._peek().type == "COMMA":
+                    self._consume("COMMA")
+                else:
+                    break  # Exit loop if not a COMMA
+            self._consume("RPAREN")
+            self._consume("DOT")
+        elif self._peek().type == "DOT":
+            self._consume("DOT")
+            follow_statements = []  # Open a disjoint path.
+        else:
+            follow_statements = [self._current_array_state_stack[-1]]
+
+        # Determine the node_name (either explicit or generated for anonymous nodes)
+        if self._peek().type == "PIPE":
+            self._consume("PIPE")
+            # Generate a temporary name for anonymous nodes for stack update
+            if self._peek().type == "FOR":
+                node_name = f"AnonLoop_{self.tokens[self.pos + 1].value}"
+            elif self._peek().type == "IF":
+                node_name = "AnonBranch"
+            elif self._peek().type == "OP":
+                node_name = "AnonCompute"
+            else:
+                node_name = "AnonStmt"  # Fallback
+        else:
+            node_name = self._consume("ID").value
+            self._consume("PIPE")
+
+        # Consolidate the accesses.
+        consolidated_reads = []
+        for name, subset in hierarchical_reads_raw:
+            found_nodes = []
+            for state in follow_statements:
+                key = (self.builder.current_graph, state, name)
+                if key in self._array_state:
+                    found_nodes.append(self._array_state[key])
+
+            unique_nodes = list(set(found_nodes))
+            assert len(unique_nodes) <= 1, (
+                f"Ambiguous read for '{name}'. Found in multiple prior states: {follow_statements}"
+            )
+
+            if unique_nodes:
+                read_node = unique_nodes[0]
+            else:
+                dot_key = (self.builder.current_graph, ".", name)
+                if dot_key in self._array_state:
+                    read_node = self._array_state[dot_key]
+                else:
+                    read_node = self.builder.add_data(
+                        name,
+                        pysmt_array_sym=self._get_symbol(
+                            f"{name}_val", is_array_val=True
+                        ),
+                    )
+                    self._array_state[dot_key] = read_node
+            consolidated_reads.append((read_node, subset))
+        hierarchical_reads = consolidated_reads
+
+        consolidated_writes = []
+        for name in {name for name, subset in hierarchical_writes_raw}:
+            new_node = self.builder.add_data(
+                name,
+                pysmt_array_sym=self._get_symbol(f"{name}_val", is_array_val=True),
+            )
+            key = (
+                self.builder.current_graph,
+                node_name,
+                name,
+            )  # Use determined node_name here
+            self._array_state[key] = new_node
+
+        for name, subset in hierarchical_writes_raw:
+            key = (
+                self.builder.current_graph,
+                node_name,
+                name,
+            )  # Use determined node_name here
+            write_node = self._array_state[key]
+            consolidated_writes.append((write_node, subset))
+        hierarchical_writes = consolidated_writes
+
+        # Parse the actual statement type and capture its return values
+        peek_type = self._peek().type
+        if peek_type == "FOR":
+            statement_result_reads, statement_result_writes = self._parse_for_loop(
+                hierarchical_reads, hierarchical_writes, node_name
+            )
+        elif peek_type == "IF":
+            statement_result_reads, statement_result_writes = self._parse_if_statement(
+                hierarchical_reads, hierarchical_writes, node_name
+            )
+        elif peek_type == "OP":
+            statement_result_reads, statement_result_writes = self._parse_op_statement(
+                hierarchical_reads, hierarchical_writes, node_name
+            )
+        elif peek_type == "NEWLINE":
+            self._consume("NEWLINE")
+            statement_result_reads, statement_result_writes = [], []
+        else:
+            raise ValueError(
+                f"Unsupported or malformed statement starting with {self._peek()}"
+            )
+
+        self._current_array_state_stack[-1] = node_name
+        return statement_result_reads, statement_result_writes
+
+    def _parse_decl_statement(self):
+        """Parses a decl statement: decl A, B, C"""
+        self._consume("DECL")
+
+        name = self._consume("ID").value
+        self._declared_arrays.add(name)
+
+        while self._peek().type == "COMMA":
+            self._consume("COMMA")
+            name = self._consume("ID").value
+            self._declared_arrays.add(name)
+
+        self._consume("NEWLINE")
+
+    def _parse_out_statement(self):
+        """Parses an out statement: out A, B, C"""
+        self._consume("OUT")
+
+        name = self._consume("ID").value
+        self.builder.mark_array_as_output(name)
+
+        while self._peek().type == "COMMA":
+            self._consume("COMMA")
+            name = self._consume("ID").value
+            self.builder.mark_array_as_output(name)
+
+        self._consume("NEWLINE")
+
+    def _parse_for_loop(
+        self,
+        hierarchical_reads: List[
+            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        ],
+        hierarchical_writes: List[
+            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        ],
+        node_name: str | None,
+    ) -> tuple[list, list]:
+        """Parses a for loop: for i = start to end: ..."""
+        self._consume("FOR")
+        var = self._consume("ID").value
+        self._consume("ASSIGN")
+        start_formula, start_reads = self._parse_expression()
+        self._consume("TO")
+        end_formula, end_reads = self._parse_expression()
+        self._consume("COLON")
+        self._consume("NEWLINE")
+        self._consume("INDENT")
+
+        loop_name = node_name if node_name else f"L_{var}"
+
+        with self.builder.add_loop(
+            loop_name,
+            var,
+            start_formula,
+            end_formula,
+            reads=hierarchical_reads,
+            writes=hierarchical_writes,
+        ) as loop:
+            self.known_symbols[var] = loop.loop_var
+
+            # New: Populate and push scope inputs
+            scope_inputs = {
+                node.graph._array_id_to_name[node.array_id]: node
+                for node, _ in hierarchical_reads
+            }
+            self._current_scope_inputs_stack.append(scope_inputs)
+
+            self._current_array_state_stack.append(".")
+            body_reads, body_writes = self._parse_block()
+            self._current_array_state_stack.pop()
+
+            self._current_scope_inputs_stack.pop()
+
+        del self.known_symbols[var]
+        self._consume("DEDENT")
+
+        return body_reads, body_writes
+
+    def _parse_if_statement(
+        self,
+        hierarchical_reads: List[
+            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        ],
+        hierarchical_writes: List[
+            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        ],
+        node_name: str | None,
+    ) -> tuple[list, list]:
+        """Parses an if-else statement: if condition: ... else: ..."""
+        self._consume("IF")
+        predicate, condition_reads = self._parse_condition()
+        self._consume("COLON")
+        self._consume("NEWLINE")
+        self._consume("INDENT")
+
+        branch_name = node_name if node_name else f"B_{self.builder.current_graph.name}"
+
+        branch_node = self.builder.add_branch(
+            branch_name,
+            reads=hierarchical_reads,
+            writes=hierarchical_writes,
+        )
+
+        total_body_reads, total_body_writes = [], []
+
+        with branch_node.add_path(predicate):
+            # New: Populate and push scope inputs
+            scope_inputs = {
+                node.graph._array_id_to_name[node.array_id]: node
+                for node, _ in hierarchical_reads
+            }
+            self._current_scope_inputs_stack.append(scope_inputs)
+
+            self._current_array_state_stack.append(".")
+            body_reads, body_writes = self._parse_block()
+            self._current_array_state_stack.pop()
+
+            self._current_scope_inputs_stack.pop()
+            total_body_reads.extend(body_reads)
+            total_body_writes.extend(body_writes)
+
+        self._consume("DEDENT")
+
+        if self._peek().type == "ELSE":
+            self._consume("ELSE")
+            self._consume("COLON")
+            self._consume("NEWLINE")
+            self._consume("INDENT")
+
+            else_predicate = Not(predicate)
+            with branch_node.add_path(else_predicate):
+                # New: Populate and push scope inputs
+                scope_inputs = {
+                    node.graph._array_id_to_name[node.array_id]: node
+                    for node, _ in hierarchical_reads
+                }
+                self._current_scope_inputs_stack.append(scope_inputs)
+
+                self._current_array_state_stack.append(".")
+                body_reads, body_writes = self._parse_block()
+                self._current_array_state_stack.pop()
+
+                self._current_scope_inputs_stack.pop()
+                total_body_reads.extend(body_reads)
+                total_body_writes.extend(body_writes)
+
+            self._consume("DEDENT")
+
+        return total_body_reads, total_body_writes
+
+    def _parse_read_access_list(self) -> tuple[list, list]:
+        """Parses a comma-separated list of read accesses, e.g., A[i], B[j]."""
+        accesses = []
+        index_reads = []
+
+        # Handle empty list before arrow
+        if self._peek().type in ["ARROW", "RPAREN"]:
+            return accesses, index_reads
+
+        access, reads = self._parse_read_access_item()
+        accesses.append(access)
+        index_reads.extend(reads)
+
+        while self._peek().type == "COMMA":
+            self._consume("COMMA")
+            access, reads = self._parse_read_access_item()
+            accesses.append(access)
+            index_reads.extend(reads)
+
+        return accesses, index_reads
+
+    def _parse_write_access_list(self) -> tuple[list, list]:
+        """Parses a comma-separated list of write accesses, e.g., A[i], B[j]."""
+        accesses = []
+        index_reads = []
+
+        # Handle empty list before arrow
+        if self._peek().type in ["ARROW", "RPAREN"]:
+            return accesses, index_reads
+
+        access, reads = self._parse_write_access_item()
+        accesses.append(access)
+        index_reads.extend(reads)
+
+        while self._peek().type == "COMMA":
+            self._consume("COMMA")
+            access, reads = self._parse_write_access_item()
+            accesses.append(access)
+            index_reads.extend(reads)
+
+        return accesses, index_reads
+
+    def _parse_op_statement(
+        self,
+        hierarchical_reads: List[
+            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        ],
+        hierarchical_writes: List[
+            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        ],
+        node_name: str | None,
+    ) -> tuple[list, list]:
+        """Parses an op statement: OP(annotation)"""
+        self._consume("OP")
+        self._consume("LPAREN")
+        while self._peek().type != "RPAREN":
+            self._consume()  # Consume annotation tokens
+        self._consume("RPAREN")
+        self._consume("NEWLINE")
+
+        compute_name = node_name if node_name else "compute"
+        self.builder.add_compute(
+            compute_name, reads=hierarchical_reads, writes=hierarchical_writes
+        )
+        return hierarchical_reads, hierarchical_writes
+
+    # --- Expression & Grammar Rule Parsers ---
+
+    def _parse_condition(self) -> tuple[PysmtFormula, list]:
+        """Parses a condition: expr > expr"""
+        lhs_formula, lhs_reads = self._parse_expression()
+
+        op_token = self._consume(["GT", "LT", "GE", "LE", "EQ"])
+
+        rhs_formula, rhs_reads = self._parse_expression()
+
+        op_map = {"GT": GT, "LT": LT, "GE": GE, "LE": LE, "EQ": Equals}
+        predicate = op_map[op_token.type](lhs_formula, rhs_formula)
+
+        return predicate, lhs_reads + rhs_reads
+
+    def _parse_expression(self) -> tuple[PysmtFormula, list]:
+        """Parses an expression: term (+|-) term ..."""
+        formula, reads = self._parse_term()
+        while self._peek().type in ["PLUS", "MINUS"]:
+            op = self._consume().type
+            rhs_formula, rhs_reads = self._parse_term()
+            reads.extend(rhs_reads)
+            if op == "PLUS":
+                formula = Plus(formula, rhs_formula)
+            else:
+                formula = Minus(formula, rhs_formula)
+        return formula, reads
+
+    def _parse_term(self) -> tuple[PysmtFormula, list]:
+        """Parses a term: factor (TIMES factor)*"""
+        formula, reads = self._parse_factor()
+        while self._peek().type in ["TIMES"]:
+            op = self._consume().type
+            rhs_formula, rhs_reads = self._parse_factor()
+            reads.extend(rhs_reads)
+            if op == "TIMES":
+                formula = formula * rhs_formula
+        return formula, reads
+
+    def _parse_factor(self) -> tuple[PysmtFormula, list]:
+        """Parses a term: number | symbol | access"""
+        if self._peek().type == "NUMBER":
+            return Int(int(self._consume("NUMBER").value)), []
+        if self._peek().type == "ID":
+            if self._peek(1).type == "LBRACKET":
+                return self._parse_array_access_expression()
+            name = self._consume("ID").value
+            return self._get_symbol(name), []
+        if self._peek().type == "LPAREN":
+            self._consume("LPAREN")
+            formula, reads = self._parse_expression()
+            self._consume("RPAREN")
+            return formula, reads
+        raise ValueError(
+            f"Unsupported or malformed statement starting with {self._peek()}"
+        )
+
+    def _parse_access_item(self) -> tuple[PysmtFormula | PysmtRange, list]:
+        """Parses a single item in an access list, which can be an expression or a range."""
+        start_formula, start_reads = self._parse_expression()
+        if self._peek().type == "COLON":
+            # This is a range
+            self._consume("COLON")
+            end_formula, end_reads = self._parse_expression()
+            return PysmtRange(start_formula, end_formula), start_reads + end_reads
+        else:
+            return start_formula, start_reads
+
+    def _parse_read_access_item(
+        self,
+    ) -> tuple[tuple[str, PysmtFormula | PysmtCoordSet | PysmtRange], list]:
+        """Parses a single read access, returning the (array name, subset) and any reads from indices."""
+        name = self._consume("ID").value
+        self._consume("LBRACKET")
+
+        items, reads = [], []
+        item, item_reads = self._parse_access_item()
+        items.append(item)
+        reads.extend(item_reads)
+
+        while self._peek().type == "COMMA":
+            self._consume("COMMA")
+            item, item_reads = self._parse_access_item()
+            items.append(item)
+            reads.extend(item_reads)
+        self._consume("RBRACKET")
+
+        # Now returns the parsed name and coordinate, not a Data node
+        coord = items[0] if len(items) == 1 else PysmtCoordSet(*items)
+        return (name, coord), reads
+
+    def _parse_write_access_item(
+        self,
+    ) -> tuple[tuple[str, PysmtFormula | PysmtCoordSet | PysmtRange], list]:
+        """Parses a LHS array access, returning the (array name, subset) and any reads from indices."""
+        name = self._consume("ID").value
+        self._consume("LBRACKET")
+
+        items, reads = [], []
+        item, item_reads = self._parse_access_item()
+        items.append(item)
+        reads.extend(item_reads)
+
+        while self._peek().type == "COMMA":
+            self._consume("COMMA")
+            item, item_reads = self._parse_access_item()
+            items.append(item)
+            reads.extend(item_reads)
+        self._consume("RBRACKET")
+
+        # Now returns the parsed name and coordinate, not a Data node
+        coord = items[0] if len(items) == 1 else PysmtCoordSet(*items)
+        return (name, coord), reads
+
+    def _parse_array_access_expression(self) -> tuple[PysmtFormula, list]:
+        """Parses a RHS array access, returning the formula and all reads."""
+        name = self._consume("ID").value
+        self._consume("LBRACKET")
+
+        indices, reads = [], []
+        idx_formula, idx_reads = self._parse_expression()
+        indices.append(idx_formula)
+        reads.extend(idx_reads)
+        while self._peek().type == "COMMA":
+            self._consume("COMMA")
+            idx_formula, idx_reads = self._parse_expression()
+            indices.append(idx_formula)
+            reads.extend(idx_reads)
+        self._consume("RBRACKET")
+
+        data_node = self._current_scope_inputs_stack[-1][name]
+        coord = indices[0] if len(indices) == 1 else PysmtCoordSet(*indices)
+        reads.insert(0, (data_node, coord))
+
+        # For formula generation, only single-dim access is supported for now
+        if len(indices) > 1:
+            raise NotImplementedError(
+                "Multi-dim access in expressions not supported for formula generation."
+            )
+
+        array_sym = self._get_symbol(f"{name}_val", is_array_val=True)
+        formula = Select(array_sym, indices[0])
+
+        return formula, reads
+
+    # --- Helpers ---
+
+    def _get_data_node(self, name: str) -> Data:
+        """
+        Retrieves the read Data node for an array from the cache, creating it if it doesn't exist.
+        This ensures that each array has a consistent Data node object for reads
+        within the current graph context.
+        """
+        if name not in self._declared_arrays:
+            raise ValueError(f"Array '{name}' used before being declared.")
+
+        cache_key = (name, self.builder.current_graph)
+        if cache_key not in self._data_node_cache:
+            is_output = name in self.output_data_names
+            read_node_obj = self.builder.add_read_data(name)
+            _, write_node_obj = self.builder.add_write_data(name)
+            self._data_node_cache[cache_key] = (read_node_obj, write_node_obj)
+        return self._data_node_cache[cache_key][0]
+
+    def _get_symbol(self, name: str, is_array_val=False) -> PysmtFormula:
+        """Gets or creates a PysmtSymbol."""
+        if is_array_val:
+            # Extract base array name from something like "A_val"
+            base_name = name.split("_val")[0]
+            if base_name not in self._declared_arrays:
+                raise ValueError(f"Array '{base_name}' used before being declared.")
+
+        if name not in self.known_symbols:
+            sym_type = ArrayType(INT, INT) if is_array_val else INT
+            self.known_symbols[name] = self.builder.add_symbol(name, sym_type)
+        return self.known_symbols[name]
+
+    def _preprocess_declarations(self):
+        temp_pos = 0
+        while temp_pos < len(self.tokens):
+            token = self.tokens[temp_pos]
+            if token.type == "DECL":
+                # Temporarily parse DECL statement
+                current_pos = self.pos
+                self.pos = temp_pos
+                self._consume("DECL")
+                name = self._consume("ID").value
+                self._declared_arrays.add(name)
+                while self._peek().type == "COMMA":
+                    self._consume("COMMA")
+                    name = self._consume("ID").value
+                    self._declared_arrays.add(name)
+                self._consume("NEWLINE")
+                temp_pos = self.pos  # Advance temp_pos past the statement
+                self.pos = current_pos  # Restore original pos
+            elif token.type == "OUT":
+                # Temporarily parse OUT statement
+                current_pos = self.pos
+                self.pos = temp_pos
+                self._consume("OUT")
+                name = self._consume("ID").value
+                self.output_data_names.add(name)
+                while self._peek().type == "COMMA":
+                    self._consume("COMMA")
+                    name = self._consume("ID").value
+                    self.output_data_names.add(name)
+                self._consume("NEWLINE")
+                temp_pos = self.pos  # Advance temp_pos past the statement
+                self.pos = current_pos  # Restore original pos
+            else:
+                temp_pos += 1  # Move to next token if not DECL/OUT
+
+
+if __name__ == "__main__":
+    # Example Usage
+
+    # --- Example 1: Sequential Loop ---
+    print("--- " + " Parsing Sequential Loop" + " ---")
+    seq_code = """
+    for i = 2 to N:
+      A[i] = A[i-1] + B[i]
+    """
+    parser_seq = PseudocodeParser()
+    graph_seq = parser_seq.parse(seq_code)
+
+    # Basic verification
+    assert len(graph_seq.nodes) == 1  # Loop
+    loop_node = graph_seq.nodes[0]
+    assert isinstance(loop_node, Loop)
+    assert len(loop_node.nested_graph.nodes) == 3  # A, B, Compute
+    print("Sequential loop parsed successfully.")
+
+    # --- Example 2: Data-Aware BI ---
+    print("\n--- " + " Parsing Data-Aware BI" + " ---")
+    da_code = """
+    for i = 1 to N:
+      if B[i] > 0:
+        A[i] = A[i-1]
+    """
+    parser_da = PseudocodeParser()
+    graph_da = parser_da.parse(da_code)
+
+    # Basic verification
+    assert len(graph_da.nodes) == 1  # Loop
+    loop_node_da = graph_da.nodes[0]
+    assert isinstance(loop_node_da, Loop)
+    assert len(loop_node_da.nested_graph.nodes) == 1  # Branch
+    branch_node = loop_node_da.nested_graph.nodes[0]
+    assert isinstance(branch_node, Branch)
+    assert len(branch_node.branches) == 1
+    print("Data-aware loop parsed successfully.")

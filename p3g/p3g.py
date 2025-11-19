@@ -90,13 +90,20 @@ class Node:
     Represents V_D, V_C, and V_S.
     """
 
-    def __init__(self, name: str):
+    def __init__(
+        self,
+        name: str,
+        graph: Optional["Graph"] = None,
+        parent: Optional["Node"] = None,
+    ):
         self.name = name
+        self.graph = graph  # Reference to the graph this node belongs to
+        self.parent = parent  # Reference to the immediate parent node in the hierarchy
         self.in_edges: List["Edge"] = []
         self.out_edges: List["Edge"] = []
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.name})"
+        return f"NODE[{self.__class__.__name__}({self.name})]"
 
 
 class Edge:
@@ -144,7 +151,8 @@ class Graph:
         self.nodes: List[Node] = []
         self.edges: List[Edge] = []
         self.symbols: Dict[str, PysmtSymbol] = {}
-        self.outputs: Set[Data] = set()
+        self.outputs: Set[int] = set()
+        self._array_id_to_name: Dict[int, str] = {}
 
     def add_node(self, node: Node):
         self.nodes.append(node)
@@ -174,13 +182,18 @@ class Data(Node):
     This represents a *reference* to an array or scalar in memory.
     """
 
-    def __init__(self, name: str, array_id: int, is_output: bool = False):
-        super().__init__(name)
+    def __init__(
+        self,
+        name: str,
+        array_id: int,
+        graph: Optional["Graph"] = None,
+        parent: Optional["Node"] = None,
+    ):
+        super().__init__(name, graph=graph, parent=parent)
         self.array_id = array_id
-        self.is_output = is_output
 
     def __repr__(self):
-        return f"Data({self.name}, id={self.array_id})"
+        return f"DATA[{self.name}/{self.array_id}]"
 
 
 class Compute(Node):
@@ -189,8 +202,16 @@ class Compute(Node):
     Its data accesses are defined *by its incident edges*.
     """
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(
+        self,
+        name: str,
+        graph: Optional["Graph"] = None,
+        parent: Optional["Node"] = None,
+    ):
+        super().__init__(name, graph=graph, parent=parent)
+
+    def __repr__(self):
+        return f"COMPUTE({self.name})"
 
     def get_read_set(
         self,
@@ -225,13 +246,34 @@ class Structure(Node):
     Base class for hierarchical structure nodes (V_S).
     """
 
-    def __init__(self, name: str, builder: "GraphBuilder"):
-        super().__init__(name)
+    def __init__(
+        self,
+        name: str,
+        builder: "GraphBuilder",
+        graph: Optional["Graph"] = None,
+        parent: Optional["Node"] = None,
+    ):
+        super().__init__(name, graph=graph, parent=parent)
         self.builder = builder
+
+    def __repr__(self):
+        return f"STRUCTURE({self.name})"
 
 
 class Map(Structure):
-    """A parallel Map node."""
+    """
+    Represents a parallel Map node in the Program Dependence Graph (P3G).
+
+    A Map node signifies a parallel loop construct where iterations are independent
+    and can theoretically be executed concurrently. It encapsulates a nested graph
+    representing the body of the loop.
+
+    Attributes:
+        loop_var (PysmtSymbol): The symbolic loop variable for this Map.
+        start (PysmtFormula): A Pysmt formula representing the inclusive start bound of the loop.
+        end (PysmtFormula): A Pysmt formula representing the inclusive end bound of the loop.
+        nested_graph (Graph): The graph representing the operations within the Map's body.
+    """
 
     def __init__(
         self,
@@ -240,19 +282,26 @@ class Map(Structure):
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
+        graph: Optional["Graph"] = None,
+        parent: Optional["Node"] = None,
     ):
-        super().__init__(name, builder)
+        super().__init__(name, builder, graph=graph, parent=parent)
         self.loop_var = Symbol(loop_var_name, INT)
         self.start = start
         self.end = end
         self.nested_graph = Graph(f"{name}_body")
 
     def __enter__(self):
-        self.builder.graph_stack.append(self.nested_graph)
+        self.builder.graph_stack.append(
+            (self.nested_graph, self)
+        )  # Push (graph, self as owner)
         return self  # Return self so user can access loop_var
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.builder.graph_stack.pop()
+
+    def __repr__(self):
+        return f"MAP({self.name}): iter={self.loop_var} in [{self.start}, {self.end}]"
 
     def get_read_set(
         self,
@@ -280,7 +329,19 @@ class Map(Structure):
 
 
 class Loop(Structure):
-    """A sequential Loop node."""
+    """
+    Represents a sequential Loop node in the Program Dependence Graph (P3G).
+
+    A Loop node signifies a sequential loop construct where iterations may have
+    dependencies on previous iterations. It encapsulates a nested graph
+    representing the body of the loop.
+
+    Attributes:
+        loop_var (PysmtSymbol): The symbolic loop variable for this Loop.
+        start (PysmtFormula): A Pysmt formula representing the inclusive start bound of the loop.
+        end (PysmtFormula): A Pysmt formula representing the inclusive end bound of the loop.
+        nested_graph (Graph): The graph representing the operations within the Loop's body.
+    """
 
     def __init__(
         self,
@@ -289,19 +350,26 @@ class Loop(Structure):
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
+        graph: Optional["Graph"] = None,
+        parent: Optional["Node"] = None,
     ):
-        super().__init__(name, builder)
+        super().__init__(name, builder, graph=graph, parent=parent)
         self.loop_var = Symbol(loop_var_name, INT)
         self.start = start
         self.end = end
         self.nested_graph = Graph(f"{name}_body")
 
     def __enter__(self):
-        self.builder.graph_stack.append(self.nested_graph)
+        self.builder.graph_stack.append(
+            (self.nested_graph, self)
+        )  # Push (graph, self as owner)
         return self  # Return self so user can access loop_var
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.builder.graph_stack.pop()
+
+    def __repr__(self):
+        return f"LOOP({self.name}): iter={self.loop_var} in [{self.start}, {self.end}]"
 
     def get_read_set(
         self,
@@ -330,19 +398,33 @@ class Loop(Structure):
 
 class Branch(Structure):
     """
-    A Branch node.
-    Contains multiple arms, each with a predicate and a nested graph.
+    Represents a Branch node in the Program Dependence Graph (P3G).
+
+    A Branch node signifies a conditional control flow structure (e.g., an if-else statement,
+    switch statement). It contains multiple conditional paths, each with a predicate
+    and a nested graph representing the operations within that path.
+
+    Attributes:
+        branches (List[Tuple[PysmtFormula, Graph]]): A list of tuples, where each tuple
+            contains a Pysmt formula representing the predicate for a branch path
+            and the nested Graph associated with that path.
     """
 
-    def __init__(self, name: str, builder: "GraphBuilder"):
-        super().__init__(name, builder)
+    def __init__(
+        self,
+        name: str,
+        builder: "GraphBuilder",
+        graph: Optional["Graph"] = None,
+        parent: Optional["Node"] = None,
+    ):
+        super().__init__(name, builder, graph=graph, parent=parent)
         self.branches: List[Tuple[PysmtFormula, Graph]] = []
 
     def add_path(self, predicate: PysmtFormula) -> "PathContext":
         """Adds a new conditional path and returns its context."""
         path_graph = Graph(f"{self.name}_branch_{len(self.branches)}")
         self.branches.append((predicate, path_graph))
-        return PathContext(self.builder, path_graph)
+        return PathContext(self.builder, path_graph, parent=self)  # Pass self as parent
 
     def __enter__(self):
         """Allows 'with b.add_branch(...) as branch:' syntax."""
@@ -351,6 +433,9 @@ class Branch(Structure):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """No action needed on exit."""
         pass
+
+    def __repr__(self):
+        return f"BRANCH({self.name})"
 
     def get_read_set(
         self,
@@ -389,7 +474,22 @@ class Branch(Structure):
 
 
 class Reduce(Structure):
-    """A parallel Reduce node."""
+    """
+    Represents a parallel Reduce node in the Program Dependence Graph (P3G).
+
+    A Reduce node signifies a parallel reduction operation (e.g., sum, min, max across an array).
+    It processes data in parallel and combines results using a specified reduction operation
+    (Write-Conflict Resolution - WCR). It encapsulates a nested graph representing the body
+    of the reduction.
+
+    Attributes:
+        loop_var (PysmtSymbol): The symbolic loop variable for this Reduce.
+        start (PysmtFormula): A Pysmt formula representing the inclusive start bound of the reduction.
+        end (PysmtFormula): A Pysmt formula representing the inclusive end bound of the reduction.
+        wcr (PysmtFormula): A Pysmt formula defining the Write-Conflict Resolution strategy.
+                            This specifies how concurrent writes to the reduction variable are combined.
+        nested_graph (Graph): The graph representing the operations within the Reduce's body.
+    """
 
     def __init__(
         self,
@@ -399,8 +499,10 @@ class Reduce(Structure):
         start: PysmtFormula,
         end: PysmtFormula,
         wcr: PysmtFormula,
+        graph: Optional["Graph"] = None,
+        parent: Optional["Node"] = None,
     ):
-        super().__init__(name, builder)
+        super().__init__(name, builder, graph=graph, parent=parent)
         self.loop_var = Symbol(loop_var_name, INT)
         self.start = start
         self.end = end
@@ -408,11 +510,18 @@ class Reduce(Structure):
         self.nested_graph = Graph(f"{name}_body")
 
     def __enter__(self):
-        self.builder.graph_stack.append(self.nested_graph)
+        self.builder.graph_stack.append(
+            (self.nested_graph, self)
+        )  # Push (graph, self as owner)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.builder.graph_stack.pop()
+
+    def __repr__(self):
+        return (
+            f"REDUCE({self.name}): iter={self.loop_var} in [{self.start}, {self.end}]"
+        )
 
     def get_read_set(
         self,
@@ -445,12 +554,17 @@ class Reduce(Structure):
 class PathContext:
     """A helper context manager for a single branch path."""
 
-    def __init__(self, builder: "GraphBuilder", graph: Graph):
+    def __init__(
+        self, builder: "GraphBuilder", graph: Graph, parent: "Branch"
+    ):  # PathContext parent is the Branch node
         self.builder = builder
         self.graph = graph
+        self.parent = parent  # Store reference to the Branch node
 
     def __enter__(self):
-        self.builder.graph_stack.append(self.graph)
+        self.builder.graph_stack.append(
+            (self.graph, self.parent)
+        )  # Push (graph, parent as owner)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.builder.graph_stack.pop()
@@ -461,17 +575,50 @@ class PathContext:
 
 class GraphBuilder:
     """
-    Uses a recursive builder pattern (with context managers)
-    to construct a P3G.
+    Constructs a Program Dependence Graph (P3G) using a recursive builder pattern
+    with context managers. It manages the graph hierarchy, assigns unique IDs to
+    data containers, and facilitates the addition of nodes and edges.
+
+    The builder maintains a `graph_stack` to keep track of the current graph
+    context and its owning node, enabling the creation of nested graphs within
+    structure nodes (e.g., Loop, Map, Branch).
+
+    Attributes:
+        root_graph (Graph): The top-level graph of the P3G.
+        graph_stack (List[Tuple[Graph, Optional[Node]]]): A stack of (graph, owner_node)
+                                                         tuples representing the current
+                                                         graph hierarchy.
+        _data_id_map (Dict[str, int]): Maps data container names (e.g., "A") to
+                                       unique integer IDs.
+        _next_data_id (int): The next available unique ID for a data container.
+        _pysmt_array_sym_to_array_id (Dict[PysmtSymbol, int]): Maps PySMT array symbols
+                                                               to their corresponding
+                                                               internal `array_id`s.
+        _data_node_name_counters (Dict[str, int]): Counters for generating unique
+                                                   Data node names (e.g., "A(0)", "A(1)").
+        _is_output_arrays (Set[int]): A set of `array_id`s marked as outputs of the
+                                      overall graph.
     """
 
     def __init__(self):
         self.root_graph = Graph("root")
-        self.graph_stack: List[Graph] = [self.root_graph]
+        self.graph_stack: List[Tuple[Graph, Optional[Node]]] = [
+            (self.root_graph, None)
+        ]  # Store (graph, owner_node)
 
         self._data_id_map: Dict[str, int] = {}
         self._next_data_id: int = 10001
         self._pysmt_array_sym_to_array_id: Dict[PysmtSymbol, int] = {}
+        self._data_node_name_counters: Dict[str, int] = {}
+        self._is_output_arrays: Set[int] = set()
+
+    def _get_current_owner_node(self) -> Optional[Node]:
+        """
+        Returns the owner node of the graph context currently at the top of the stack.
+        This node typically represents the structural element (e.g., Loop, Branch)
+        that "owns" the `current_graph`.
+        """
+        return self.graph_stack[-1][1]
 
     def _get_data_id(self, name: str) -> int:
         """
@@ -485,41 +632,113 @@ class GraphBuilder:
 
     @property
     def current_graph(self) -> Graph:
-        """Returns the graph context currently at the top of the stack."""
-        return self.graph_stack[-1]
+        """
+        Returns the graph instance currently at the top of the stack.
+        This is the graph to which new nodes and edges will be added
+        by default.
+        """
+        return self.graph_stack[-1][0]  # Return only the graph
 
     def add_symbol(self, name: str, type=INT) -> PysmtSymbol:
         """Adds a symbol to the root graph."""
         return self.root_graph.add_symbol(name, type)
 
+    def mark_array_as_output(self, name: str):
+        """
+        Marks an array as an output of the overall graph.
+        This should be called during the parsing of 'out' statements.
+        """
+        array_id = self._get_data_id(name)
+        self._is_output_arrays.add(array_id)
+
     def add_data(
         self,
         name: str,
-        is_output: bool = False,
         pysmt_array_sym: Optional[PysmtSymbol] = None,
     ) -> Data:
         """
         Adds a Data node to the *current* graph. This node represents a
-        local reference to a named data container.
+        local reference to a named data container (e.g., an array or scalar).
+        Each call generates a new, unique Data node object (e.g., A(0), A(1))
+        even if referring to the same underlying array, to model distinct data states.
+
+        Args:
+            name: A string identifier for the underlying data container (e.g., "A", "temp_scalar").
+                  This name is used to derive a unique `array_id`.
+            pysmt_array_sym: An optional PysmtSymbol representing the array itself
+                             (e.g., `Symbol("A_val", ArrayType(INT, INT))`). If provided,
+                             this symbol is mapped to the internal `array_id`, which is
+                             crucial for `_extract_reads_from_formula` to correctly
+                             associate symbolic array accesses (like `Select(A_val, i)`)
+                             with their corresponding `array_id` for SMT generation.
+
+        Returns:
+            A Data node representing a local reference to the named data container.
         """
-        # The array_id represents the underlying unique data container.
         array_id = self._get_data_id(name)
 
-        # Create a new Data node instance for the current graph context.
-        data_node = Data(name, array_id, is_output)
+        # Generate a unique name for this Data node object
+        self._data_node_name_counters.setdefault(name, -1)
+        self._data_node_name_counters[name] += 1
+        counter = self._data_node_name_counters[name]
 
-        # Add the new node to the current graph.
+        current_owner_node = self._get_current_owner_node()
+        data_node = Data(
+            f"{name}({counter})",
+            array_id,
+            graph=self.current_graph,
+            parent=current_owner_node,
+        )
         self.current_graph.add_node(data_node)
 
-        # If an associated PysmtSymbol for the array content is provided, map it to the array_id.
+        # Store array_id to original name mapping in the current graph
+        self.current_graph._array_id_to_name[array_id] = name
+
         if pysmt_array_sym:
             self._pysmt_array_sym_to_array_id[pysmt_array_sym] = array_id
 
-        # The 'is_output' flag applies globally to the root graph.
-        if is_output:
-            self.root_graph.outputs.add(data_node)
-
         return data_node
+
+    def add_read_data(
+        self, name: str, pysmt_array_sym: Optional[PysmtSymbol] = None
+    ) -> Data:
+        """
+        Adds a Data node to the *current* graph, specifically intended for read operations.
+        This is a convenience wrapper around `add_data`.
+
+        Args:
+            name: The name of the data container (e.g., "A" for array A).
+            pysmt_array_sym: An optional PysmtSymbol representing the array content,
+                             used for mapping to the internal array_id.
+
+        Returns:
+            A Data node representing a local reference to the named data container.
+        """
+        return self.add_data(name, pysmt_array_sym)
+
+    def add_write_data(
+        self, name: str, pysmt_array_sym: Optional[PysmtSymbol] = None
+    ) -> tuple[Data, Data]:
+        """
+        Adds two Data nodes to the *current* graph, specifically intended for
+        explicitly separating read-before-write (input) and write (output) operations
+        on the same data container within a scope.
+
+        Both returned Data nodes refer to the same underlying data container (same array_id).
+        The first Data node in the tuple is typically used for reads (input),
+        and the second for writes (output).
+
+        Args:
+            name: The name of the data container (e.g., "A" for array A).
+            pysmt_array_sym: An optional PysmtSymbol representing the array content,
+                             used for mapping to the internal array_id.
+
+        Returns:
+            A tuple containing two Data nodes: (input_data_node, output_data_node).
+        """
+        return self.add_data(name, pysmt_array_sym), self.add_data(
+            name, pysmt_array_sym
+        )
 
     def add_edge(
         self,
@@ -552,7 +771,26 @@ class GraphBuilder:
             reads: A list of (Data node, subset) tuples representing data read by the node.
             writes: A list of (Data node, subset) tuples representing data written by the node.
         """
-        for data_node, subset in itertools.chain(reads, writes):
+        for wd, wsubset in writes:
+            # P3G Rule: Every write must be 'covered' by a read to establish a data dependency.
+            # This implies a read-before-write semantic for hierarchical nodes.
+            # To satisfy this, the (Data, subset) tuple representing the *output* of the write
+            # (i.e., the second Data node returned by add_write_data, along with its subset)
+            # must be present in the 'reads' list.
+            if not any(
+                (rd.array_id == wd.array_id and wsubset == rsubset)
+                for rd, rsubset in reads
+            ):
+                assert False, (
+                    f"Write to data region {wd.name}[{wsubset}] (array_id={wd.array_id}) "
+                    f"is not covered by a corresponding read in the node's 'reads' list. "
+                    f"P3G requires that all written data regions must also be considered 'read' "
+                    f"to establish a dependency on their prior value. "
+                    f"Ensure that for every write (Data_out, Subset), the tuple (Data_out, Subset) "
+                    f"is also included in the 'reads' list. "
+                    f"Reads provided: {reads}"
+                )
+        for data_node, subset in reads:
             self.add_edge(data_node, node, subset)
 
         for data_node, subset in writes:
@@ -566,8 +804,19 @@ class GraphBuilder:
     ) -> Compute:
         """
         Adds a Compute node and its access edges to the *current* graph.
+
+        Args:
+            name: The name of the compute node.
+            reads: A list of (Data node, subset) tuples representing data read by the node.
+            writes: A list of (Data node, subset) tuples representing data written by the node.
+
+        Returns:
+            A Compute node.
         """
-        compute_node = Compute(name)
+        current_owner_node = self._get_current_owner_node()
+        compute_node = Compute(
+            name, graph=self.current_graph, parent=current_owner_node
+        )
         self.current_graph.add_node(compute_node)
         self.add_reads_and_writes(compute_node, reads, writes)
 
@@ -585,7 +834,16 @@ class GraphBuilder:
         """
         Adds a sequential Loop and its dataflow edges to the *current* graph.
         """
-        loop_node = Loop(name, self, loop_var_name, start, end)
+        current_owner_node = self._get_current_owner_node()
+        loop_node = Loop(
+            name,
+            self,
+            loop_var_name,
+            start,
+            end,
+            graph=self.current_graph,
+            parent=current_owner_node,
+        )
         self.current_graph.add_node(loop_node)
         self.add_reads_and_writes(loop_node, reads, writes)
 
@@ -601,7 +859,16 @@ class GraphBuilder:
         writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
     ) -> Map:
         """Adds a parallel Map to the *current* graph."""
-        map_node = Map(name, self, loop_var_name, start, end)
+        current_owner_node = self._get_current_owner_node()
+        map_node = Map(
+            name,
+            self,
+            loop_var_name,
+            start,
+            end,
+            graph=self.current_graph,
+            parent=current_owner_node,
+        )
         self.current_graph.add_node(map_node)
         self.add_reads_and_writes(map_node, reads, writes)
 
@@ -614,7 +881,10 @@ class GraphBuilder:
         writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
     ) -> Branch:
         """Adds a Branch to the *current* graph."""
-        branch_node = Branch(name, self)
+        current_owner_node = self._get_current_owner_node()
+        branch_node = Branch(
+            name, self, graph=self.current_graph, parent=current_owner_node
+        )
         self.current_graph.add_node(branch_node)
         self.add_reads_and_writes(branch_node, reads, writes)
 
@@ -631,7 +901,17 @@ class GraphBuilder:
         writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
     ) -> Reduce:
         """Adds a parallel Reduce to the *current* graph."""
-        reduce_node = Reduce(name, self, loop_var_name, start, end, wcr)
+        current_owner_node = self._get_current_owner_node()
+        reduce_node = Reduce(
+            name,
+            self,
+            loop_var_name,
+            start,
+            end,
+            wcr,
+            graph=self.current_graph,
+            parent=current_owner_node,
+        )
         self.current_graph.add_node(reduce_node)
         self.add_reads_and_writes(reduce_node, reads, writes)
 

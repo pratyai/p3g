@@ -10,7 +10,7 @@ from p3g.smt import (
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_indirect_write_scatter_graph
-from tests.test_utils import TimeoutError
+from tests.utils import TimeoutError
 
 
 class TestIndirectWriteScatter:

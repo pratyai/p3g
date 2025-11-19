@@ -54,102 +54,134 @@ def _aggregate_accesses(graph: Graph) -> tuple[WriteSet, ReadSet]:
     return aggregated_writes, aggregated_reads
 
 
-def print_p3g_structure(graph: Graph, indent=0):
-    """Recursively prints the P3G structure."""
-
-    # Print Graph Header/Name and Symbols
+def get_p3g_structure_string(graph: Graph, indent=0) -> str:
+    """Recursively returns a string representation of the P3G structure."""
+    output_lines = []
     s_indent = "  " * indent
-    print(f"{s_indent}### {graph.name} ### (Symbols: {list(graph.symbols.keys())})")
 
-    # 1. Print Data/Atomic Nodes (only at the root level for brevity)
-    if indent == 0:
-        data_nodes = [n for n in graph.nodes if isinstance(n, Data)]
-        if data_nodes:
-            print(
-                f"{s_indent}  Data Nodes (IDs): {', '.join([f'{d.name} ({d.array_id}, Out: {d.is_output})' for d in data_nodes])}"
-            )
+    # Sort symbols for consistent output
+    sorted_symbols = sorted(list(graph.symbols.keys()))
+    output_lines.append(f"{s_indent}### {graph.name} ### (Symbols: {sorted_symbols})")
 
-    # 2. Print Control/Structure and Compute Nodes
-    for node in graph.nodes:
+    # 1. Print Data Nodes at the current level, sorted by name
+    data_nodes = sorted(
+        [n for n in graph.nodes if isinstance(n, Data)], key=lambda x: x.name
+    )
+    if data_nodes:
+        output_lines.append(
+            f"{s_indent}  Data Nodes (IDs): {', '.join([repr(d) for d in data_nodes])}"
+        )
+
+    # 2. Print Control/Structure and Compute Nodes, sorted by name
+    other_nodes = sorted(
+        [n for n in graph.nodes if not isinstance(n, Data)], key=lambda x: x.name
+    )
+
+    for node in other_nodes:
         if isinstance(node, Compute):
             # Show Compute nodes as part of the dataflow
             writes = ", ".join(
-                [
-                    f"{e.dst.name}[{e.subset}]"
-                    for e in node.out_edges
-                    if isinstance(e.dst, Data)
-                ]
+                sorted(
+                    [
+                        f"{e.dst.name}[{e.subset}]"
+                        for e in node.out_edges
+                        if isinstance(e.dst, Data)
+                    ]
+                )
             )
             reads = ", ".join(
-                [
-                    f"{e.src.name}[{e.subset}]"
-                    for e in node.in_edges
-                    if isinstance(e.src, Data)
-                ]
+                sorted(
+                    [
+                        f"{e.src.name}[{e.subset}]"
+                        for e in node.in_edges
+                        if isinstance(e.src, Data)
+                    ]
+                )
             )
-            print(f"{s_indent}  COMPUTE ({node.name}): Reads={reads}, Writes={writes}")
+            output_lines.append(
+                f"{s_indent}  {repr(node)}: Reads={reads}, Writes={writes}"
+            )
 
         elif isinstance(node, (Loop, Map, Reduce)):
             # Print accesses for the structure node itself (hierarchical edges)
             node_writes = ", ".join(
-                [
-                    f"{e.dst.name}[{e.subset}]"
-                    for e in node.out_edges
-                    if isinstance(e.dst, Data)
-                ]
+                sorted(
+                    [
+                        f"{e.dst.name}[{e.subset}]"
+                        for e in node.out_edges
+                        if isinstance(e.dst, Data)
+                    ]
+                )
             )
             node_reads = ", ".join(
-                [
-                    f"{e.src.name}[{e.subset}]"
-                    for e in node.in_edges
-                    if isinstance(e.src, Data)
-                ]
+                sorted(
+                    [
+                        f"{e.src.name}[{e.subset}]"
+                        for e in node.in_edges
+                        if isinstance(e.src, Data)
+                    ]
+                )
             )
 
-            print(
-                f"{s_indent}  {node.__class__.__name__} ({node.name}): iter={node.loop_var} in [{node.start}, {node.end}]"
-            )
+            output_lines.append(f"{s_indent}  {repr(node)}")
             if node_reads:
-                print(f"{s_indent}    > Node Reads: {node_reads}")
+                output_lines.append(f"{s_indent}    > Node Reads: {node_reads}")
             if node_writes:
-                print(f"{s_indent}    > Node Writes: {node_writes}")
+                output_lines.append(f"{s_indent}    > Node Writes: {node_writes}")
 
-            print_p3g_structure(node.nested_graph, indent + 1)
+            output_lines.append(get_p3g_structure_string(node.nested_graph, indent + 1))
 
         elif isinstance(node, Branch):
             # Print accesses for the Branch node itself
             node_writes = ", ".join(
-                [
-                    f"{e.dst.name}[{e.subset}]"
-                    for e in node.out_edges
-                    if isinstance(e.dst, Data)
-                ]
+                sorted(
+                    [
+                        f"{e.dst.name}[{e.subset}]"
+                        for e in node.out_edges
+                        if isinstance(e.dst, Data)
+                    ]
+                )
             )
             node_reads = ", ".join(
-                [
-                    f"{e.src.name}[{e.subset}]"
-                    for e in node.in_edges
-                    if isinstance(e.src, Data)
-                ]
+                sorted(
+                    [
+                        f"{e.src.name}[{e.subset}]"
+                        for e in node.in_edges
+                        if isinstance(e.src, Data)
+                    ]
+                )
             )
             predicate_reads = ", ".join(
-                [
-                    f"ID {arr_id}[{subset}]"
-                    for arr_id, subset in node.get_predicate_read_set()
-                ]
+                sorted(
+                    [
+                        f"{graph._array_id_to_name[arr_id]}[{subset}]"
+                        for arr_id, subset in node.get_predicate_read_set()
+                    ]
+                )
             )
 
-            print(f"{s_indent}  BRANCH ({node.name})")
+            output_lines.append(f"{s_indent}  {repr(node)}")
             if node_reads:
-                print(f"{s_indent}    > Node Reads: {node_reads}")
+                output_lines.append(f"{s_indent}    > Node Reads: {node_reads}")
             if node_writes:
-                print(f"{s_indent}    > Node Writes: {node_writes}")
+                output_lines.append(f"{s_indent}    > Node Writes: {node_writes}")
             if predicate_reads:
-                print(f"{s_indent}    > Predicate Reads: {predicate_reads}")
+                output_lines.append(
+                    f"{s_indent}    > Predicate Reads: {predicate_reads}"
+                )
 
-            for pred, nested_graph in node.branches:
-                print(f"{s_indent}    - IF: {pred}")
-                print_p3g_structure(nested_graph, indent + 2)
+            # Sort branches by predicate string for consistent output
+            sorted_branches = sorted(node.branches, key=lambda x: str(x[0]))
+            for pred, nested_graph in sorted_branches:
+                output_lines.append(f"{s_indent}    - IF: {pred}")
+                output_lines.append(get_p3g_structure_string(nested_graph, indent + 2))
+
+    return "\n".join(output_lines)
+
+
+def print_p3g_structure(graph: Graph, indent=0):
+    """Recursively prints the P3G structure."""
+    print(get_p3g_structure_string(graph, indent))
 
 
 # --- End of Graph Printing Utility ---
