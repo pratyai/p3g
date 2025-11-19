@@ -1,5 +1,6 @@
-import itertools
-from typing import List, Dict, Tuple, Callable, Set, Union, Optional
+from __future__ import annotations
+
+from collections.abc import Callable
 
 from pysmt.formula import FNode  # Correct import
 from pysmt.shortcuts import Symbol, INT, And, TRUE, substitute, simplify, Or
@@ -9,7 +10,7 @@ PysmtFormula = FNode
 PysmtSymbol = FNode
 
 
-class PysmtRange(Tuple[PysmtFormula, PysmtFormula]):
+class PysmtRange(tuple[PysmtFormula, PysmtFormula]):
     """
     Represents a 1D range using two PysmtFormulas for start and end.
     Inherits from tuple to maintain tuple-like behavior.
@@ -33,13 +34,13 @@ class PysmtRange(Tuple[PysmtFormula, PysmtFormula]):
         return f"PysmtRange({self.start}, {self.end})"
 
 
-class PysmtCoordSet(Tuple[Union[PysmtFormula, PysmtRange], ...]):
+class PysmtCoordSet(tuple[PysmtFormula | PysmtRange, ...]):
     """
     Represents a multi-dimensional coordinate or a set of ranges.
     It's a tuple of PysmtFormula and/or PysmtRange objects.
     """
 
-    def __new__(cls, *elements: Union[PysmtFormula, PysmtRange]):
+    def __new__(cls, *elements: PysmtFormula | PysmtRange):
         for element in elements:
             if not isinstance(element, (PysmtFormula, PysmtRange)):
                 raise TypeError(
@@ -52,9 +53,9 @@ class PysmtCoordSet(Tuple[Union[PysmtFormula, PysmtRange], ...]):
 
 
 # Type aliases
-ReadSet = List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]
-WriteSet = List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]
-PathModel = List[Tuple[PysmtFormula, WriteSet, ReadSet]]
+ReadSet = list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]
+WriteSet = list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]
+PathModel = list[tuple[PysmtFormula, WriteSet, ReadSet]]
 
 # Define __all__ for 'from p3g import *'
 __all__ = [
@@ -93,14 +94,14 @@ class Node:
     def __init__(
         self,
         name: str,
-        graph: Optional["Graph"] = None,
-        parent: Optional["Node"] = None,
+        graph: "Graph" | None = None,
+        parent: "Node" | None = None,
     ):
         self.name = name
         self.graph = graph  # Reference to the graph this node belongs to
         self.parent = parent  # Reference to the immediate parent node in the hierarchy
-        self.in_edges: List["Edge"] = []
-        self.out_edges: List["Edge"] = []
+        self.in_edges: list["Edge"] = []
+        self.out_edges: list["Edge"] = []
 
     def __repr__(self):
         return f"NODE[{self.__class__.__name__}({self.name})]"
@@ -116,7 +117,7 @@ class Edge:
         self,
         src: Node,
         dst: Node,
-        subset: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
+        subset: PysmtFormula | PysmtRange | PysmtCoordSet,
     ):
         self.src = src
         self.dst = dst
@@ -148,11 +149,11 @@ class Graph:
 
     def __init__(self, name: str = "P3G"):
         self.name = name
-        self.nodes: List[Node] = []
-        self.edges: List[Edge] = []
-        self.symbols: Dict[str, PysmtSymbol] = {}
-        self.outputs: Set[int] = set()
-        self._array_id_to_name: Dict[int, str] = {}
+        self.nodes: list[Node] = []
+        self.edges: list[Edge] = []
+        self.symbols: dict[str, PysmtSymbol] = {}
+        self.outputs: set[int] = set()
+        self._array_id_to_name: dict[int, str] = {}
 
     def add_node(self, node: Node):
         self.nodes.append(node)
@@ -161,7 +162,7 @@ class Graph:
         self,
         src: Node,
         dst: Node,
-        subset: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
+        subset: PysmtFormula | PysmtRange | PysmtCoordSet,
     ) -> Edge:
         edge = Edge(src, dst, subset)
         self.edges.append(edge)
@@ -186,8 +187,8 @@ class Data(Node):
         self,
         name: str,
         array_id: int,
-        graph: Optional["Graph"] = None,
-        parent: Optional["Node"] = None,
+        graph: "Graph" | None = None,
+        parent: "Node" | None = None,
     ):
         super().__init__(name, graph=graph, parent=parent)
         self.array_id = array_id
@@ -205,8 +206,8 @@ class Compute(Node):
     def __init__(
         self,
         name: str,
-        graph: Optional["Graph"] = None,
-        parent: Optional["Node"] = None,
+        graph: "Graph" | None = None,
+        parent: "Node" | None = None,
     ):
         super().__init__(name, graph=graph, parent=parent)
 
@@ -215,7 +216,7 @@ class Compute(Node):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -227,7 +228,7 @@ class Compute(Node):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -250,8 +251,8 @@ class Structure(Node):
         self,
         name: str,
         builder: "GraphBuilder",
-        graph: Optional["Graph"] = None,
-        parent: Optional["Node"] = None,
+        graph: "Graph" | None = None,
+        parent: "Node" | None = None,
     ):
         super().__init__(name, graph=graph, parent=parent)
         self.builder = builder
@@ -282,8 +283,8 @@ class Map(Structure):
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
-        graph: Optional["Graph"] = None,
-        parent: Optional["Node"] = None,
+        graph: "Graph" | None = None,
+        parent: "Node" | None = None,
     ):
         super().__init__(name, builder, graph=graph, parent=parent)
         self.loop_var = Symbol(loop_var_name, INT)
@@ -305,7 +306,7 @@ class Map(Structure):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -317,7 +318,7 @@ class Map(Structure):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -350,8 +351,8 @@ class Loop(Structure):
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
-        graph: Optional["Graph"] = None,
-        parent: Optional["Node"] = None,
+        graph: "Graph" | None = None,
+        parent: "Node" | None = None,
     ):
         super().__init__(name, builder, graph=graph, parent=parent)
         self.loop_var = Symbol(loop_var_name, INT)
@@ -373,7 +374,7 @@ class Loop(Structure):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -385,7 +386,7 @@ class Loop(Structure):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -414,11 +415,11 @@ class Branch(Structure):
         self,
         name: str,
         builder: "GraphBuilder",
-        graph: Optional["Graph"] = None,
-        parent: Optional["Node"] = None,
+        graph: "Graph" | None = None,
+        parent: "Node" | None = None,
     ):
         super().__init__(name, builder, graph=graph, parent=parent)
-        self.branches: List[Tuple[PysmtFormula, Graph]] = []
+        self.branches: list[tuple[PysmtFormula, Graph]] = []
 
     def add_path(self, predicate: PysmtFormula) -> "PathContext":
         """Adds a new conditional path and returns its context."""
@@ -439,7 +440,7 @@ class Branch(Structure):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -451,7 +452,7 @@ class Branch(Structure):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -499,8 +500,8 @@ class Reduce(Structure):
         start: PysmtFormula,
         end: PysmtFormula,
         wcr: PysmtFormula,
-        graph: Optional["Graph"] = None,
-        parent: Optional["Node"] = None,
+        graph: "Graph" | None = None,
+        parent: "Node" | None = None,
     ):
         super().__init__(name, builder, graph=graph, parent=parent)
         self.loop_var = Symbol(loop_var_name, INT)
@@ -525,7 +526,7 @@ class Reduce(Structure):
 
     def get_read_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the ReadSet by inspecting incoming edges from Data nodes.
         """
@@ -537,7 +538,7 @@ class Reduce(Structure):
 
     def get_write_set(
         self,
-    ) -> List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]:
+    ) -> list[tuple[int, PysmtFormula | PysmtRange | PysmtCoordSet]]:
         """
         Generates the WriteSet by inspecting outgoing edges to Data nodes.
         """
@@ -602,17 +603,17 @@ class GraphBuilder:
 
     def __init__(self):
         self.root_graph = Graph("root")
-        self.graph_stack: List[Tuple[Graph, Optional[Node]]] = [
+        self.graph_stack: list[tuple[Graph, Node | None]] = [
             (self.root_graph, None)
         ]  # Store (graph, owner_node)
 
-        self._data_id_map: Dict[str, int] = {}
+        self._data_id_map: dict[str, int] = {}
         self._next_data_id: int = 10001
-        self._pysmt_array_sym_to_array_id: Dict[PysmtSymbol, int] = {}
-        self._data_node_name_counters: Dict[str, int] = {}
-        self._is_output_arrays: Set[int] = set()
+        self._pysmt_array_sym_to_array_id: dict[PysmtSymbol, int] = {}
+        self._data_node_name_counters: dict[str, int] = {}
+        self._is_output_arrays: set[int] = set()
 
-    def _get_current_owner_node(self) -> Optional[Node]:
+    def _get_current_owner_node(self) -> Node | None:
         """
         Returns the owner node of the graph context currently at the top of the stack.
         This node typically represents the structural element (e.g., Loop, Branch)
@@ -654,7 +655,7 @@ class GraphBuilder:
     def add_data(
         self,
         name: str,
-        pysmt_array_sym: Optional[PysmtSymbol] = None,
+        pysmt_array_sym: PysmtSymbol | None = None,
     ) -> Data:
         """
         Adds a Data node to the *current* graph. This node represents a
@@ -700,7 +701,7 @@ class GraphBuilder:
         return data_node
 
     def add_read_data(
-        self, name: str, pysmt_array_sym: Optional[PysmtSymbol] = None
+        self, name: str, pysmt_array_sym: PysmtSymbol | None = None
     ) -> Data:
         """
         Adds a Data node to the *current* graph, specifically intended for read operations.
@@ -717,7 +718,7 @@ class GraphBuilder:
         return self.add_data(name, pysmt_array_sym)
 
     def add_write_data(
-        self, name: str, pysmt_array_sym: Optional[PysmtSymbol] = None
+        self, name: str, pysmt_array_sym: PysmtSymbol | None = None
     ) -> tuple[Data, Data]:
         """
         Adds two Data nodes to the *current* graph, specifically intended for
@@ -744,7 +745,7 @@ class GraphBuilder:
         self,
         src: Node,
         dst: Node,
-        subset: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
+        subset: PysmtFormula | PysmtRange | PysmtCoordSet,
     ) -> Edge:
         """Adds a generic edge to the *current* graph."""
         return self.current_graph.add_edge(src, dst, subset)
@@ -752,8 +753,8 @@ class GraphBuilder:
     def add_reads_and_writes(
         self,
         node: Node,
-        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
-        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        reads: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
+        writes: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
     ):
         """
         Adds dataflow edges for a given node based on its read and write sets.
@@ -799,8 +800,8 @@ class GraphBuilder:
     def add_compute(
         self,
         name: str,
-        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
-        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        reads: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
+        writes: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
     ) -> Compute:
         """
         Adds a Compute node and its access edges to the *current* graph.
@@ -828,8 +829,8 @@ class GraphBuilder:
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
-        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
-        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        reads: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
+        writes: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
     ) -> Loop:
         """
         Adds a sequential Loop and its dataflow edges to the *current* graph.
@@ -855,8 +856,8 @@ class GraphBuilder:
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
-        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
-        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        reads: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
+        writes: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
     ) -> Map:
         """Adds a parallel Map to the *current* graph."""
         current_owner_node = self._get_current_owner_node()
@@ -877,8 +878,8 @@ class GraphBuilder:
     def add_branch(
         self,
         name: str,
-        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
-        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        reads: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
+        writes: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
     ) -> Branch:
         """Adds a Branch to the *current* graph."""
         current_owner_node = self._get_current_owner_node()
@@ -897,8 +898,8 @@ class GraphBuilder:
         start: PysmtFormula,
         end: PysmtFormula,
         wcr: PysmtFormula,
-        reads: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
-        writes: List[Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]],
+        reads: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
+        writes: list[tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]],
     ) -> Reduce:
         """Adds a parallel Reduce to the *current* graph."""
         current_owner_node = self._get_current_owner_node()
@@ -948,11 +949,6 @@ def _extract_reads_from_formula(
 # ===================================================================
 # --- SMT PATH MODEL BUILDER ---
 # ===================================================================
-
-# Type aliases
-ReadSet = List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]
-WriteSet = List[Tuple[int, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]]
-PathModel = List[Tuple[PysmtFormula, WriteSet, ReadSet]]
 
 
 def create_path_model_fn(loop_node: Loop) -> Callable[[PysmtSymbol], PathModel]:

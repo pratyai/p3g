@@ -1,8 +1,7 @@
-import pytest
-import textwrap
 import re  # Added for normalization
+import textwrap
+
 from p3g.parser import PseudocodeParser
-from tests.utils import get_p3g_structure_string
 from tests.cases.graph_definitions import (
     build_array_reversal_graph,
     build_cholesky_sequential_graph,
@@ -18,6 +17,7 @@ from tests.cases.graph_definitions import (
     build_sequential_loop_graph,
     build_sequential_with_symbolic_max_index_graph,
 )
+from tests.utils import get_p3g_structure_string
 
 
 def _normalize_graph_string(graph_string: str) -> str:

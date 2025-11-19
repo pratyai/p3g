@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import io
-from typing import List, Dict, Set, Union
 
 from pysmt.shortcuts import (
     Symbol,
@@ -47,8 +48,8 @@ class _StringSmtBuilder:
     """
 
     def __init__(self):
-        self.declarations = set()
-        self.assertions = []
+        self.declarations: set[PysmtSymbol] = set()
+        self.assertions: list[str] = []
         self._string_io = io.StringIO()
         self._printer = SmtPrinter(self._string_io)
 
@@ -123,8 +124,8 @@ def _create_range_intersection_formula(
 
 
 def _create_intersection_formula(
-    idx1: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
-    idx2: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
+    idx1: PysmtFormula | PysmtRange | PysmtCoordSet,
+    idx2: PysmtFormula | PysmtRange | PysmtCoordSet,
 ) -> PysmtFormula:
     """
     Creates a pysmt formula asserting that two indices or ranges intersect.
@@ -182,7 +183,7 @@ def _create_intersection_formula(
 
 
 def _create_set_intersection_formula(
-    set_a: ReadSet, set_b: WriteSet, id_to_symbol_map: Dict[int, PysmtSymbol]
+    set_a: ReadSet, set_b: WriteSet, id_to_symbol_map: dict[int, PysmtSymbol]
 ) -> PysmtFormula:
     """
     Creates a pysmt formula representing the intersection of two access sets.
@@ -228,7 +229,7 @@ def _build_dependency_logic_assertions_general(
     j_iter: PysmtSymbol,
     k_iter: PysmtSymbol,
     builder: _StringSmtBuilder,
-    id_to_symbol_map: Dict[int, PysmtSymbol],
+    id_to_symbol_map: dict[int, PysmtSymbol],
 ) -> (str, str):
     """
     Builds the SMT-LIB assertions for the dependency logic between two arbitrary loop iterations.
@@ -340,8 +341,8 @@ def _build_dependency_logic_assertions_general(
 
 # Helper for recursive free variable extraction (needed for multi-dimensional access tuples)
 def _get_free_variables_recursive(
-    formula_or_tuple: Union[PysmtFormula, PysmtRange, PysmtCoordSet],
-) -> Set[PysmtSymbol]:
+    formula_or_tuple: PysmtFormula | PysmtRange | PysmtCoordSet,
+) -> set[PysmtSymbol]:
     """Recursively extracts free variables from a formula or a tuple/list of formulas."""
 
     if isinstance(formula_or_tuple, (PysmtRange, PysmtCoordSet)):
@@ -355,7 +356,7 @@ def _get_free_variables_recursive(
         return get_free_variables(formula_or_tuple)
 
 
-def _collect_all_data_nodes(graph: Graph, collected_data_nodes: Set[Data]):
+def _collect_all_data_nodes(graph: Graph, collected_data_nodes: set[Data]):
     """Recursively collects all Data nodes from the graph and its nested structures."""
     for node in graph.nodes:
         if isinstance(node, Data):
@@ -367,7 +368,7 @@ def _collect_all_data_nodes(graph: Graph, collected_data_nodes: Set[Data]):
             _collect_all_data_nodes(node.nested_graph, collected_data_nodes)
 
 
-def _find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
+def _find_data_symbols(graph: Graph, collected_symbols: set[PysmtSymbol]):
     """
     Recursively traverses the given P3G graph and collects all free PysmtSymbol
     objects found within the access patterns (subsets) of Compute nodes and
@@ -404,7 +405,7 @@ def _find_data_symbols(graph: Graph, collected_symbols: Set[PysmtSymbol]):
 
 def _get_existential_quantifier_vars(
     loop_node: Loop, k: PysmtSymbol
-) -> List[PysmtSymbol]:
+) -> list[PysmtSymbol]:
     """
     Identifies and collects PysmtSymbol objects that need to be existentially
     quantified in the SMT query for DOFS analysis. These are typically data
@@ -452,7 +453,9 @@ def _get_existential_quantifier_vars(
 
 
 def generate_smt_for_prove_exists_data_forall_iter_isdep(
-    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+    loop_node: Loop,
+    extra_assertions: list[PysmtFormula] | None = None,
+    verbose: bool = True,
 ) -> str:
     """
     Generates an SMT-LIB query string to prove Data-Oblivious Full Sequentiality (Φ_DOFS)
@@ -504,10 +507,10 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     # Declare universal quantifiers (k)
     builder.declarations.add(k)
 
-    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
+    id_to_symbol_map: dict[int, PysmtSymbol] = {}
     # root_graph = loop_node.builder.root_graph # No longer needed directly here
 
-    all_data_nodes: Set[Data] = set()
+    all_data_nodes: set[Data] = set()
     _collect_all_data_nodes(
         loop_node.builder.root_graph, all_data_nodes
     )  # Collect from the entire graph
@@ -571,7 +574,9 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
 
 
 def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
-    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+    loop_node: Loop,
+    extra_assertions: list[PysmtFormula] | None = None,
+    verbose: bool = True,
 ) -> str:
     """
     Generates an SMT-LIB query string to prove Data-Oblivious Full Sequentiality (Φ_DOFS)
@@ -643,10 +648,10 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
     for sym in symbolic_loop_bounds:
         builder.declarations.add(sym)
 
-    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
+    id_to_symbol_map: dict[int, PysmtSymbol] = {}
     # root_graph = loop_node.builder.root_graph # No longer needed directly here
 
-    all_data_nodes: Set[Data] = set()
+    all_data_nodes: set[Data] = set()
     _collect_all_data_nodes(
         loop_node.builder.root_graph, all_data_nodes
     )  # Collect from the entire graph
@@ -710,7 +715,9 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
 
 
 def generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
-    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+    loop_node: Loop,
+    extra_assertions: list[PysmtFormula] | None = None,
+    verbose: bool = True,
 ) -> str:
     """
     Generates an SMT-LIB query to find if there exists a data configuration,
@@ -754,8 +761,8 @@ def generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
         builder.declarations.add(sym)
 
     # Collect defined data array symbols
-    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
-    all_data_nodes: Set[Data] = set()
+    id_to_symbol_map: dict[int, PysmtSymbol] = {}
+    all_data_nodes: set[Data] = set()
     _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes)
 
     builder.assertions.append("; --- Data Definitions ---")
@@ -813,7 +820,9 @@ def generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
 
 
 def generate_smt_for_prove_exists_data_forall_iter_isindep(
-    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+    loop_node: Loop,
+    extra_assertions: list[PysmtFormula] | None = None,
+    verbose: bool = True,
 ) -> str:
     """
     Generates an SMT-LIB query string to prove Data-Oblivious Full Independence (Φ_DOFI)
@@ -850,8 +859,8 @@ def generate_smt_for_prove_exists_data_forall_iter_isindep(
     builder.declarations.add(k)
     builder.declarations.add(j)  # Add j
 
-    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
-    all_data_nodes: Set[Data] = set()
+    id_to_symbol_map: dict[int, PysmtSymbol] = {}
+    all_data_nodes: set[Data] = set()
     _collect_all_data_nodes(
         loop_node.builder.root_graph, all_data_nodes
     )  # Collect from the entire graph
@@ -928,7 +937,9 @@ def generate_smt_for_prove_exists_data_forall_iter_isindep(
 
 
 def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
-    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+    loop_node: Loop,
+    extra_assertions: list[PysmtFormula] | None = None,
+    verbose: bool = True,
 ) -> str:
     """
     Generates an SMT-LIB query string to prove Data-Oblivious Full Independence (Φ_DOFI)
@@ -985,8 +996,8 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
     for sym in symbolic_loop_bounds:
         builder.declarations.add(sym)
 
-    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
-    all_data_nodes: Set[Data] = set()
+    id_to_symbol_map: dict[int, PysmtSymbol] = {}
+    all_data_nodes: set[Data] = set()
     _collect_all_data_nodes(
         loop_node.builder.root_graph, all_data_nodes
     )  # Collect from the entire graph
@@ -1056,7 +1067,9 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
 
 
 def generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep(
-    loop_node: Loop, extra_assertions: List[PysmtFormula] = None, verbose: bool = True
+    loop_node: Loop,
+    extra_assertions: list[PysmtFormula] | None = None,
+    verbose: bool = True,
 ) -> str:
     """
     Generates an SMT-LIB query string to prove Data-Oblivious Full Independence (Φ_DOFI)
@@ -1125,8 +1138,8 @@ def generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep(
     for sym in symbolic_loop_bounds:
         builder.declarations.add(sym)
 
-    id_to_symbol_map: Dict[int, PysmtSymbol] = {}
-    all_data_nodes: Set[Data] = set()
+    id_to_symbol_map: dict[int, PysmtSymbol] = {}
+    all_data_nodes: set[Data] = set()
     _collect_all_data_nodes(
         loop_node.builder.root_graph, all_data_nodes
     )  # Collect from the entire graph

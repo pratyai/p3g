@@ -1,5 +1,4 @@
 from pysmt.shortcuts import (
-    Symbol,
     INT,
     Plus,
     Int,

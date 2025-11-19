@@ -5,18 +5,13 @@ from typing import Callable
 from pysmt.shortcuts import (
     Symbol,
     INT,
-    Plus,
     Int,
     GE,
-    LE,
-    ArrayType,
-    Select,
-    LT,
 )
 from pysmt.smtlib.parser import SmtLibParser
 from pysmt.walkers import IdentityDagWalker
 
-from p3g.p3g import GraphBuilder, Loop
+from p3g.p3g import Loop
 from p3g.parser import PseudocodeParser
 from p3g.smt import (
     generate_smt_for_prove_exists_data_forall_iter_isdep,
@@ -26,94 +21,6 @@ from p3g.smt import (
     generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
     generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
 )
-
-
-# Helper to create a simple P3G loop for testing
-# Represents a program like:
-# for i in range(0, N):
-#   B[i] = A[i]
-def build_simple_loop_graph():
-    pseudocode = textwrap.dedent("""
-    decl A, B
-    out B
-    (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
-      (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
-    """).strip()
-    parser = PseudocodeParser()
-    return parser.parse(pseudocode)
-
-
-# Helper to build a graph with a branch
-# Represents a program like:
-# for i in range(0, N):
-#   if x >= 0:
-#     B[i] = A[i]
-#   else: # x <= 0
-#     C[i] = A[i+1]
-def build_branch_graph():
-    builder = GraphBuilder()
-    i = builder.add_symbol("i")
-    N = builder.add_symbol("N")
-    x = builder.add_symbol("x")
-
-    # 1. DEFINE top-level data handles. 'A' is read-only, 'B' and 'C' are written.
-    A_root = builder.add_read_data("A")
-    B_root_in, B_root_out = builder.add_write_data("B")
-    C_root_in, C_root_out = builder.add_write_data("C")
-
-    with builder.add_loop(
-        "loop1",
-        "i",
-        Int(0),
-        N,
-        reads=[
-            (A_root, i),
-            (A_root, Plus(i, Int(1))),  # A is read at two different indices
-            (B_root_in, i),  # Read B's initial value
-            (C_root_in, i),  # Read C's initial value
-        ],
-        writes=[(B_root_out, i), (C_root_out, i)],  # Write B and C's final values
-    ) as loop:
-        # 3. DEFINE local handles for use *inside* the loop.
-        A_local = builder.add_read_data("A")
-        B_local_in, B_local_out = builder.add_write_data("B")
-        C_local_in, C_local_out = builder.add_write_data("C")
-
-        # 4. UPDATE branch signature to declare data used within its paths.
-        with builder.add_branch(
-            "branch1",
-            reads=[
-                (A_local, i),
-                (A_local, Plus(i, Int(1))),
-                (B_local_in, i),
-                (C_local_in, i),
-            ],
-            writes=[(B_local_out, i), (C_local_out, i)],
-        ) as branch:
-            with branch.add_path(GE(x, Int(0))):
-                # 5. UPDATE compute call to use local handles.
-                builder.add_compute(
-                    "comp_true",
-                    reads=[(A_local, i), (B_local_in, i)],
-                    writes=[(B_local_out, i)],
-                )
-            with branch.add_path(LE(x, Int(0))):
-                # 6. UPDATE compute call to use local handles.
-                builder.add_compute(
-                    "comp_false",
-                    reads=[(A_local, Plus(i, Int(1))), (C_local_in, i)],
-                    writes=[(C_local_out, i)],
-                )
-    return (
-        builder.root_graph,
-        loop,
-        i,
-        N,
-        x,
-        A_root,
-        (B_root_in, B_root_out),
-        (C_root_in, C_root_out),
-    )
 
 
 class SmtQueryInspector(IdentityDagWalker):

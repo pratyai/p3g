@@ -1,8 +1,9 @@
 # p3g/parser.py
 
+from __future__ import annotations
+
 import collections
 import re
-from typing import List, Union, Tuple, Optional
 
 from pysmt.shortcuts import (
     INT,
@@ -48,10 +49,10 @@ class PseudocodeParser:
         self._declared_arrays: set[str] = set()  # Track declared arrays
 
         self._array_state: dict[
-            Tuple[Graph, str, str], Data
+            tuple[Graph, str, str], Data
         ] = {}  # Graph -> State -> Array -> Ref.
         self._current_array_state_stack: list[str] = ["."]
-        self._current_scope_inputs_stack: List[Dict[str, Data]] = [{}]
+        self._current_scope_inputs_stack: list[dict[str, Data]] = [{}]
 
     def parse(self, code: str) -> Graph:
         """
@@ -194,7 +195,7 @@ class PseudocodeParser:
         self._consume("RPAREN")
 
         # Handle follow_statements and disjoint paths
-        follow_statements: List[str] = []
+        follow_statements: list[str] = []
         if self._peek().type == "LPAREN":
             self._consume("LPAREN")
             # Consume comma delimited list of prior statements.
@@ -338,11 +339,11 @@ class PseudocodeParser:
 
     def _parse_for_loop(
         self,
-        hierarchical_reads: List[
-            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        hierarchical_reads: list[
+            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
         ],
-        hierarchical_writes: List[
-            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        hierarchical_writes: list[
+            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
         ],
         node_name: str | None,
     ) -> tuple[list, list]:
@@ -389,11 +390,11 @@ class PseudocodeParser:
 
     def _parse_if_statement(
         self,
-        hierarchical_reads: List[
-            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        hierarchical_reads: list[
+            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
         ],
-        hierarchical_writes: List[
-            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        hierarchical_writes: list[
+            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
         ],
         node_name: str | None,
     ) -> tuple[list, list]:
@@ -503,11 +504,11 @@ class PseudocodeParser:
 
     def _parse_op_statement(
         self,
-        hierarchical_reads: List[
-            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        hierarchical_reads: list[
+            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
         ],
-        hierarchical_writes: List[
-            Tuple[Data, Union[PysmtFormula, PysmtRange, PysmtCoordSet]]
+        hierarchical_writes: list[
+            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
         ],
         node_name: str | None,
     ) -> tuple[list, list]:
@@ -671,23 +672,6 @@ class PseudocodeParser:
         return formula, reads
 
     # --- Helpers ---
-
-    def _get_data_node(self, name: str) -> Data:
-        """
-        Retrieves the read Data node for an array from the cache, creating it if it doesn't exist.
-        This ensures that each array has a consistent Data node object for reads
-        within the current graph context.
-        """
-        if name not in self._declared_arrays:
-            raise ValueError(f"Array '{name}' used before being declared.")
-
-        cache_key = (name, self.builder.current_graph)
-        if cache_key not in self._data_node_cache:
-            is_output = name in self.output_data_names
-            read_node_obj = self.builder.add_read_data(name)
-            _, write_node_obj = self.builder.add_write_data(name)
-            self._data_node_cache[cache_key] = (read_node_obj, write_node_obj)
-        return self._data_node_cache[cache_key][0]
 
     def _get_symbol(self, name: str, is_array_val=False) -> PysmtFormula:
         """Gets or creates a PysmtSymbol."""

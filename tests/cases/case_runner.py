@@ -29,9 +29,7 @@ def run_test_case(
     print_p3g_structure(b_root_graph)
 
     print(f"Generating SMT query for {test_name}.")
-    smt_query = smt_generator(
-        loop_node, extra_assertions=extra_assertions, verbose=False
-    )
+    smt_query = smt_generator(loop_node, extra_assertions, False)
     print(f"\n--- Generated SMT Query ({test_name}) ---")
     print(smt_query)
     print("--------------------------------------------------")
