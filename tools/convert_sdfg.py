@@ -178,9 +178,9 @@ def _loop2p3g(
 
         # Sanity check
         assert loop_stride == 1, "Only stride-1 loops are supported in P3G conversion."
-        assert (
-            loop_init is not None and loop_end is not None
-        ), "Loop bounds could not be determined."
+        assert loop_init is not None and loop_end is not None, (
+            "Loop bounds could not be determined."
+        )
 
         with builder.add_loop(
             sdfg_loop.label,
