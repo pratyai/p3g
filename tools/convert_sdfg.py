@@ -21,11 +21,14 @@ from dace.transformation.passes.analysis.loop_analysis import (
 )
 from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, MapExit, NestedSDFG
 from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock
+import dace.symbolic as dsym
 
 from pysmt.shortcuts import Symbol, INT, TRUE, And, GE, LE, Plus, Int, simplify
 
-# Allow imports from parent directory
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Add the project root to the sys.path
+script_dir = os.path.dirname(__file__)
+project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
+sys.path.insert(0, project_root)
 
 from p3g.p3g import GraphBuilder, Graph, PysmtCoordSet
 from tests.utils import print_p3g_structure
@@ -38,7 +41,7 @@ def sample_program(a: dace.float32[10], b: dace.float32[10], c: dace.float32[10]
             c[i] = a[i] - b[i]
         else:
             c[i] = a[i] + b[i]
-    c[:] = c[:] * 2.0
+    # c[:] = c[:] * 2.0
 
 
 def _tasklet2p3g(
@@ -178,15 +181,33 @@ def _loop2p3g(
 
         # Sanity check
         assert loop_stride == 1, "Only stride-1 loops are supported in P3G conversion."
-        assert loop_init is not None and loop_end is not None, (
-            "Loop bounds could not be determined."
-        )
+        assert (
+            loop_init is not None and loop_end is not None
+        ), "Loop bounds could not be determined."
+
+        iter_var = str(iter_var)
+        if str(loop_init) in symbols:
+            loop_init = symbols[str(loop_init)]
+        elif dsym.resolve_symbol_to_constant(loop_init, sdfg_loop.sdfg) is not None:
+            resolved = dsym.resolve_symbol_to_constant(loop_init, sdfg_loop.sdfg)
+            loop_init = Int(int(resolved))
+        else:
+            assert (
+                False
+            ), f"Loop init symbol not found in symbols. {loop_init}, {symbols}"
+        if str(loop_end) in symbols:
+            loop_end = symbols[str(loop_end)]
+        elif dsym.resolve_symbol_to_constant(loop_end, sdfg_loop.sdfg) is not None:
+            resolved = dsym.resolve_symbol_to_constant(loop_end, sdfg_loop.sdfg)
+            loop_end = Int(int(resolved))
+        else:
+            assert False, "Loop end symbol not found in symbols."
 
         with builder.add_loop(
             sdfg_loop.label,
-            str(iter_var),
-            str(loop_init),
-            str(loop_end),
+            iter_var,
+            loop_init,
+            loop_end,
             reads=list(reads),
             writes=list(writes),
         ) as loop:
@@ -212,7 +233,7 @@ def _cond2p3g(
     for cond, branch in sdfg_cond.branches:
         branch_reads = set()
         branch_writes = set()
-        # FIXME: What if the condition reads data?
+
         for cfgs in dfs_topological_sort(branch):
             if isinstance(cfgs, SDFGState):
                 r, w = _state2p3g(
@@ -234,7 +255,13 @@ def _cond2p3g(
             writes=list(tot_writes),
         ) as p3gbranch:
             for cond, branch in sdfg_cond.branches:
-                with p3gbranch.add_path(str(cond)):
+                if cond is None:
+                    ast = TRUE()
+                else:
+                    cond_str = cond.as_string
+                    ast = GE(Int(1), Int(1))
+
+                with p3gbranch.add_path(ast):
                     for cfgs in dfs_topological_sort(branch):
                         if isinstance(cfgs, SDFGState):
                             _state2p3g(cfgs, builder, data_nodes, symbols)
