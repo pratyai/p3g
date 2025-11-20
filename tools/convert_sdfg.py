@@ -33,15 +33,19 @@ sys.path.insert(0, project_root)
 from p3g.p3g import GraphBuilder, Graph, PysmtCoordSet
 from tests.utils import print_p3g_structure
 
+N = dace.symbol("N", dace.int32)
+
 
 @dace.program
-def sample_program(a: dace.float32[10], b: dace.float32[10], c: dace.float32[10]):
-    for i in range(10):
+def sample_program(
+    a: dace.float32[N + 1], b: dace.float32[N + 1], c: dace.float32[N + 1]
+):
+    for i in range(N + 1):
         if a[i] > b[i]:
             c[i] = a[i] - b[i]
         else:
             c[i] = a[i] + b[i]
-    # c[:] = c[:] * 2.0
+    c[:] = c[:] * 2.0
 
 
 def _tasklet2p3g(
@@ -201,7 +205,7 @@ def _loop2p3g(
             resolved = dsym.resolve_symbol_to_constant(loop_end, sdfg_loop.sdfg)
             loop_end = Int(int(resolved))
         else:
-            assert False, "Loop end symbol not found in symbols."
+            assert False, f"Loop end symbol not found in symbols. {loop_end}, {symbols}"
 
         with builder.add_loop(
             sdfg_loop.label,
