@@ -31,7 +31,8 @@ script_dir = os.path.dirname(__file__)
 project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
 sys.path.insert(0, project_root)
 
-from p3g.p3g import GraphBuilder, Graph, PysmtCoordSet
+from p3g.p3g import GraphBuilder, Graph, Loop
+from p3g.smt import exists_data_forall_bounds_forall_iter_isdep
 from tests.utils import print_p3g_structure
 
 N = dace.symbol("N", dace.int32)
@@ -327,6 +328,13 @@ if __name__ == "__main__":
         help="Output the P3G structure.",
         action=argparse.BooleanOptionalAction,
     )
+    parser.add_argument(
+        "-smt",
+        "--dump-smt",
+        required=False,
+        help="Output the SMT for the top-level loop.",
+        action=argparse.BooleanOptionalAction,
+    )
     args = parser.parse_args()
 
     # If the user provided an input SDFG file, load it; otherwise, use the sample program.
@@ -341,3 +349,11 @@ if __name__ == "__main__":
     # If the user requested, dump the P3G structure
     if args.dump_p3g:
         print_p3g_structure(p3g)
+
+    # Optionally dump the SMT
+    if args.dump_smt:
+        loops = tuple(n for n in p3g.nodes if isinstance(n, Loop))
+        assert len(loops) == 1
+        (loop,) = loops
+        smt = exists_data_forall_bounds_forall_iter_isdep(loop, verbose=False)
+        print(smt)
