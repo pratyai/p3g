@@ -2,3 +2,4 @@ pysmt
 z3-solver
 pytest
 dace @ git+https://github.com/spcl/dace.git
+questionary
