@@ -263,19 +263,20 @@ def _build_dependency_logic_assertions_general(
             raw_var = f"p{idx_j}p{idx_k}_raw"
             war_var = f"p{idx_j}p{idx_k}_war"
 
-            # Store variables and their formulas for dynamic OR construction
-            conflict_vars = [
-                (waw_var, waw, waw),
-                (raw_var, raw, raw),
-                (war_var, war, war),
-            ]
+            # Store variables and their formulas for dynamic OR construction,
+            # filtering out dependencies that are statically false.
+            conflict_vars = []
+            if not waw.is_false():
+                conflict_vars.append((waw_var, waw))
+            if not raw.is_false():
+                conflict_vars.append((raw_var, raw))
+            if not war.is_false():
+                conflict_vars.append((war_var, war))
 
-            # This list will contain ALL conflict variable names
-            all_conflict_var_names = [name for name, _, _ in conflict_vars]
+            all_conflict_var_names = [name for name, _ in conflict_vars]
 
-            # Construct the OR part of the conflict_let_str
-            # Always construct an OR if there are any variables,
-            # and simplify to 'false' only if there are no variables at all.
+            # Construct the OR part of the conflict_let_str.
+            # If there are no conflicts, it becomes 'false'.
             if not all_conflict_var_names:
                 path_pair_conflict_or_str = "false"
             elif len(all_conflict_var_names) == 1:
@@ -283,9 +284,9 @@ def _build_dependency_logic_assertions_general(
             else:
                 path_pair_conflict_or_str = f"(or {' '.join(all_conflict_var_names)})"
 
-            # Construct the LET bindings for all variables (even if false)
+            # Construct the LET bindings for the identified conflicts.
             let_bindings_for_conflict = []
-            for name, formula, _ in conflict_vars:
+            for name, formula in conflict_vars:
                 let_bindings_for_conflict.append(
                     f"({name} {builder._serialize(formula)})"
                 )
@@ -293,12 +294,16 @@ def _build_dependency_logic_assertions_general(
             pred_j_str = builder._serialize(pred_j)
             pred_k_str = builder._serialize(pred_k)
 
-            # The conflict_let_str itself
-            conflict_let_str = f"""
+            # Conditionally wrap the path-pair conflict in a let expression.
+            # If there are no bindings, the let is omitted for a cleaner query.
+            if let_bindings_for_conflict:
+                conflict_let_str = f"""
             (let (
                 {"\n                ".join(let_bindings_for_conflict)}
                 ) {path_pair_conflict_or_str})
 """
+            else:
+                conflict_let_str = path_pair_conflict_or_str
             # Collect active components for the AND
             and_components = []
             if pred_j_str != "true":
