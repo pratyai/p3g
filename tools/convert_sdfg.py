@@ -12,6 +12,7 @@ Some notes:
 import dace
 import sys
 import os
+import argparse
 from dace.sdfg import SDFG
 from dace.sdfg.utils import dfs_topological_sort
 from dace.transformation.passes.analysis.loop_analysis import (
@@ -185,9 +186,9 @@ def _loop2p3g(
 
         # Sanity check
         assert loop_stride == 1, "Only stride-1 loops are supported in P3G conversion."
-        assert loop_init is not None and loop_end is not None, (
-            "Loop bounds could not be determined."
-        )
+        assert (
+            loop_init is not None and loop_end is not None
+        ), "Loop bounds could not be determined."
 
         iter_var = str(iter_var)
         if str(loop_init) in symbols:
@@ -196,9 +197,9 @@ def _loop2p3g(
             resolved = dsym.resolve_symbol_to_constant(loop_init, sdfg_loop.sdfg)
             loop_init = Int(int(resolved))
         else:
-            assert False, (
-                f"Loop init symbol not found in symbols. {loop_init}, {symbols}"
-            )
+            assert (
+                False
+            ), f"Loop init symbol not found in symbols. {loop_init}, {symbols}"
         if str(loop_end) in symbols:
             loop_end = symbols[str(loop_end)]
         elif dsym.resolve_symbol_to_constant(loop_end, sdfg_loop.sdfg) is not None:
@@ -292,6 +293,9 @@ def _sdfg2p3g(
         dnode = builder.add_data(data_name)
         data_nodes[data_name] = dnode
 
+    for argname, argtype in sdfg.arglist().items():
+        builder.mark_array_as_output(argname)
+
     # Traverse the SDFG and build the P3G
     reads = set()
     writes = set()
@@ -314,15 +318,26 @@ def sdfg2p3g(sdfg: SDFG) -> Graph:
 
 
 if __name__ == "__main__":
-    # if len(sys.argv) != 3:
-    #     print("Usage: from_sdfg.py <input-sdfg> <output-p3g>")
-    #     sys.exit(1)
+    parser = argparse.ArgumentParser(description="Convert a DaCe SDFG to a P3G graph.")
+    parser.add_argument("-i", "--input", required=False, help="Input SDFG file path.")
+    parser.add_argument(
+        "-p3g",
+        "--dump-p3g",
+        required=False,
+        help="Output the P3G structure.",
+        action=argparse.BooleanOptionalAction,
+    )
+    args = parser.parse_args()
 
-    # input_sdfg_path = sys.argv[1]
-    # output_p3g_path = sys.argv[2]
+    # If the user provided an input SDFG file, load it; otherwise, use the sample program.
+    if args.input:
+        sdfg = dace.sdfg.SDFG.from_file(args.input)
+    else:
+        sdfg = sample_program.to_sdfg()
 
-    # sdfg = dace.sdfg.SDFG.from_file(input_sdfg_path)
-    sdfg = sample_program.to_sdfg()
+    # Convert SDFG to P3G
     p3g = sdfg2p3g(sdfg)
 
-    print_p3g_structure(p3g)
+    # If the user requested, dump the P3G structure
+    if args.dump_p3g:
+        print_p3g_structure(p3g)
