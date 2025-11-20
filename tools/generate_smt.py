@@ -102,15 +102,15 @@ def main():
     # Generate SMT query based on selected type
     smt_query = ""
     if query_type == "D-FS":
-        smt_query = exists_data_exists_bounds_exists_iter_isdep(
-            loop_node, verbose=False
-        )
-    elif query_type == "D-FS/B":
         smt_query = exists_data_exists_bounds_forall_iter_isdep(
             loop_node, verbose=False
         )
-    elif query_type == "D-FS/DB":
+    elif query_type == "D-FS/B":
         smt_query = exists_data_forall_bounds_forall_iter_isdep(
+            loop_node, verbose=False
+        )
+    elif query_type == "D-NFI":
+        smt_query = exists_data_exists_bounds_exists_iter_isdep(
             loop_node, verbose=False
         )
     elif query_type == "I-FI":
@@ -125,6 +125,8 @@ def main():
         smt_query = forall_data_forall_bounds_forall_iter_isindep(
             loop_node, verbose=False
         )
+    else:
+        raise ValueError(f"Unknown query type: {query_type}")
 
     print(f"Generating SMT query of type: {query_type}")
 
