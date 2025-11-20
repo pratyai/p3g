@@ -24,14 +24,14 @@ from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, MapExit, NestedSDFG
 from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock
 import dace.symbolic as dsym
 
-from pysmt.shortcuts import Symbol, INT, TRUE, And, GE, LE, Plus, Int, simplify
+from pysmt.shortcuts import Symbol, INT, TRUE, And, GE, LE, Plus, Int, simplify, Times
 
 # Add the project root to the sys.path
 script_dir = os.path.dirname(__file__)
 project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
 sys.path.insert(0, project_root)
 
-from p3g.p3g import GraphBuilder, Graph, Loop
+from p3g.p3g import GraphBuilder, Graph, Loop, PysmtRange, PysmtCoordSet
 from p3g.smt import exists_data_forall_bounds_forall_iter_isdep
 from tests.utils import print_p3g_structure
 
@@ -50,6 +50,36 @@ def sample_program(
     c[:] = c[:] * 2.0
 
 
+def _symexpr_to_pysmt(expr, symbols, sdfg):
+    if str(expr) in symbols:
+        return symbols[str(expr)]
+
+    resolved = dsym.resolve_symbol_to_constant(expr, sdfg)
+    if resolved is not None:
+        return Int(int(resolved))
+
+    # Walk through the sympy expression
+    if expr.is_Add:
+        args = expr.as_ordered_terms()
+        pysmt_args = [_symexpr_to_pysmt(arg, symbols, sdfg) for arg in args]
+        return Plus(pysmt_args)
+    elif expr.is_Mul:
+        args = expr.as_ordered_factors()
+        pysmt_args = [_symexpr_to_pysmt(arg, symbols, sdfg) for arg in args]
+        return Times(pysmt_args)
+
+    raise NotImplementedError(f"Expression {expr} could not be converted to Pysmt.")
+
+
+def _ranges_to_pysmt(ranges, symbols, sdfg):
+    pysmt_ranges = []
+    for r in ranges:
+        start = _symexpr_to_pysmt(r[0], symbols, sdfg)
+        end = _symexpr_to_pysmt(r[1], symbols, sdfg)
+        pysmt_ranges.append(PysmtRange(start, end))
+    return PysmtCoordSet(*pysmt_ranges)
+
+
 def _tasklet2p3g(
     sdfg_tasklet: Tasklet,
     builder: GraphBuilder,
@@ -64,18 +94,75 @@ def _tasklet2p3g(
     for pred in parent.predecessors(sdfg_tasklet):
         for edge in parent.edges_between(pred, sdfg_tasklet):
             p3g_data_node = data_nodes[edge.data.data]
-            subset = edge.data.src_subset
-            reads.add((p3g_data_node, Int(0)))
+            ranges = edge.data.src_subset.ranges
+            converted = _ranges_to_pysmt(
+                ranges,
+                symbols,
+                parent.sdfg,
+            )
+            reads.add((p3g_data_node, converted))
 
     for succ in parent.successors(sdfg_tasklet):
         for edge in parent.edges_between(sdfg_tasklet, succ):
             p3g_data_node = data_nodes[edge.data.data]
-            subset = edge.data.dst_subset
-            reads.add((p3g_data_node, Int(0)))
-            writes.add((p3g_data_node, Int(0)))
+            ranges = edge.data.dst_subset.ranges
+            converted = _ranges_to_pysmt(
+                ranges,
+                symbols,
+                parent.sdfg,
+            )
+            reads.add((p3g_data_node, converted))
+            writes.add((p3g_data_node, converted))
 
     if not analysis_only:
         builder.add_compute(sdfg_tasklet.label, list(reads), list(writes))
+    return reads, writes
+
+
+def _accessnode2p3g(
+    sdfg_access: AccessNode,
+    builder: GraphBuilder,
+    data_nodes: dict,
+    symbols: dict,
+    parent: SDFGState,
+    analysis_only: bool = False,
+) -> tuple[set, set]:
+    reads = set()
+    writes = set()
+
+    for pred in parent.predecessors(sdfg_access):
+        for edge in parent.edges_between(pred, sdfg_access):
+            if edge.data.src_subset is None:
+                continue
+            p3g_data_node = data_nodes[edge.data.data]
+            ranges = edge.data.src_subset.ranges
+            converted = _ranges_to_pysmt(
+                ranges,
+                symbols,
+                parent.sdfg,
+            )
+            reads.add((p3g_data_node, converted))
+
+            if not analysis_only:
+                builder.add_edge(p3g_data_node, data_nodes[sdfg_access.data], converted)
+
+    for succ in parent.successors(sdfg_access):
+        for edge in parent.edges_between(sdfg_access, succ):
+            if edge.data.dst_subset is None:
+                continue
+            p3g_data_node = data_nodes[edge.data.data]
+            ranges = edge.data.dst_subset.ranges
+            converted = _ranges_to_pysmt(
+                ranges,
+                symbols,
+                parent.sdfg,
+            )
+            reads.add((p3g_data_node, converted))
+            writes.add((p3g_data_node, converted))
+
+            if not analysis_only:
+                builder.add_edge(data_nodes[sdfg_access.data], p3g_data_node, converted)
+
     return reads, writes
 
 
@@ -90,20 +177,34 @@ def _map2p3g(
     reads = set()
     writes = set()
 
+    for sym in sdfg_map.map.params:
+        if str(sym) not in symbols:
+            p3g_sym = builder.add_symbol(str(sym))
+            symbols[str(sym)] = p3g_sym
     map_exit = parent.exit_node(sdfg_map)
 
     for pred in parent.predecessors(sdfg_map):
         for edge in parent.edges_between(pred, sdfg_map):
             p3g_data_node = data_nodes[edge.data.data]
-            subset = edge.data.src_subset
-            reads.add((p3g_data_node, Int(0)))
+            ranges = edge.data.src_subset.ranges
+            converted = _ranges_to_pysmt(
+                ranges,
+                symbols,
+                parent.sdfg,
+            )
+            reads.add((p3g_data_node, converted))
 
     for succ in parent.successors(map_exit):
         for edge in parent.edges_between(map_exit, succ):
             p3g_data_node = data_nodes[edge.data.data]
-            subset = edge.data.dst_subset
-            reads.add((p3g_data_node, Int(0)))
-            writes.add((p3g_data_node, Int(0)))
+            ranges = edge.data.dst_subset.ranges
+            converted = _ranges_to_pysmt(
+                ranges,
+                symbols,
+                parent.sdfg,
+            )
+            reads.add((p3g_data_node, converted))
+            writes.add((p3g_data_node, converted))
 
     if not analysis_only:
         iter_var = sdfg_map.map.params[0]
@@ -122,7 +223,7 @@ def _map2p3g(
                 parent.scope_subgraph(sdfg_map, include_entry=False, include_exit=False)
             ):
                 if isinstance(node, AccessNode):
-                    continue
+                    _accessnode2p3g(node, builder, data_nodes, symbols, parent)
                 elif isinstance(node, Tasklet):
                     _tasklet2p3g(node, builder, data_nodes, symbols, parent)
                 elif isinstance(node, NestedSDFG):
@@ -144,7 +245,9 @@ def _state2p3g(
         if scope_dict[node] is not None:
             continue
         if isinstance(node, AccessNode):
-            continue
+            r, w = _accessnode2p3g(
+                node, builder, data_nodes, symbols, sdfg_state, analysis_only
+            )
         elif isinstance(node, Tasklet):
             r, w = _tasklet2p3g(
                 node, builder, data_nodes, symbols, sdfg_state, analysis_only
@@ -192,22 +295,8 @@ def _loop2p3g(
         ), "Loop bounds could not be determined."
 
         iter_var = str(iter_var)
-        if str(loop_init) in symbols:
-            loop_init = symbols[str(loop_init)]
-        elif dsym.resolve_symbol_to_constant(loop_init, sdfg_loop.sdfg) is not None:
-            resolved = dsym.resolve_symbol_to_constant(loop_init, sdfg_loop.sdfg)
-            loop_init = Int(int(resolved))
-        else:
-            assert (
-                False
-            ), f"Loop init symbol not found in symbols. {loop_init}, {symbols}"
-        if str(loop_end) in symbols:
-            loop_end = symbols[str(loop_end)]
-        elif dsym.resolve_symbol_to_constant(loop_end, sdfg_loop.sdfg) is not None:
-            resolved = dsym.resolve_symbol_to_constant(loop_end, sdfg_loop.sdfg)
-            loop_end = Int(int(resolved))
-        else:
-            assert False, f"Loop end symbol not found in symbols. {loop_end}, {symbols}"
+        loop_init = _symexpr_to_pysmt(loop_init, symbols, sdfg_loop.sdfg)
+        loop_end = _symexpr_to_pysmt(loop_end, symbols, sdfg_loop.sdfg)
 
         with builder.add_loop(
             sdfg_loop.label,
