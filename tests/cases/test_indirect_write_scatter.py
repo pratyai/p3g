@@ -1,12 +1,12 @@
 import pytest
 
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_iter_isindep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
-    generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isindep,
+    exists_data_forall_bounds_forall_iter_isindep,
+    forall_data_forall_bounds_forall_iter_isindep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_indirect_write_scatter_graph
@@ -29,7 +29,7 @@ class TestIndirectWriteScatter:
         """
         run_test_case(
             build_indirect_write_scatter_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "indirect_write_scatter_dofs",
             True,
         )
@@ -49,7 +49,7 @@ class TestIndirectWriteScatter:
         """
         run_test_case(
             build_indirect_write_scatter_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "indirect_write_scatter_dofs_forall_bounds",
             True,
         )
@@ -65,7 +65,7 @@ class TestIndirectWriteScatter:
         """
         run_test_case(
             build_indirect_write_scatter_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isindep,
+            exists_data_exists_bounds_forall_iter_isindep,
             "indirect_write_scatter_dofi",
             True,
         )
@@ -82,7 +82,7 @@ class TestIndirectWriteScatter:
         try:
             run_test_case(
                 build_indirect_write_scatter_graph,
-                generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+                exists_data_forall_bounds_forall_iter_isindep,
                 "indirect_write_scatter_dofi_forall_bounds",
                 True,
                 timeout_seconds=10,
@@ -103,7 +103,7 @@ class TestIndirectWriteScatter:
         try:
             run_test_case(
                 build_indirect_write_scatter_graph,
-                generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+                forall_data_forall_bounds_forall_iter_isindep,
                 "indirect_write_scatter_forall_data_forall_bounds",
                 False,
                 timeout_seconds=10,
@@ -122,7 +122,7 @@ class TestIndirectWriteScatter:
         """
         run_test_case(
             build_indirect_write_scatter_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "indirect_write_scatter_find_dependency",
             True,
         )

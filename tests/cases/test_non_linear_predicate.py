@@ -1,7 +1,7 @@
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_non_linear_predicate_graph
@@ -24,7 +24,7 @@ class TestNonLinearPredicate:
         """
         run_test_case(
             build_non_linear_predicate_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "non_linear_predicate_dofs",
             False,
         )
@@ -45,7 +45,7 @@ class TestNonLinearPredicate:
         """
         run_test_case(
             build_non_linear_predicate_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "non_linear_predicate_dofs_forall_bounds",
             False,
         )
@@ -64,7 +64,7 @@ class TestNonLinearPredicate:
         """
         run_test_case(
             build_non_linear_predicate_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "non_linear_predicate_find_dependency",
             True,
         )

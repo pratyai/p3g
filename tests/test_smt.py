@@ -14,12 +14,12 @@ from pysmt.walkers import IdentityDagWalker
 from p3g.p3g import Loop
 from p3g.parser import PseudocodeParser
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_iter_isindep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
-    generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isindep,
+    exists_data_forall_bounds_forall_iter_isindep,
+    forall_data_forall_bounds_forall_iter_isindep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 
 
@@ -114,7 +114,7 @@ class TestProveExistsDataForallIterIsdep:
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
               (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
             """,
-            generator_function=generate_smt_for_prove_exists_data_forall_iter_isdep,
+            generator_function=exists_data_exists_bounds_forall_iter_isdep,
         )
 
         # Check for declarations
@@ -180,7 +180,7 @@ class TestProveExistsDataForallIterIsdep:
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
               (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
             """,
-            generator_function=generate_smt_for_prove_exists_data_forall_iter_isdep,
+            generator_function=exists_data_exists_bounds_forall_iter_isdep,
             extra_constraints=[GE(Symbol("N", INT), Int(10))],
         )
 
@@ -194,7 +194,7 @@ class TestProveExistsDataForallIterIsdep:
             (A[0:N] => A[0:N]) loop1 | for i = 0 to N:
               (A[i] => A[i]) comp1 | op(A[i] = 0)
             """,
-            generator_function=generate_smt_for_prove_exists_data_forall_iter_isdep,
+            generator_function=exists_data_exists_bounds_forall_iter_isdep,
         )
 
         # Check for declarations
@@ -270,7 +270,7 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
               (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
             """,
-            generator_function=generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            generator_function=exists_data_forall_bounds_forall_iter_isdep,
         )
 
         # Check for declarations
@@ -336,7 +336,7 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
             (A[M:N], B[M:N] => B[M:N]) loop1 | for i = M to N:
               (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
             """,
-            generator_function=generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            generator_function=exists_data_forall_bounds_forall_iter_isdep,
         )
 
         # Check for declarations
@@ -404,7 +404,7 @@ class TestProveExistsDataForallIterIsindep:
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
               (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
             """,
-            generator_function=generate_smt_for_prove_exists_data_forall_iter_isindep,
+            generator_function=exists_data_exists_bounds_forall_iter_isindep,
         )
 
         # Check for declarations
@@ -474,7 +474,7 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
               (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
             """,
-            generator_function=generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+            generator_function=exists_data_forall_bounds_forall_iter_isindep,
         )
 
         # Check for declarations
@@ -542,7 +542,7 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
             (A[M:N], B[M:N] => B[M:N]) loop1 | for i = M to N:
               (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
             """,
-            generator_function=generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+            generator_function=exists_data_forall_bounds_forall_iter_isindep,
         )
 
         # Check for declarations
@@ -612,7 +612,7 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
             (A[0:N], B[0:N], IDX[0:N] => B[0:N]) loop1 | for i = 0 to N:
               (A[IDX[i]], B[i], IDX[i] => B[i]) comp1 | op(B[i] = A[IDX[i]])
             """,
-            generator_function=generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+            generator_function=forall_data_forall_bounds_forall_iter_isindep,
         )
 
         # Check for declarations
@@ -683,7 +683,7 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
             (A[M:N], B[M:N], IDX[M:N] => B[M:N]) loop1 | for i = M to N:
               (A[IDX[i]], B[i], IDX[i] => B[i]) comp1 | op(B[i] = A[IDX[i]])
             """,
-            generator_function=generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+            generator_function=forall_data_forall_bounds_forall_iter_isindep,
         )
 
         # Check for declarations
@@ -756,7 +756,7 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
             (A[0:N], B[0:N], IDX[0:N] => B[0:N]) loop1 | for i = 0 to N:
               (A[IDX[i]], B[i], IDX[i] => B[i]) comp1 | op(B[i] = A[IDX[i]])
             """,
-            generator_function=generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            generator_function=exists_data_exists_bounds_exists_iter_isdep,
         )
 
         # Check for declarations
@@ -812,7 +812,7 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
             (A[M:N], B[M:N], IDX[M:N] => B[M:N]) loop1 | for i = M to N:
               (A[IDX[i]], B[i], IDX[i] => B[i]) comp1 | op(B[i] = A[IDX[i]])
             """,
-            generator_function=generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            generator_function=exists_data_exists_bounds_exists_iter_isdep,
         )
 
         # Check for declarations

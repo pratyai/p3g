@@ -1,7 +1,7 @@
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import (
@@ -22,7 +22,7 @@ class TestSequentialWithSymbolicMaxIndex:
         """
         run_test_case(
             build_sequential_with_symbolic_max_index_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "sequential_with_symbolic_max_index_dofs",
             True,
         )
@@ -39,7 +39,7 @@ class TestSequentialWithSymbolicMaxIndex:
         """
         run_test_case(
             build_sequential_with_symbolic_max_index_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "sequential_with_symbolic_max_index_dofs_forall_bounds",
             True,
         )
@@ -55,7 +55,7 @@ class TestSequentialWithSymbolicMaxIndex:
         """
         run_test_case(
             build_sequential_with_symbolic_max_index_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "sequential_with_symbolic_max_index_find_dependency",
             True,
         )

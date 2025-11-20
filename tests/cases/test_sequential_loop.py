@@ -1,10 +1,10 @@
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_iter_isindep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
-    generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isindep,
+    exists_data_forall_bounds_forall_iter_isindep,
+    forall_data_forall_bounds_forall_iter_isindep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_sequential_loop_graph
@@ -23,7 +23,7 @@ class TestSequentialLoop:
         """
         run_test_case(
             build_sequential_loop_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "sequential_loop_dofs",
             True,
         )
@@ -40,7 +40,7 @@ class TestSequentialLoop:
         """
         run_test_case(
             build_sequential_loop_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "sequential_loop_dofs_forall_bounds",
             True,
         )
@@ -55,7 +55,7 @@ class TestSequentialLoop:
         """
         run_test_case(
             build_sequential_loop_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isindep,
+            exists_data_exists_bounds_forall_iter_isindep,
             "sequential_loop_dofi",
             False,
         )
@@ -70,7 +70,7 @@ class TestSequentialLoop:
         """
         run_test_case(
             build_sequential_loop_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+            exists_data_forall_bounds_forall_iter_isindep,
             "sequential_loop_dofi_forall_bounds",
             False,
         )
@@ -86,7 +86,7 @@ class TestSequentialLoop:
         """
         run_test_case(
             build_sequential_loop_graph,
-            generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+            forall_data_forall_bounds_forall_iter_isindep,
             "sequential_loop_forall_data_forall_bounds",
             False,
         )
@@ -100,7 +100,7 @@ class TestSequentialLoop:
         """
         run_test_case(
             build_sequential_loop_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "sequential_loop_find_dependency",
             True,
         )

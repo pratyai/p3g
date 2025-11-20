@@ -1,9 +1,9 @@
 from pysmt.shortcuts import Int, GE
 
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_array_reversal_graph
@@ -22,7 +22,7 @@ class TestArrayReversal:
         """
         run_test_case(
             build_array_reversal_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "array_reversal_dofs",
             True,
         )
@@ -41,7 +41,7 @@ class TestArrayReversal:
         b_root_graph, loop_node, N, A_root = build_array_reversal_graph()
         run_test_case(
             lambda: (b_root_graph, loop_node, N, A_root),
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "array_reversal_high_N_dofs",
             False,
             extra_assertions=[GE(N, Int(3))],
@@ -59,7 +59,7 @@ class TestArrayReversal:
         """
         run_test_case(
             build_array_reversal_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "array_reversal_dofs_forall_bounds",
             False,
         )
@@ -74,7 +74,7 @@ class TestArrayReversal:
         """
         run_test_case(
             build_array_reversal_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "array_reversal_find_dependency",
             True,
         )

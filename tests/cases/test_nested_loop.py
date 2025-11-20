@@ -1,12 +1,12 @@
 from pysmt.shortcuts import Symbol, INT, GT, Int
 
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_iter_isindep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
-    generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isindep,
+    exists_data_forall_bounds_forall_iter_isindep,
+    forall_data_forall_bounds_forall_iter_isindep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import (
@@ -38,7 +38,7 @@ class TestNestedLoop:
         # )
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "nested_loop_outer_dofs_outer",
             True,
             loop_node_index=1,
@@ -57,7 +57,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "nested_loop_inner_dofs_inner",
             True,
             loop_node_index=2,
@@ -65,7 +65,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "nested_loop_inner_dofs_outer",
             False,
             loop_node_index=1,
@@ -80,7 +80,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "nested_loop_outer_dofs_inner_forall_bounds",
             False,
             loop_node_index=2,
@@ -88,7 +88,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "nested_loop_outer_dofs_outer_forall_bounds",
             True,
             loop_node_index=1,
@@ -103,7 +103,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "nested_loop_inner_dofs_inner_forall_bounds",
             True,
             loop_node_index=2,
@@ -111,7 +111,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "nested_loop_inner_dofs_outer_forall_bounds",
             False,
             loop_node_index=1,
@@ -129,7 +129,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isindep,
+            exists_data_exists_bounds_forall_iter_isindep,
             "nested_loop_outer_dofs_inner_dofi",
             True,
             loop_node_index=2,
@@ -137,7 +137,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isindep,
+            exists_data_exists_bounds_forall_iter_isindep,
             "nested_loop_outer_dofs_outer_dofi",
             False,
             loop_node_index=1,
@@ -155,7 +155,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isindep,
+            exists_data_exists_bounds_forall_iter_isindep,
             "nested_loop_inner_dofs_inner_dofi",
             False,
             loop_node_index=2,
@@ -163,7 +163,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isindep,
+            exists_data_exists_bounds_forall_iter_isindep,
             "nested_loop_inner_dofs_outer_dofi",
             True,
             loop_node_index=1,
@@ -182,7 +182,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+            exists_data_forall_bounds_forall_iter_isindep,
             "nested_loop_outer_dofs_inner_dofi_forall_bounds",
             True,
             loop_node_index=2,
@@ -190,7 +190,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+            exists_data_forall_bounds_forall_iter_isindep,
             "nested_loop_outer_dofs_outer_dofi_forall_bounds",
             False,
             loop_node_index=1,
@@ -209,7 +209,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+            exists_data_forall_bounds_forall_iter_isindep,
             "nested_loop_inner_dofs_inner_dofi_forall_bounds",
             False,
             loop_node_index=2,
@@ -217,7 +217,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
+            exists_data_forall_bounds_forall_iter_isindep,
             "nested_loop_inner_dofs_outer_dofi_forall_bounds",
             True,
             loop_node_index=1,
@@ -236,7 +236,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+            forall_data_forall_bounds_forall_iter_isindep,
             "nested_loop_outer_dofs_inner_forall_data_forall_bounds",
             True,
             loop_node_index=2,
@@ -244,7 +244,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+            forall_data_forall_bounds_forall_iter_isindep,
             "nested_loop_outer_dofs_outer_forall_data_forall_bounds",
             False,
             loop_node_index=1,
@@ -263,7 +263,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+            forall_data_forall_bounds_forall_iter_isindep,
             "nested_loop_inner_dofs_inner_forall_data_forall_bounds",
             False,
             loop_node_index=2,
@@ -271,7 +271,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+            forall_data_forall_bounds_forall_iter_isindep,
             "nested_loop_inner_dofs_outer_forall_data_forall_bounds",
             True,
             loop_node_index=1,
@@ -290,7 +290,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "nested_loop_outer_dofs_find_dependency",
             True,
             loop_node_index=1,
@@ -309,7 +309,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "nested_loop_outer_dofs_inner_find_dependency",
             False,
             loop_node_index=2,
@@ -328,7 +328,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "nested_loop_inner_dofs_find_dependency",
             False,
             loop_node_index=1,
@@ -347,7 +347,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "nested_loop_inner_dofs_inner_find_dependency",
             True,
             loop_node_index=2,

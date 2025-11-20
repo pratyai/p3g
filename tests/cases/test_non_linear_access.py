@@ -1,7 +1,7 @@
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import (
@@ -23,7 +23,7 @@ class TestNonLinearAccess:
         """
         run_test_case(
             build_non_linear_access_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "non_linear_access_dofs",
             False,
         )
@@ -41,7 +41,7 @@ class TestNonLinearAccess:
         """
         run_test_case(
             build_non_linear_access_sequential_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "non_linear_access_sequential_dofs",
             True,
         )
@@ -58,7 +58,7 @@ class TestNonLinearAccess:
         """
         run_test_case(
             build_non_linear_access_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "non_linear_access_dofs_forall_bounds",
             False,
         )
@@ -76,7 +76,7 @@ class TestNonLinearAccess:
         """
         run_test_case(
             build_non_linear_access_sequential_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "non_linear_access_sequential_dofs_forall_bounds",
             True,
         )
@@ -90,7 +90,7 @@ class TestNonLinearAccess:
         """
         run_test_case(
             build_non_linear_access_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "non_linear_access_find_dependency",
             False,
         )
@@ -104,7 +104,7 @@ class TestNonLinearAccess:
         """
         run_test_case(
             build_non_linear_access_sequential_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "non_linear_access_sequential_find_dependency",
             True,
         )

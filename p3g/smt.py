@@ -457,7 +457,7 @@ def _get_existential_quantifier_vars(
     return existential_quantifier_vars
 
 
-def generate_smt_for_prove_exists_data_forall_iter_isdep(
+def exists_data_exists_bounds_forall_iter_isdep(
     loop_node: Loop,
     extra_assertions: list[PysmtFormula] | None = None,
     verbose: bool = True,
@@ -578,7 +578,7 @@ def generate_smt_for_prove_exists_data_forall_iter_isdep(
     return smt_query
 
 
-def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
+def exists_data_forall_bounds_forall_iter_isdep(
     loop_node: Loop,
     extra_assertions: list[PysmtFormula] | None = None,
     verbose: bool = True,
@@ -719,7 +719,7 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
     return smt_query
 
 
-def generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
+def exists_data_exists_bounds_exists_iter_isdep(
     loop_node: Loop,
     extra_assertions: list[PysmtFormula] | None = None,
     verbose: bool = True,
@@ -824,7 +824,7 @@ def generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
     return smt_query
 
 
-def generate_smt_for_prove_exists_data_forall_iter_isindep(
+def exists_data_exists_bounds_forall_iter_isindep(
     loop_node: Loop,
     extra_assertions: list[PysmtFormula] | None = None,
     verbose: bool = True,
@@ -941,7 +941,7 @@ def generate_smt_for_prove_exists_data_forall_iter_isindep(
     return smt_query
 
 
-def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
+def exists_data_forall_bounds_forall_iter_isindep(
     loop_node: Loop,
     extra_assertions: list[PysmtFormula] | None = None,
     verbose: bool = True,
@@ -1015,8 +1015,6 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
             defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
         )
 
-    existential_quantifier_vars = list(id_to_symbol_map.values())
-
     # NEW BLOCK: Add human-provided assertions
     if extra_assertions:
         builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
@@ -1071,7 +1069,7 @@ def generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
     return smt_query
 
 
-def generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep(
+def forall_data_forall_bounds_forall_iter_isindep(
     loop_node: Loop,
     extra_assertions: list[PysmtFormula] | None = None,
     verbose: bool = True,

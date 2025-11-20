@@ -12,12 +12,12 @@ import pathlib
 from p3g.p3g import Loop
 from p3g.parser import PseudocodeParser
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_iter_isindep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep,
-    generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isindep,
+    exists_data_forall_bounds_forall_iter_isindep,
+    forall_data_forall_bounds_forall_iter_isindep,
 )
 
 
@@ -36,15 +36,15 @@ def main():
     parser.add_argument(
         "-q",
         "--query-type",
-        default="D-FS/B",
-        choices=["D-FS", "D-FS/B", "D-EX", "I-FI", "I-FI/B", "I-FI/AB", "?"],
+        default="D-FS/DB",
+        choices=["D-FS", "D-FS/B", "D-FS/DB", "I-FI", "I-FI/B", "I-FI/AB", "?"],
         help="""Type of SMT query to generate:
-- D-FS: Prove DOFS (Data-Oblivious Full Sequentiality). Finds if there exists a data configuration that makes all adjacent iterations dependent.
-- D-FS/B: Same as D-FS, but also quantifies over symbolic loop bounds.
-- D-EX: Prove Existence of any dependency. Finds if there exists any data, bounds, and iteration pair (j, k) with a dependency.
-- I-FI: Prove DOFI (Data-Oblivious Full Independence). Finds if there exists a data configuration that makes all iterations independent.
-- I-FI/B: Same as I-FI, but also quantifies over symbolic loop bounds.
-- I-FI/AB: Same as I-FI, but quantifies over both symbolic data and loop bounds.""",
+- D-FS: Does there exist a data configuration and a loop bound for which every adjacent iteration is dependent?
+- D-FS/B: Does there exist a data configuration for which every adjacent iteration is dependent, for all loop bounds?
+- D-NFI: Does there exist any data, any loop bounds, and any iteration pair for which a dependency exists?
+- I-FI: Does there exist a data configuration for which all iteration pairs are independent?
+- I-FI/B: Does there exist a data configuration for which all iteration pairs are independent, for all loop bounds?
+- I-FI/AB: For all data configurations and all loop bounds, are all iteration pairs independent?""",
     )
     args = parser.parse_args()
 
@@ -54,12 +54,12 @@ def main():
 
         # Map descriptive text to short query type names
         query_map = {
-            "D-FS: Prove DOFS (Data-Oblivious Full Sequentiality).": "D-FS",
-            "D-FS/B: DOFS with forall Bounds.": "D-FS/B",
-            "D-EX: Prove Existence of any dependency.": "D-EX",
-            "I-FI: Prove DOFI (Data-Oblivious Full Independence).": "I-FI",
-            "I-FI/B: DOFI with forall Bounds.": "I-FI/B",
-            "I-FI/AB: DOFI with forall Data and Bounds.": "I-FI/AB",
+            "D-FS: Does there exist a data configuration and a loop bound for which every adjacent iteration is dependent?": "D-FS",
+            "D-FS/B: Does there exist a data configuration for which every adjacent iteration is dependent, for all loop bounds?": "D-FS/B",
+            "D-NFI: Does there exist any data, any loop bounds, and any iteration pair for which a dependency exists?": "D-NFI",
+            "I-FI: Does there exist a data configuration for which all iteration pairs are independent?": "I-FI",
+            "I-FI/B: Does there exist a data configuration for which all iteration pairs are independent, for all loop bounds?": "I-FI/B",
+            "I-FI/AB: For all data configurations and all loop bounds, are all iteration pairs independent?": "I-FI/AB",
         }
 
         selected_description = questionary.select(
@@ -102,29 +102,27 @@ def main():
     # Generate SMT query based on selected type
     smt_query = ""
     if query_type == "D-FS":
-        smt_query = generate_smt_for_prove_exists_data_forall_iter_isdep(
+        smt_query = exists_data_exists_bounds_exists_iter_isdep(
             loop_node, verbose=False
         )
     elif query_type == "D-FS/B":
-        smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep(
+        smt_query = exists_data_exists_bounds_forall_iter_isdep(
             loop_node, verbose=False
         )
-    elif query_type == "D-EX":
-        smt_query = (
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep(
-                loop_node, verbose=False
-            )
+    elif query_type == "D-FS/DB":
+        smt_query = exists_data_forall_bounds_forall_iter_isdep(
+            loop_node, verbose=False
         )
     elif query_type == "I-FI":
-        smt_query = generate_smt_for_prove_exists_data_forall_iter_isindep(
+        smt_query = exists_data_exists_bounds_forall_iter_isindep(
             loop_node, verbose=False
         )
     elif query_type == "I-FI/B":
-        smt_query = generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isindep(
+        smt_query = exists_data_forall_bounds_forall_iter_isindep(
             loop_node, verbose=False
         )
     elif query_type == "I-FI/AB":
-        smt_query = generate_smt_for_prove_forall_data_forall_loop_bounds_iter_isindep(
+        smt_query = forall_data_forall_bounds_forall_iter_isindep(
             loop_node, verbose=False
         )
 

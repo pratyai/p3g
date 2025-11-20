@@ -1,7 +1,7 @@
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import (
@@ -28,7 +28,7 @@ class TestCholesky:
         # Therefore, it must be Data-Oblivious Full Sequential (DOFS).
         run_test_case(
             build_cholesky_sequential_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "cholesky_sequential_inner_dofs",
             True,
             loop_node_index=2,
@@ -41,7 +41,7 @@ class TestCholesky:
         # Therefore, it must be Data-Oblivious Full Sequential (DOFS).
         run_test_case(
             build_cholesky_sequential_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "cholesky_sequential_outer_dofs",
             True,
             loop_node_index=1,
@@ -65,7 +65,7 @@ class TestCholesky:
         # loop-carried dependencies. Therefore, it is expected to be DOFS.
         run_test_case(
             build_cholesky_full_kernel_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "cholesky_full_kernel_dofs",
             True,
         )
@@ -83,7 +83,7 @@ class TestCholesky:
         # Justification: The inner loop's dependency is independent of the specific loop bounds.
         run_test_case(
             build_cholesky_sequential_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "cholesky_sequential_inner_dofs_forall_bounds",
             True,
             loop_node_index=2,
@@ -92,7 +92,7 @@ class TestCholesky:
         # specific values of the loop bounds N.
         run_test_case(
             build_cholesky_sequential_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "cholesky_sequential_outer_dofs_forall_bounds",
             True,
             loop_node_index=1,
@@ -108,7 +108,7 @@ class TestCholesky:
         # should not change based on the values of the loop bounds.
         run_test_case(
             build_cholesky_full_kernel_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "cholesky_full_kernel_dofs_forall_bounds",
             True,
         )
@@ -124,7 +124,7 @@ class TestCholesky:
         # Justification: The inner loop has a clear dependency, so the query should find it.
         run_test_case(
             build_cholesky_sequential_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "cholesky_sequential_inner_find_dependency",
             True,
             loop_node_index=2,
@@ -132,7 +132,7 @@ class TestCholesky:
         # Justification: The outer loop also has dependencies, so the relaxed query should find one.
         run_test_case(
             build_cholesky_sequential_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "chlesky_sequential_outer_find_dependency",
             True,
             loop_node_index=1,
@@ -146,7 +146,7 @@ class TestCholesky:
         # Justification: The full kernel is sequential, so a dependency must exist.
         run_test_case(
             build_cholesky_full_kernel_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "cholesky_full_kernel_find_dependency",
             True,
         )

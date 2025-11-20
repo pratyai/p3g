@@ -1,7 +1,7 @@
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_long_distance_dependency_graph
@@ -21,7 +21,7 @@ class TestLongDistanceDependency:
         """
         run_test_case(
             build_long_distance_dependency_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "long_distance_dependency_dofs",
             False,
         )
@@ -36,7 +36,7 @@ class TestLongDistanceDependency:
         """
         run_test_case(
             build_long_distance_dependency_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "long_distance_dependency_dofs_forall_bounds",
             False,
         )
@@ -51,7 +51,7 @@ class TestLongDistanceDependency:
         """
         run_test_case(
             build_long_distance_dependency_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "long_distance_dependency_find_dependency",
             True,
         )

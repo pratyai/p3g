@@ -1,9 +1,9 @@
 from pysmt.shortcuts import Int, GE
 
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_data_aware_bi_b13_graph
@@ -21,7 +21,7 @@ class TestDataAwareBiB13:
         """
         run_test_case(
             build_data_aware_bi_b13_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "data_aware_bi_b13_dofs",
             True,
         )
@@ -41,7 +41,7 @@ class TestDataAwareBiB13:
         )
         run_test_case(
             lambda: (b_root_graph, loop_node, N, A_root, B_root, B_val, const_idx),
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "data_aware_bi_b13_high_N_dofs",
             False,
             extra_assertions=[GE(N, Int(15))],
@@ -58,7 +58,7 @@ class TestDataAwareBiB13:
         """
         run_test_case(
             build_data_aware_bi_b13_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "data_aware_bi_b13_dofs_forall_bounds",
             False,
         )
@@ -73,7 +73,7 @@ class TestDataAwareBiB13:
         """
         run_test_case(
             build_data_aware_bi_b13_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "data_aware_bi_b13_find_dependency",
             True,
         )

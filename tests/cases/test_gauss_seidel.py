@@ -1,7 +1,7 @@
 from p3g.smt import (
-    generate_smt_for_prove_exists_data_forall_iter_isdep,
-    generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
-    generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+    exists_data_exists_bounds_forall_iter_isdep,
+    exists_data_forall_bounds_forall_iter_isdep,
+    exists_data_exists_bounds_exists_iter_isdep,
 )
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import (
@@ -23,7 +23,7 @@ class TestGaussSeidel:
         """
         run_test_case(
             build_gauss_seidel_red_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "gauss_seidel_red_dofs",
             False,
         )
@@ -39,7 +39,7 @@ class TestGaussSeidel:
         """
         run_test_case(
             build_gauss_seidel_black_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "gauss_seidel_black_dofs",
             False,
         )
@@ -58,7 +58,7 @@ class TestGaussSeidel:
         """
         run_test_case(
             build_gauss_seidel_traditional_graph,
-            generate_smt_for_prove_exists_data_forall_iter_isdep,
+            exists_data_exists_bounds_forall_iter_isdep,
             "gauss_seidel_traditional_dofs",
             True,
         )
@@ -70,7 +70,7 @@ class TestGaussSeidel:
         """
         run_test_case(
             build_gauss_seidel_red_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "gauss_seidel_red_dofs_forall_bounds",
             False,
         )
@@ -82,7 +82,7 @@ class TestGaussSeidel:
         """
         run_test_case(
             build_gauss_seidel_black_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "gauss_seidel_black_dofs_forall_bounds",
             False,
         )
@@ -95,7 +95,7 @@ class TestGaussSeidel:
         """
         run_test_case(
             build_gauss_seidel_traditional_graph,
-            generate_smt_for_prove_exists_data_forall_loop_bounds_iter_isdep,
+            exists_data_forall_bounds_forall_iter_isdep,
             "gauss_seidel_traditional_dofs_forall_bounds",
             True,
         )
@@ -108,7 +108,7 @@ class TestGaussSeidel:
         """
         run_test_case(
             build_gauss_seidel_red_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "gauss_seidel_red_find_dependency",
             False,
         )
@@ -121,7 +121,7 @@ class TestGaussSeidel:
         """
         run_test_case(
             build_gauss_seidel_black_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "gauss_seidel_black_find_dependency",
             False,
         )
@@ -134,7 +134,7 @@ class TestGaussSeidel:
         """
         run_test_case(
             build_gauss_seidel_traditional_graph,
-            generate_smt_for_prove_exists_data_exists_loop_bounds_exists_iter_isdep,
+            exists_data_exists_bounds_exists_iter_isdep,
             "gauss_seidel_traditional_find_dependency",
             True,
         )
