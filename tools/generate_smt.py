@@ -37,14 +37,14 @@ def main():
         "-q",
         "--query-type",
         default="D-FS/DB",
-        choices=["D-FS", "D-FS/B", "D-FS/DB", "I-FI", "I-FI/B", "I-FI/AB", "?"],
+        choices=["D-FS", "D-FS/B", "D-FS/DB", "I-FI", "I-FI/B", "I-FI/DB", "?"],
         help="""Type of SMT query to generate:
 - D-FS: Does there exist a data configuration and a loop bound for which every adjacent iteration is dependent?
 - D-FS/B: Does there exist a data configuration for which every adjacent iteration is dependent, for all loop bounds?
 - D-NFI: Does there exist any data, any loop bounds, and any iteration pair for which a dependency exists?
-- I-FI: Does there exist a data configuration for which all iteration pairs are independent?
+- I-FI: Does there exist a data configuration and a loop bound for which all iteration pairs are independent?
 - I-FI/B: Does there exist a data configuration for which all iteration pairs are independent, for all loop bounds?
-- I-FI/AB: For all data configurations and all loop bounds, are all iteration pairs independent?""",
+- I-FI/DB: For all data configurations and all loop bounds, are all iteration pairs independent?""",
     )
     args = parser.parse_args()
 
@@ -57,9 +57,9 @@ def main():
             "D-FS: Does there exist a data configuration and a loop bound for which every adjacent iteration is dependent?": "D-FS",
             "D-FS/B: Does there exist a data configuration for which every adjacent iteration is dependent, for all loop bounds?": "D-FS/B",
             "D-NFI: Does there exist any data, any loop bounds, and any iteration pair for which a dependency exists?": "D-NFI",
-            "I-FI: Does there exist a data configuration for which all iteration pairs are independent?": "I-FI",
+            "I-FI: Does there exist a data configuration and a loop bound for which all iteration pairs are independent?": "I-FI",
             "I-FI/B: Does there exist a data configuration for which all iteration pairs are independent, for all loop bounds?": "I-FI/B",
-            "I-FI/AB: For all data configurations and all loop bounds, are all iteration pairs independent?": "I-FI/AB",
+            "I-FI/DB: For all data configurations and all loop bounds, are all iteration pairs independent?": "I-FI/DB",
         }
 
         selected_description = questionary.select(
@@ -121,7 +121,7 @@ def main():
         smt_query = exists_data_forall_bounds_forall_iter_isindep(
             loop_node, verbose=False
         )
-    elif query_type == "I-FI/AB":
+    elif query_type == "I-FI/DB":
         smt_query = forall_data_forall_bounds_forall_iter_isindep(
             loop_node, verbose=False
         )

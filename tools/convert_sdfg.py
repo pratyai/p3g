@@ -185,9 +185,9 @@ def _loop2p3g(
 
         # Sanity check
         assert loop_stride == 1, "Only stride-1 loops are supported in P3G conversion."
-        assert (
-            loop_init is not None and loop_end is not None
-        ), "Loop bounds could not be determined."
+        assert loop_init is not None and loop_end is not None, (
+            "Loop bounds could not be determined."
+        )
 
         iter_var = str(iter_var)
         if str(loop_init) in symbols:
@@ -196,9 +196,9 @@ def _loop2p3g(
             resolved = dsym.resolve_symbol_to_constant(loop_init, sdfg_loop.sdfg)
             loop_init = Int(int(resolved))
         else:
-            assert (
-                False
-            ), f"Loop init symbol not found in symbols. {loop_init}, {symbols}"
+            assert False, (
+                f"Loop init symbol not found in symbols. {loop_init}, {symbols}"
+            )
         if str(loop_end) in symbols:
             loop_end = symbols[str(loop_end)]
         elif dsym.resolve_symbol_to_constant(loop_end, sdfg_loop.sdfg) is not None:
