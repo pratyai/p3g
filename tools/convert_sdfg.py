@@ -24,6 +24,7 @@ from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, MapExit, NestedSDFG
 from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock
 import dace.symbolic as dsym
 import sympy as sp
+from z3 import *
 
 from pysmt.shortcuts import (
     Symbol,
@@ -465,6 +466,13 @@ if __name__ == "__main__":
         help="Output the SMT for the top-level loop.",
         action=argparse.BooleanOptionalAction,
     )
+    parser.add_argument(
+        "-s",
+        "--solve",
+        required=False,
+        help="Solve the SMT using Z3.",
+        action=argparse.BooleanOptionalAction,
+    )
     args = parser.parse_args()
 
     # If the user provided an input SDFG file, load it; otherwise, use the sample program.
@@ -476,14 +484,25 @@ if __name__ == "__main__":
     # Convert SDFG to P3G
     p3g = sdfg2p3g(sdfg)
 
+    # Generate the SMT
+    loops = tuple(n for n in p3g.nodes if isinstance(n, Loop))
+    assert len(loops) == 1
+    (loop,) = loops
+    smt = exists_data_forall_bounds_forall_iter_isdep(loop, verbose=False)
+
     # If the user requested, dump the P3G structure
     if args.dump_p3g:
         print_p3g_structure(p3g)
 
     # Optionally dump the SMT
     if args.dump_smt:
-        loops = tuple(n for n in p3g.nodes if isinstance(n, Loop))
-        assert len(loops) == 1
-        (loop,) = loops
-        smt = exists_data_forall_bounds_forall_iter_isdep(loop, verbose=False)
         print(smt)
+
+    # Optionally solve the SMT
+    if args.solve:
+        solver = Solver()
+        solver.from_string(smt)
+        if solver.check() == sat:
+            print("SMT is SAT")
+        else:
+            print("SMT is UNSAT")
