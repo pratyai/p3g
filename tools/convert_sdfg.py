@@ -4,7 +4,7 @@ This file converts a DaCe SDFG into a P3G Graph representation.
 Some notes:
 - We likely need a preprocessing pass
 - What if nested SDFGs have symbols that shadow parent SDFG symbols (and array names)?
-- What about symbol updates on interstate edges? (and array )
+- What about symbol updates on interstate edges? (and arrays?)
 - What about array access in condition expressions or loop bounds?
 
 """
@@ -23,8 +23,23 @@ from dace.transformation.passes.analysis.loop_analysis import (
 from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, MapExit, NestedSDFG
 from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock
 import dace.symbolic as dsym
+import sympy as sp
 
-from pysmt.shortcuts import Symbol, INT, TRUE, And, GE, LE, Plus, Int, simplify, Times
+from pysmt.shortcuts import (
+    Symbol,
+    INT,
+    TRUE,
+    And,
+    GE,
+    LE,
+    Plus,
+    Int,
+    simplify,
+    Times,
+    GT,
+    LT,
+    Equals,
+)
 
 # Add the project root to the sys.path
 script_dir = os.path.dirname(__file__)
@@ -47,7 +62,7 @@ def sample_program(
             c[i] = a[i] - b[i]
         else:
             c[i] = a[i] + b[i]
-    c[:] = c[:] * 2.0
+    # c[:] = c[:] * 2.0
 
 
 def _symexpr_to_pysmt(expr, symbols, sdfg):
@@ -67,6 +82,19 @@ def _symexpr_to_pysmt(expr, symbols, sdfg):
         args = expr.as_ordered_factors()
         pysmt_args = [_symexpr_to_pysmt(arg, symbols, sdfg) for arg in args]
         return Times(pysmt_args)
+    elif expr.is_Relational:
+        left = _symexpr_to_pysmt(expr.lhs, symbols, sdfg)
+        right = _symexpr_to_pysmt(expr.rhs, symbols, sdfg)
+        if expr.rel_op == ">=":
+            return GE(left, right)
+        elif expr.rel_op == "<=":
+            return LE(left, right)
+        elif expr.rel_op == ">":
+            return GT(left, right)
+        elif expr.rel_op == "<":
+            return LT(left, right)
+        elif expr.rel_op == "==":
+            return Equals(left, right)
 
     raise NotImplementedError(f"Expression {expr} could not be converted to Pysmt.")
 
@@ -166,6 +194,7 @@ def _accessnode2p3g(
     return reads, writes
 
 
+# TODO: Support reduction
 def _map2p3g(
     sdfg_map: MapEntry,
     builder: GraphBuilder,
@@ -349,12 +378,24 @@ def _cond2p3g(
             reads=list(tot_reads),
             writes=list(tot_writes),
         ) as p3gbranch:
+            else_handled = False
+            symexpr_combined = sp.true
             for cond, branch in sdfg_cond.branches:
                 if cond is None:
-                    ast = TRUE()
+                    assert (
+                        not else_handled
+                    ), "Multiple 'else' branches found in ConditionalBlock."
+                    ast = _symexpr_to_pysmt(
+                        sp.Not(symexpr_combined), symbols, sdfg_cond.sdfg
+                    )
+                    else_handled = True
                 else:
-                    cond_str = cond.as_string
-                    ast = GE(Int(1), Int(1))
+                    assert (
+                        not else_handled
+                    ), "'else' branch must be last in ConditionalBlock."
+                    symexpr = dsym.pystr_to_symbolic(cond.as_string)
+                    symexpr_combined = sp.And(symexpr_combined, symexpr)
+                    ast = _symexpr_to_pysmt(symexpr, symbols, sdfg_cond.sdfg)
 
                 with p3gbranch.add_path(ast):
                     for cfgs in dfs_topological_sort(branch):
