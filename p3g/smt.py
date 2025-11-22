@@ -517,11 +517,18 @@ def exists_data_forall_bounds_forall_iter_isdep(
 
     # Identify symbolic loop bound variables
     symbolic_loop_bounds = set()
+    # Exclude the current iteration variable `k` itself
+    exclude_from_bounds = {k}
+
+    # Collect from the primary loop's bounds
+    _collect_symbolic_loop_bound_vars_recursive(
+        loop_node.nested_graph, symbolic_loop_bounds, exclude_from_bounds
+    )
     for free_var in _get_free_variables_recursive(loop_node.start):
-        if free_var != k:
+        if free_var not in exclude_from_bounds:
             symbolic_loop_bounds.add(free_var)
     for free_var in _get_free_variables_recursive(loop_node.end):
-        if free_var != k:
+        if free_var not in exclude_from_bounds:
             symbolic_loop_bounds.add(free_var)
 
     universal_quantifier_vars = [f"({k.symbol_name()} {k.get_type()})"]
@@ -556,12 +563,6 @@ def exists_data_forall_bounds_forall_iter_isdep(
             defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
         )
 
-    # NEW BLOCK: Add human-provided assertions
-    if extra_assertions:
-        builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
-        for idx, assertion in enumerate(extra_assertions):
-            builder.add_assertion(assertion, f"Human Assertion #{idx}")
-
     builder.assertions.append("\n; --- Loop Bounds ---")
     loop_start, loop_end = loop_node.start, loop_node.end
 
@@ -577,11 +578,15 @@ def exists_data_forall_bounds_forall_iter_isdep(
     let_bindings, main_body_str = _build_dependency_logic_assertions_general(
         loop_node, k, Plus(k, Int(1)), builder, id_to_symbol_map
     )
+    # Add human-provided assertions
+    if extra_assertions:
+        extra_assertions = And(*[a for a in extra_assertions])
 
     loop_bound_str = f"""(and
     {builder._serialize(loop_runs_at_least_two_iterations)}
     {builder._serialize(k_lower_bound)}
     {builder._serialize(LE(Plus(k, Int(1)), loop_end))}
+    {builder._serialize(extra_assertions) if extra_assertions else ""}
 )"""
     # Construct the inner forall (k)
     inner_forall_str = f"""(forall ({" ".join(universal_quantifier_vars)}) ; End of universal variables

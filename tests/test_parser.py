@@ -1,6 +1,9 @@
 import re  # Added for normalization
 import textwrap
 
+import pytest
+from pysmt.shortcuts import get_env, reset_env
+
 from p3g.parser import PseudocodeParser
 from tests.cases.graph_definitions import (
     build_array_reversal_graph,
@@ -18,6 +21,12 @@ from tests.cases.graph_definitions import (
     build_sequential_with_symbolic_max_index_graph,
 )
 from tests.utils import get_p3g_structure_string
+
+
+@pytest.fixture(autouse=True)
+def pysmt_env():
+    reset_env()
+    get_env().enable_infix_notation = True
 
 
 def _normalize_graph_string(graph_string: str) -> str:

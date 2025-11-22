@@ -27,6 +27,7 @@ from p3g.graph import (
     PysmtFormula,
     PysmtRange,
     PysmtCoordSet,
+    PysmtAccessSubset,
     Loop,
     Branch,
 )
@@ -339,12 +340,8 @@ class PseudocodeParser:
 
     def _parse_for_loop(
         self,
-        hierarchical_reads: list[
-            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
-        ],
-        hierarchical_writes: list[
-            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
-        ],
+        hierarchical_reads: list[tuple[Data, PysmtAccessSubset | None]],
+        hierarchical_writes: list[tuple[Data, PysmtAccessSubset | None]],
         node_name: str | None,
     ) -> tuple[list, list]:
         """Parses a for loop: for i = start to end: ..."""
@@ -390,12 +387,8 @@ class PseudocodeParser:
 
     def _parse_if_statement(
         self,
-        hierarchical_reads: list[
-            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
-        ],
-        hierarchical_writes: list[
-            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
-        ],
+        hierarchical_reads: list[tuple[Data, PysmtAccessSubset | None]],
+        hierarchical_writes: list[tuple[Data, PysmtAccessSubset | None]],
         node_name: str | None,
     ) -> tuple[list, list]:
         """Parses an if-else statement: if condition: ... else: ..."""
@@ -504,12 +497,8 @@ class PseudocodeParser:
 
     def _parse_op_statement(
         self,
-        hierarchical_reads: list[
-            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
-        ],
-        hierarchical_writes: list[
-            tuple[Data, PysmtFormula | PysmtRange | PysmtCoordSet]
-        ],
+        hierarchical_reads: list[tuple[Data, PysmtAccessSubset | None]] | None,
+        hierarchical_writes: list[tuple[Data, PysmtAccessSubset | None]] | None,
         node_name: str | None,
     ) -> tuple[list, list]:
         """Parses an op statement: OP(annotation)"""
@@ -583,8 +572,8 @@ class PseudocodeParser:
             f"Unsupported or malformed statement starting with {self._peek()}"
         )
 
-    def _parse_access_item(self) -> tuple[PysmtFormula | PysmtRange, list]:
-        """Parses a single item in an access list, which can be an expression or a range."""
+    def _parse_access_item(self) -> tuple[PysmtFormula | PysmtRange | None, list]:
+        """Parses a single item in an access list, which can be an expression, a range, or '?' for inference."""
         start_formula, start_reads = self._parse_expression()
         if self._peek().type == "COLON":
             # This is a range

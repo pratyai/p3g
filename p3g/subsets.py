@@ -1,4 +1,6 @@
 # --- Pysmt Type Aliases for Clarity ---
+import uuid
+
 import z3
 from pysmt.fnode import FNode
 from pysmt.shortcuts import (
@@ -13,6 +15,7 @@ from pysmt.shortcuts import (
     Or,
     FALSE,
     get_free_variables,
+    TRUE,
 )
 from pysmt.solvers.z3 import Z3Converter
 from pysmt.typing import INT

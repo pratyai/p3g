@@ -1,4 +1,20 @@
-from pysmt.shortcuts import Symbol, INT, TRUE, And, GE, LE, Plus, Int, simplify
+import pytest
+from pysmt.shortcuts import (
+    Symbol,
+    INT,
+    TRUE,
+    And,
+    GE,
+    LE,
+    Plus,
+    Int,
+    simplify,
+    ArrayType,
+    Minus,
+    Times,
+    reset_env,
+    get_env,
+)
 
 from p3g.graph import (
     PysmtRange,
@@ -6,7 +22,15 @@ from p3g.graph import (
     Compute,
     GraphBuilder,
     create_path_model_fn,
+    Data,
 )
+from p3g.inference import InferenceEngine
+
+
+@pytest.fixture(autouse=True)
+def pysmt_env():
+    reset_env()
+    get_env().enable_infix_notation = True
 
 
 # Helper function to create a simple PysmtFormula for testing

@@ -15,7 +15,7 @@ from pysmt.shortcuts import (
 from pysmt.typing import INT
 
 from p3g.graph import Loop, Map, Reduce, Graph, Structure, Branch, Data
-from subsets import (
+from p3g.subsets import (
     PysmtAccessSubset,
     PysmtSetMembershipPredicate,
     PysmtFormula,
