@@ -1,6 +1,6 @@
 from pysmt.shortcuts import Symbol, INT, TRUE, And, GE, LE, Plus, Int, simplify
 
-from p3g.p3g import (
+from p3g.graph import (
     PysmtRange,
     PysmtCoordSet,
     Compute,

@@ -1,29 +1,23 @@
 from __future__ import annotations
 
 import io
-import uuid
 
 from pysmt.shortcuts import (
     Symbol,
     INT,
     Equals,
     And,
-    TRUE,
     Plus,
     Int,
     get_free_variables,
-    FALSE,
-    Or,
     GE,
     LE,
     LT,
-    Exists,
-    substitute,
 )
 from pysmt.smtlib.printers import SmtPrinter
 
 # --- Import P3G model classes ---
-from p3g.p3g import (
+from p3g.graph import (
     Graph,
     Loop,
     Data,
@@ -34,15 +28,10 @@ from p3g.p3g import (
     create_path_model_fn,
     Reduce,
 )
-from subsets import (
-    PysmtSetMembershipPredicate,
-    PysmtAccessSubset,
+from p3g.subsets import (
     PysmtSymbol,
-    PysmtRange,
-    PysmtCoordSet,
-    ReadSet,
-    WriteSet,
-    _create_set_intersection_formula, _get_free_variables_recursive,
+    _create_set_intersection_formula,
+    _get_free_variables_recursive,
 )
 
 

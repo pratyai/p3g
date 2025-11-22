@@ -11,7 +11,7 @@ from pysmt.shortcuts import (
     Or,
 )
 
-from subsets import (
+from p3g.subsets import (
     PysmtFormula,
     WriteSet,
     ReadSet,

@@ -7,7 +7,7 @@ from pysmt.shortcuts import Solver
 from pysmt.smtlib.parser import SmtLibParser
 from z3 import Z3Exception
 
-from p3g.p3g import Graph, Compute, Branch, Loop, Map, Reduce, Data, WriteSet, ReadSet
+from p3g.graph import Graph, Compute, Branch, Loop, Map, Reduce, Data, WriteSet, ReadSet
 
 
 # Custom Timeout Exception

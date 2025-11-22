@@ -20,7 +20,7 @@ from pysmt.shortcuts import (
     ArrayType,
 )
 
-from p3g.p3g import (
+from p3g.graph import (
     GraphBuilder,
     Graph,
     Data,

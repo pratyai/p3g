@@ -1,6 +1,6 @@
 from typing import Callable, List, Tuple, Any
 
-from p3g.p3g import Graph, Loop, PysmtFormula
+from p3g.graph import Graph, Loop, PysmtFormula
 from tests.utils import print_p3g_structure, solve_smt_string
 
 

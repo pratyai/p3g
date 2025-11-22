@@ -47,7 +47,7 @@ script_dir = os.path.dirname(__file__)
 project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
 sys.path.insert(0, project_root)
 
-from p3g.p3g import GraphBuilder, Graph, Loop, PysmtRange, PysmtCoordSet
+from p3g.graph import GraphBuilder, Graph, Loop, PysmtRange, PysmtCoordSet
 from p3g.smt import exists_data_forall_bounds_forall_iter_isdep
 from tests.utils import print_p3g_structure
 
@@ -320,9 +320,9 @@ def _loop2p3g(
 
         # Sanity check
         assert loop_stride == 1, "Only stride-1 loops are supported in P3G conversion."
-        assert (
-            loop_init is not None and loop_end is not None
-        ), "Loop bounds could not be determined."
+        assert loop_init is not None and loop_end is not None, (
+            "Loop bounds could not be determined."
+        )
 
         iter_var = str(iter_var)
         loop_init = _symexpr_to_pysmt(loop_init, symbols, sdfg_loop.sdfg)
@@ -383,17 +383,17 @@ def _cond2p3g(
             symexpr_combined = sp.true
             for cond, branch in sdfg_cond.branches:
                 if cond is None:
-                    assert (
-                        not else_handled
-                    ), "Multiple 'else' branches found in ConditionalBlock."
+                    assert not else_handled, (
+                        "Multiple 'else' branches found in ConditionalBlock."
+                    )
                     ast = _symexpr_to_pysmt(
                         sp.Not(symexpr_combined), symbols, sdfg_cond.sdfg
                     )
                     else_handled = True
                 else:
-                    assert (
-                        not else_handled
-                    ), "'else' branch must be last in ConditionalBlock."
+                    assert not else_handled, (
+                        "'else' branch must be last in ConditionalBlock."
+                    )
                     symexpr = dsym.pystr_to_symbolic(cond.as_string)
                     symexpr_combined = sp.And(symexpr_combined, symexpr)
                     ast = _symexpr_to_pysmt(symexpr, symbols, sdfg_cond.sdfg)

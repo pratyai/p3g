@@ -11,7 +11,7 @@ from pysmt.shortcuts import (
 from pysmt.smtlib.parser import SmtLibParser
 from pysmt.walkers import IdentityDagWalker
 
-from p3g.p3g import Loop
+from p3g.graph import Loop
 from p3g.parser import PseudocodeParser
 from p3g.smt import (
     exists_data_exists_bounds_forall_iter_isdep,
