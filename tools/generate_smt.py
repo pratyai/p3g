@@ -36,8 +36,8 @@ def main():
     parser.add_argument(
         "-q",
         "--query-type",
-        default="D-FS/DB",
-        choices=["D-FS", "D-FS/B", "D-FS/DB", "I-FI", "I-FI/B", "I-FI/DB", "?"],
+        default="D-FS/B",
+        choices=["D-FS", "D-FS/B", "D-NFI", "I-FI", "I-FI/B", "I-FI/DB", "?"],
         help="""Type of SMT query to generate:
 - D-FS: Does there exist a data configuration and a loop bound for which every adjacent iteration is dependent?
 - D-FS/B: Does there exist a data configuration for which every adjacent iteration is dependent, for all loop bounds?

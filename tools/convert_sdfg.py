@@ -13,6 +13,9 @@ import dace
 import sys
 import os
 import argparse
+
+from dace import Memlet
+from dace.data import Scalar
 from dace.sdfg import SDFG
 from dace.sdfg.utils import dfs_topological_sort
 from dace.transformation.passes.analysis.loop_analysis import (
@@ -59,10 +62,11 @@ def sample_program(
     a: dace.float32[N + 1], b: dace.float32[N + 1], c: dace.float32[N + 1]
 ):
     for i in range(N + 1):
-        if a[i] > b[i]:
-            c[i] = a[i] - b[i]
-        else:
-            c[i] = a[i] + b[i]
+        c[i] = a[i] - b[i]
+        # if a[i] > b[i]:
+        #     c[i] = a[i] - b[i]
+        # else:
+        #     c[i] = a[i] + b[i]
     # c[:] = c[:] * 2.0
 
 
@@ -449,6 +453,70 @@ def sdfg2p3g(sdfg: SDFG) -> Graph:
     return builder.root_graph
 
 
+def remove_transient(sdfg, name: str):
+    """
+    Remove transient array `name` from the SDFG, reconnecting producers→consumers.
+    """
+
+    desc = sdfg.arrays[name]
+    assert desc.transient, f"{name} must be transient"
+    assert isinstance(desc, Scalar), f"{name} must be Scalar"
+    refs = tuple(
+        (n, st)
+        for n, st in sdfg.all_nodes_recursive()
+        if isinstance(n, AccessNode) and n.data == name
+    )
+    assert len(refs) == 1, f"{name} must have only one access node"
+    ((ref, st),) = refs
+    in_edges = tuple(st.in_edges(ref))
+    assert len(in_edges) == 1, f"{name} must have exactly one write"
+    (write,) = in_edges
+    reads = tuple(st.out_edges(ref))
+
+    trash = [ref]
+    mpath = st.memlet_path(write)
+    srcs = tuple((e.src, e.data.subset) for e in mpath if isinstance(e.src, AccessNode))
+    for e in mpath:
+        if e is write:
+            continue
+        pass  # TODO
+    for read in reads:
+        mpath = st.memlet_path(read)
+        dsts = tuple(
+            (e.dst, e.data.subset) for e in mpath if isinstance(e.dst, AccessNode)
+        )
+        if not srcs and not dsts:
+            assk = mpath[-1].dst
+            assert isinstance(assk, Tasklet)
+            assert assk.code.as_string == "__out = __inp"
+            trash.append(assk)
+            out_edges = tuple(st.out_edges(assk))
+            assert len(out_edges) == 1, f"{assk} must have only one outgoing edge"
+            (read,) = out_edges
+            mpath = st.memlet_path(read)
+            dsts = tuple(
+                (e.dst, e.data.subset) for e in mpath if isinstance(e.dst, AccessNode)
+            )
+        assert len(srcs) == 1 or len(dsts) == 1, (
+            f"{name} must have at least one src or dst node"
+        )
+        src, srcsubs = srcs[0] if srcs else (None, None)
+        dst, dstsubs = dsts[0] if dsts else (None, None)
+        if src:
+            meml = Memlet(f"{src.data}[{srcsubs}]")
+        else:
+            meml = Memlet(f"{dst.data}[{dstsubs}]")
+        st.add_edge(
+            write.src,
+            write.src_conn,
+            read.dst,
+            read.dst_conn,
+            meml,
+        )
+    for x in trash:
+        st.remove_node(x)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert a DaCe SDFG to a P3G graph.")
     parser.add_argument("-i", "--input", required=False, help="Input SDFG file path.")
@@ -480,6 +548,8 @@ if __name__ == "__main__":
         sdfg = dace.sdfg.SDFG.from_file(args.input)
     else:
         sdfg = sample_program.to_sdfg()
+        for x in ["a_index", "b_index", "c_slice"]:
+            remove_transient(sdfg, x)
 
     # Convert SDFG to P3G
     p3g = sdfg2p3g(sdfg)
