@@ -11,7 +11,8 @@ from pysmt.shortcuts import (
     GT,
 )
 
-from p3g.p3g import GraphBuilder, PysmtRange, PysmtCoordSet
+from p3g.p3g import GraphBuilder
+from subsets import PysmtCoordSet, PysmtRange
 
 
 def build_array_reversal_graph():

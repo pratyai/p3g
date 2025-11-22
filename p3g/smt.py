@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import uuid
 
 from pysmt.shortcuts import (
     Symbol,
@@ -16,6 +17,8 @@ from pysmt.shortcuts import (
     GE,
     LE,
     LT,
+    Exists,
+    substitute,
 )
 from pysmt.smtlib.printers import SmtPrinter
 
@@ -28,13 +31,18 @@ from p3g.p3g import (
     Branch,
     Map,
     PysmtFormula,
+    create_path_model_fn,
+    Reduce,
+)
+from subsets import (
+    PysmtSetMembershipPredicate,
+    PysmtAccessSubset,
     PysmtSymbol,
     PysmtRange,
     PysmtCoordSet,
     ReadSet,
     WriteSet,
-    create_path_model_fn,
-    Reduce,
+    _create_set_intersection_formula, _get_free_variables_recursive,
 )
 
 
@@ -98,130 +106,6 @@ class _StringSmtBuilder:
         footer = "\n\n(check-sat)\n"  # Removed (get-model)
 
         return "\n".join(header) + "\n" + body + footer
-
-
-def _get_index_from_access(access_expr: PysmtFormula) -> PysmtFormula:
-    """Helper to extract the index from a Select or Store operation."""
-    if access_expr.is_select():
-        return access_expr.arg(1)
-    elif access_expr.is_store():
-        return access_expr.arg(1)
-    else:
-        return access_expr  # It's already an index expression
-
-
-def _create_range_intersection_formula(
-    range1: PysmtRange, range2: PysmtRange
-) -> PysmtFormula:
-    """
-    Generates a pysmt formula asserting that two 1D ranges intersect.
-    A range is represented as a tuple (start, end).
-    Intersection condition: (start1 <= end2) AND (start2 <= end1)
-    """
-    start1, end1 = range1
-    start2, end2 = range2
-    return And(LE(start1, end2), LE(start2, end1))
-
-
-def _create_intersection_formula(
-    idx1: PysmtFormula | PysmtRange | PysmtCoordSet,
-    idx2: PysmtFormula | PysmtRange | PysmtCoordSet,
-) -> PysmtFormula:
-    """
-    Creates a pysmt formula asserting that two indices or ranges intersect.
-    This function handles single indices (points), 1D ranges, and multi-dimensional
-    coordinate sets. Intersection is checked dimension by dimension.
-
-    - Point vs. Point: Intersection is equality.
-    - Range vs. Range: Intersection is classic range overlap.
-    - Point vs. Range: Intersection is checking if the point is within the range.
-    - CoordSet vs. CoordSet: Intersection is the conjunction of intersections
-      of their corresponding elements.
-
-    Args:
-        idx1: The first index, range, or coordinate set.
-        idx2: The second index, range, or coordinate set.
-
-    Returns:
-        A PysmtFormula that is TRUE if the two inputs intersect, and FALSE otherwise.
-        Returns FALSE if dimensions of CoordSets do not match.
-    """
-    is_idx1_coordset = isinstance(idx1, PysmtCoordSet)
-    is_idx2_coordset = isinstance(idx2, PysmtCoordSet)
-    is_idx1_range = isinstance(idx1, PysmtRange)
-    is_idx2_range = isinstance(idx2, PysmtRange)
-    is_idx1_formula = isinstance(idx1, PysmtFormula)
-    is_idx2_formula = isinstance(idx2, PysmtFormula)
-
-    if is_idx1_coordset and is_idx2_coordset:
-        if len(idx1) != len(idx2):
-            return FALSE()  # Different dimensions cannot intersect
-        intersections = [
-            _create_intersection_formula(i1, i2) for i1, i2 in zip(idx1, idx2)
-        ]
-        return And(intersections) if intersections else TRUE()
-
-    elif is_idx1_range and is_idx2_range:
-        return _create_range_intersection_formula(idx1, idx2)
-
-    elif is_idx1_formula and is_idx2_formula:
-        return Equals(idx1, idx2)
-
-    elif is_idx1_range and is_idx2_formula:
-        start, end = idx1
-        return And(LE(start, idx2), LE(idx2, end))
-
-    elif is_idx1_formula and is_idx2_range:
-        start, end = idx2
-        return And(LE(start, idx1), LE(idx1, end))
-
-    else:
-        # This case handles invalid type combinations or future unhandled types.
-        # For safety, we assume no intersection if the types are mismatched in a way
-        # not explicitly handled above (e.g., PysmtCoordSet vs. PysmtRange).
-        return FALSE()
-
-
-def _create_set_intersection_formula(
-    set_a: ReadSet, set_b: WriteSet, id_to_symbol_map: dict[int, PysmtSymbol]
-) -> PysmtFormula:
-    """
-    Creates a pysmt formula representing the intersection of two access sets.
-
-    This function generates a disjunction of clauses, where each clause represents
-    a potential intersection between an access in `set_a` and an access in `set_b`.
-    An intersection occurs if two accesses are to the same array (`array_id`)
-    and their indices/ranges intersect.
-
-    Args:
-        set_a: The first set of accesses (e.g., a ReadSet).
-        set_b: The second set of accesses (e.g., a WriteSet).
-        id_to_symbol_map: A dictionary mapping array_id to its corresponding PysmtSymbol.
-
-    Returns:
-        A PysmtFormula that is TRUE if any access in `set_a` intersects with any
-        access in `set_b`. Returns FALSE if there are no intersections or if either
-        set is empty.
-    """
-    clauses = []
-    if not set_a or not set_b:
-        return FALSE()
-
-    for arr_a, idx_a in set_a:
-        for arr_b, idx_b in set_b:
-            # Only check for intersection if the accesses are to the same array
-            if arr_a == arr_b:
-                arr_a_node = id_to_symbol_map[arr_a]
-                arr_b_node = id_to_symbol_map[arr_b]
-                index_intersection = _create_intersection_formula(idx_a, idx_b)
-                clauses.append(And(Equals(arr_a_node, arr_b_node), index_intersection))
-
-    if not clauses:
-        return FALSE()
-    elif len(clauses) == 1:
-        return clauses[0]
-    else:
-        return Or(clauses)
 
 
 def _build_dependency_logic_assertions_general(
@@ -342,23 +226,6 @@ def _build_dependency_logic_assertions_general(
 
     let_bindings = "\n".join(let_bindings_list)
     return let_bindings, main_body_str
-
-
-# Helper for recursive free variable extraction (needed for multi-dimensional access tuples)
-def _get_free_variables_recursive(
-    formula_or_tuple: PysmtFormula | PysmtRange | PysmtCoordSet,
-) -> set[PysmtSymbol]:
-    """Recursively extracts free variables from a formula or a tuple/list of formulas."""
-
-    if isinstance(formula_or_tuple, (PysmtRange, PysmtCoordSet)):
-        # Recursive case: Traverse all elements in the multi-dimensional index tuple/list
-        free_vars = set()
-        for item in formula_or_tuple:
-            free_vars.update(_get_free_variables_recursive(item))
-        return free_vars
-    else:
-        # Base case: The item is a PysmtFormula
-        return get_free_variables(formula_or_tuple)
 
 
 def _collect_all_data_nodes(graph: Graph, collected_data_nodes: set[Data]):
@@ -576,6 +443,36 @@ def exists_data_exists_bounds_forall_iter_isdep(
 {smt_query}
 """)
     return smt_query
+
+
+def _collect_symbolic_loop_bound_vars_recursive(
+    graph: Graph,
+    collected_vars: set[PysmtSymbol],
+    exclude_vars: set[PysmtSymbol],
+):
+    """
+    Recursively collects all symbolic variables from the loop bounds of
+    all Loop, Map, and Reduce nodes within a given graph and its nested graphs.
+    """
+    for node in graph.nodes:
+        if isinstance(node, (Loop, Map, Reduce)):
+            # Collect from current node's bounds
+            for free_var in _get_free_variables_recursive(node.start):
+                if free_var not in exclude_vars:
+                    collected_vars.add(free_var)
+            for free_var in _get_free_variables_recursive(node.end):
+                if free_var not in exclude_vars:
+                    collected_vars.add(free_var)
+            # Recurse into nested graph
+            _collect_symbolic_loop_bound_vars_recursive(
+                node.nested_graph, collected_vars, exclude_vars
+            )
+        elif isinstance(node, Branch):
+            # Recurse into all branch paths
+            for _, nested_graph in node.branches:
+                _collect_symbolic_loop_bound_vars_recursive(
+                    nested_graph, collected_vars, exclude_vars
+                )
 
 
 def exists_data_forall_bounds_forall_iter_isdep(
