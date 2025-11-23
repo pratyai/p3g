@@ -642,7 +642,7 @@ class P3GConverter:
 
     @dispatch
     def _convert_node(
-        self, sdfg_cond: ConditionalBlock, parent_state: SDFGState | None
+        self, condblock: ConditionalBlock, parent_state: SDFGState | None
     ) -> tuple[DataSubset, DataSubset]:
         """
         Converts an SDFG ConditionalBlock into a P3G Branch construct.
@@ -652,7 +652,7 @@ class P3GConverter:
         associating them with their respective conditions.
 
         Args:
-            sdfg_cond: The SDFG ConditionalBlock to convert.
+            condblock: The SDFG ConditionalBlock to convert.
             parent_state: Always None for a top-level conditional block conversion.
 
         Returns:
@@ -661,29 +661,25 @@ class P3GConverter:
         Raises:
             AssertionError: If multiple 'else' branches are found or an 'else' branch is not last.
         """
-        # Get the actual SDFGState that contains this conditional block.
-        parent_state = sdfg_cond.sdfg.node(sdfg_cond.state_id)
-
-        # Collect all data reads and writes that occur across all branches of the conditional block.
-        total_reads = set()
-        total_writes = set()
-        for cond_expr, branch_cfg in sdfg_cond.branches:
-            branch_r, branch_w = self._get_total_subgraph_accesses(
-                dfs_topological_sort(branch_cfg), parent_state
-            )
-            total_reads.update(branch_r)
-            total_writes.update(branch_w)
+        reads, writes = self.access_analyzer.get_accesses(condblock, None)
+        p3g_writes = [
+            (self.builder.add_write_data(name), wset) for name, wset in writes
+        ]
+        p3g_reads = [
+            (self.builder.add_read_data(name), rset) for name, rset in reads
+        ] + [(r, wset) for (r, w), wset in p3g_writes]
+        p3g_writes = [(w, wset) for (r, w), wset in p3g_writes]
 
         # Add the branch construct to the P3G builder.
         with self.builder.add_branch(
-            sdfg_cond.label,
-            reads=list(total_reads),
-            writes=list(total_writes),
+            condblock.label,
+            reads=p3g_reads,
+            writes=p3g_writes,
         ) as p3gbranch:
             else_handled = False
             # sympy.true is used to accumulate conditions for the implicit 'else' branch.
             symexpr_combined = sp.true
-            for cond_expr, branch_cfg in sdfg_cond.branches:
+            for cond_expr, branch_cfg in condblock.branches:
                 # Determine the condition for the current branch path.
                 if cond_expr is None:  # This indicates the 'else' branch.
                     assert not else_handled, (
@@ -703,9 +699,7 @@ class P3GConverter:
                     # Accumulate conditions for the eventual 'else' branch.
                     symexpr_combined = sp.And(symexpr_combined, symexpr)
                     # Convert the current branch condition to PySMT.
-                    ast_condition = _symexpr_to_pysmt(
-                        symexpr, self.symbols, self.symbols, self.sdfg
-                    )
+                    ast_condition = _symexpr_to_pysmt(symexpr, self.symbols, self.sdfg)
 
                 # Add a path to the P3G branch construct with its condition.
                 with p3gbranch.add_path(ast_condition):
@@ -713,7 +707,7 @@ class P3GConverter:
                     for node_or_cfg in dfs_topological_sort(branch_cfg):
                         self._convert_node(node_or_cfg, parent_state)
 
-        return total_reads, total_writes
+        return set(p3g_reads), set(p3g_writes)
 
     @dispatch
     def _convert_node(
