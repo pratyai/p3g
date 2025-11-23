@@ -9,40 +9,34 @@ Some notes:
 
 """
 
-import dace
-import sys
-import os
 import argparse
+import os
+import sys
 
+import dace
+import dace.symbolic as dsym
+import sympy as sp
 from dace import Memlet
 from dace.data import Scalar
 from dace.sdfg import SDFG
+from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, NestedSDFG
+from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock
 from dace.sdfg.utils import dfs_topological_sort
 from dace.transformation.passes.analysis.loop_analysis import (
     get_loop_end,
     get_init_assignment,
     get_loop_stride,
 )
-from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, MapExit, NestedSDFG
-from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock
-import dace.symbolic as dsym
-import sympy as sp
-from z3 import *
-
 from pysmt.shortcuts import (
-    Symbol,
-    INT,
-    TRUE,
-    And,
     GE,
     LE,
     Plus,
     Int,
-    simplify,
     Times,
     GT,
     LT,
     Equals,
+    Solver,
 )
 
 # Add the project root to the sys.path
@@ -50,6 +44,7 @@ script_dir = os.path.dirname(__file__)
 project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
 sys.path.insert(0, project_root)
 
+from p3g.subsets import PysmtFormula
 from p3g.graph import GraphBuilder, Graph, Loop, PysmtRange, PysmtCoordSet
 from p3g.smt import exists_data_forall_bounds_forall_iter_isdep
 from tests.utils import print_p3g_structure
@@ -70,7 +65,7 @@ def sample_program(
     # c[:] = c[:] * 2.0
 
 
-def _symexpr_to_pysmt(expr, symbols, sdfg):
+def _symexpr_to_pysmt(expr, symbols, sdfg) -> PysmtFormula:
     if str(expr) in symbols:
         return symbols[str(expr)]
 
@@ -572,7 +567,7 @@ if __name__ == "__main__":
     if args.solve:
         solver = Solver()
         solver.from_string(smt)
-        if solver.check() == sat:
+        if solver.check_sat():
             print("SMT is SAT")
         else:
             print("SMT is UNSAT")
