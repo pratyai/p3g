@@ -31,6 +31,7 @@ from p3g.graph import (
     Loop,
     Branch,
 )
+from p3g.inference import InferenceEngine
 
 Token = collections.namedtuple("Token", ["type", "value", "line", "column"])
 
@@ -49,9 +50,8 @@ class PseudocodeParser:
         self.output_data_names: set[str] = set()
         self._declared_arrays: set[str] = set()  # Track declared arrays
 
-        self._array_state: dict[
-            tuple[Graph, str, str], Data
-        ] = {}  # Graph -> State -> Array -> Ref.
+        # Graph -> State -> Array -> Ref.
+        self._array_state: dict[tuple[Graph, str, str], Data] = {}
         self._current_array_state_stack: list[str] = ["."]
         self._current_scope_inputs_stack: list[dict[str, Data]] = [{}]
 
@@ -72,6 +72,11 @@ class PseudocodeParser:
             elif peek_type == "NEWLINE":
                 self._consume("NEWLINE")
         self._parse_block()
+
+        # After initial parsing, run the inference engine
+        inference_engine = InferenceEngine(self.builder)
+        inference_engine.infer_all_accesses()
+
         return self.builder.root_graph
 
     # --- Tokenizer ---
@@ -106,6 +111,7 @@ class PseudocodeParser:
             ("TIMES", r"\*"),
             ("COMMA", r","),
             ("DOT", r"\."),
+            ("QUESTION_MARK", r"\?"),
             ("SKIP", r"[ \t]+"),
             ("MISMATCH", r"."),
         ]
@@ -368,10 +374,13 @@ class PseudocodeParser:
             self.known_symbols[var] = loop.loop_var
 
             # New: Populate and push scope inputs
-            scope_inputs = {
-                node.graph._array_id_to_name[node.array_id]: node
-                for node, _ in hierarchical_reads
-            }
+            if hierarchical_reads is None:
+                scope_inputs = {}
+            else:
+                scope_inputs = {
+                    node.graph._array_id_to_name[node.array_id]: node
+                    for node, _ in hierarchical_reads
+                }
             self._current_scope_inputs_stack.append(scope_inputs)
 
             self._current_array_state_stack.append(".")
@@ -410,10 +419,13 @@ class PseudocodeParser:
 
         with branch_node.add_path(predicate):
             # New: Populate and push scope inputs
-            scope_inputs = {
-                node.graph._array_id_to_name[node.array_id]: node
-                for node, _ in hierarchical_reads
-            }
+            if hierarchical_reads is None:
+                scope_inputs = {}
+            else:
+                scope_inputs = {
+                    node.graph._array_id_to_name[node.array_id]: node
+                    for node, _ in hierarchical_reads
+                }
             self._current_scope_inputs_stack.append(scope_inputs)
 
             self._current_array_state_stack.append(".")
@@ -435,10 +447,13 @@ class PseudocodeParser:
             else_predicate = Not(predicate)
             with branch_node.add_path(else_predicate):
                 # New: Populate and push scope inputs
-                scope_inputs = {
-                    node.graph._array_id_to_name[node.array_id]: node
-                    for node, _ in hierarchical_reads
-                }
+                if hierarchical_reads is None:
+                    scope_inputs = {}
+                else:
+                    scope_inputs = {
+                        node.graph._array_id_to_name[node.array_id]: node
+                        for node, _ in hierarchical_reads
+                    }
                 self._current_scope_inputs_stack.append(scope_inputs)
 
                 self._current_array_state_stack.append(".")
@@ -574,6 +589,10 @@ class PseudocodeParser:
 
     def _parse_access_item(self) -> tuple[PysmtFormula | PysmtRange | None, list]:
         """Parses a single item in an access list, which can be an expression, a range, or '?' for inference."""
+        if self._peek().type == "QUESTION_MARK":
+            self._consume("QUESTION_MARK")
+            return None, []  # Return None for the subset, no reads from '?'
+
         start_formula, start_reads = self._parse_expression()
         if self._peek().type == "COLON":
             # This is a range

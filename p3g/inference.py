@@ -14,6 +14,9 @@ from pysmt.shortcuts import (
 )
 from pysmt.typing import INT
 
+from plum import dispatch  # Added plum import
+
+
 from p3g.graph import Loop, Map, Reduce, Graph, Structure, Branch, Data
 from p3g.subsets import (
     PysmtAccessSubset,
@@ -36,6 +39,118 @@ class InferenceEngine:
 
     def __init__(self, builder: "GraphBuilder"):
         self.builder = builder
+
+    @dispatch
+    def expand_subset(
+        self, subset_to_expand: PysmtRange, current_structure_node: Loop | Map | Reduce
+    ) -> PysmtRange:
+        """
+        Expands a PysmtRange in the context of the current outer loop.
+        This dispatch is specific to Loop, Map, or Reduce nodes.
+        """
+        new_start = self._calculate_range_for_access(
+            subset_to_expand.start, current_structure_node
+        ).start
+        new_end = _custom_simplify_formula(
+            self._calculate_range_for_access(
+                subset_to_expand.end, current_structure_node
+            ).end
+        )
+        return PysmtRange(
+            _custom_simplify_formula(new_start),
+            _custom_simplify_formula(new_end),
+        )
+
+    @dispatch
+    def expand_subset(
+        self, subset_to_expand: PysmtCoordSet, current_structure_node: Structure
+    ) -> PysmtCoordSet:
+        """
+        Expands a PysmtCoordSet by expanding its elements.
+        """
+        # Call self.expand_subset for recursive dispatch
+        return PysmtCoordSet(
+            *[
+                self.expand_subset(elem, current_structure_node)
+                for elem in subset_to_expand
+            ]
+        )
+
+    @dispatch
+    def expand_subset(
+        self,
+        subset_to_expand: PysmtSetMembershipPredicate,
+        current_structure_node: Loop | Map | Reduce,
+    ) -> PysmtSetMembershipPredicate:
+        """
+        Expands a PysmtSetMembershipPredicate. If its formula contains the loop variable
+        of the current structure node, it performs existential quantification.
+        """
+
+        if current_structure_node.loop_var not in get_free_variables(
+            subset_to_expand.formula
+        ):
+            return subset_to_expand
+
+        # If the internal formula contains the loop variable of the current structure node,
+        # we need to existentially quantify over that loop variable to capture its effect.
+        loop_var_outer = current_structure_node.loop_var
+        loop_start_outer = current_structure_node.start
+        loop_end_outer = current_structure_node.end
+
+        # Create a fresh bound variable for quantification to avoid capture issues
+        k_bound_outer = Symbol(f"{loop_var_outer.symbol_name()}_outer_bound", INT)
+
+        # Condition for the outer bound variable to be within its bounds
+        loop_bounds_condition_outer = And(
+            LE(loop_start_outer, k_bound_outer),
+            LE(k_bound_outer, loop_end_outer),
+        )
+
+        # Substitute the outer bound variable into the inner formula
+        substituted_inner_formula = substitute(
+            subset_to_expand.formula, {loop_var_outer: k_bound_outer}
+        )
+
+        # Create the new formula with existential quantification
+        new_formula = Exists(
+            [k_bound_outer],
+            And(loop_bounds_condition_outer, substituted_inner_formula),
+        )
+        return PysmtSetMembershipPredicate(
+            new_formula,
+            subset_to_expand.member_symbol,
+            loop_start=current_structure_node.start,
+            loop_end=current_structure_node.end,
+        )
+
+    @dispatch
+    def expand_subset(
+        self,
+        subset_to_expand: PysmtFormula,
+        current_structure_node: Loop | Map | Reduce,
+    ) -> PysmtAccessSubset:
+        """
+        Expands a PysmtFormula into a PysmtSetMembershipPredicate if within a loop context.
+        """
+        # Create a fresh symbol for the member of the set
+        fresh_member_sym = Symbol(f"v_set_{uuid.uuid4().hex[:8]}", INT)
+        return _get_set_membership_condition(
+            fresh_member_sym,
+            subset_to_expand,
+            current_structure_node.loop_var,
+            current_structure_node.start,
+            current_structure_node.end,
+        ).to_concrete_access()
+
+    @dispatch
+    def expand_subset(
+        self,
+        subset_to_expand: PysmtAccessSubset | None,
+        current_structure_node: Structure,
+    ) -> PysmtAccessSubset | None:
+        """Default case for None or unsupported types."""
+        return subset_to_expand
 
     def _combine_subsets_for_array_id(
         self, unique_subsets: list[PysmtAccessSubset]
@@ -272,93 +387,6 @@ class InferenceEngine:
 
         is_in_loop_context = isinstance(current_structure_node, (Loop, Map, Reduce))
 
-        def expand_subset(subset_to_expand):
-            """
-            Recursively expands a subset in the context of the current outer loop.
-            """
-            if isinstance(subset_to_expand, PysmtRange):
-                new_start = self._calculate_range_for_access(
-                    subset_to_expand.start, current_structure_node
-                ).start
-                new_end = self._calculate_range_for_access(
-                    subset_to_expand.end, current_structure_node
-                ).end
-                return PysmtRange(
-                    _custom_simplify_formula(new_start),
-                    _custom_simplify_formula(new_end),
-                )
-            elif isinstance(subset_to_expand, PysmtCoordSet):
-                return PysmtCoordSet(
-                    *[expand_subset(elem) for elem in subset_to_expand]
-                )
-            elif isinstance(subset_to_expand, PysmtSetMembershipPredicate):
-                # If the internal formula contains the loop variable of the current structure node,
-                # we need to existentially quantify over that loop variable to capture its effect.
-                # Only apply this if current_structure_node is actually a loop, map, or reduce.
-                if isinstance(
-                    current_structure_node, (Loop, Map, Reduce)
-                ) and current_structure_node.loop_var in get_free_variables(
-                    subset_to_expand.formula
-                ):
-                    loop_var_outer = current_structure_node.loop_var
-                    loop_start_outer = current_structure_node.start
-                    loop_end_outer = current_structure_node.end
-
-                    # Create a fresh bound variable for quantification to avoid capture issues
-                    k_bound_outer = Symbol(
-                        f"{loop_var_outer.symbol_name()}_outer_bound", INT
-                    )
-
-                    # Condition for the outer bound variable to be within its bounds
-                    loop_bounds_condition_outer = And(
-                        LE(loop_start_outer, k_bound_outer),
-                        LE(k_bound_outer, loop_end_outer),
-                    )
-
-                    # Substitute the outer bound variable into the inner formula
-                    substituted_inner_formula = substitute(
-                        subset_to_expand.formula, {loop_var_outer: k_bound_outer}
-                    )
-
-                    # Create the new formula with existential quantification
-                    new_formula = Exists(
-                        [k_bound_outer],
-                        And(loop_bounds_condition_outer, substituted_inner_formula),
-                    )
-                    return PysmtSetMembershipPredicate(
-                        new_formula,
-                        subset_to_expand.member_symbol,
-                        loop_start=current_structure_node.start,
-                        loop_end=current_structure_node.end,
-                    )
-                else:
-                    # If the internal formula does not depend on the current loop variable, or
-                    # if the current_structure_node is not a loop, map, or reduce, return as is.
-                    return subset_to_expand
-            elif isinstance(subset_to_expand, PysmtFormula):
-                # Convert the single formula access into a PysmtSetMembershipPredicate
-                # representing the set of values it takes over the loop's range.
-                if isinstance(current_structure_node, (Loop, Map, Reduce)):
-                    # Create a fresh symbol for the member of the set
-                    fresh_member_sym = Symbol(f"v_set_{uuid.uuid4().hex[:8]}", INT)
-                    return _get_set_membership_condition(
-                        fresh_member_sym,
-                        subset_to_expand,
-                        current_structure_node.loop_var,
-                        current_structure_node.start,
-                        current_structure_node.end,
-                    ).to_concrete_access()
-                else:
-                    # If this point is reached, it means `expand_subset` was called with a PysmtFormula
-                    # in a context where `current_structure_node` is not a loop, map, or reduce,
-                    # which is an unsupported operation for "expanding" a simple formula into a predicate.
-                    raise TypeError(
-                        f"Cannot expand PysmtFormula '{subset_to_expand}' into a predicate "
-                        f"outside of a Loop, Map, or Reduce context. Current node type: {type(current_structure_node)}"
-                    )
-            else:  # None or other types
-                return subset_to_expand
-
         for node in graph.nodes:
             if isinstance(node, Data):
                 continue
@@ -366,14 +394,18 @@ class InferenceEngine:
             # Process reads from the node's hierarchical edges
             for arr_id, subset in node.get_read_set():
                 if is_in_loop_context:
-                    aggregated_reads.append((arr_id, expand_subset(subset)))
+                    aggregated_reads.append(
+                        (arr_id, self.expand_subset(subset, current_structure_node))
+                    )
                 else:
                     aggregated_reads.append((arr_id, subset))
 
             # Process writes from the node's hierarchical edges
             for arr_id, subset in node.get_write_set():
                 if is_in_loop_context:
-                    aggregated_writes.append((arr_id, expand_subset(subset)))
+                    aggregated_writes.append(
+                        (arr_id, self.expand_subset(subset, current_structure_node))
+                    )
                 else:
                     aggregated_writes.append((arr_id, subset))
 

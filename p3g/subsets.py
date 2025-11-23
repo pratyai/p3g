@@ -16,6 +16,7 @@ from pysmt.shortcuts import (
     FALSE,
     get_free_variables,
     TRUE,
+    GE,
 )
 from pysmt.solvers.z3 import Z3Converter
 from pysmt.typing import INT
@@ -70,9 +71,7 @@ class PysmtSetMembershipPredicate:
         """The loop end bound associated with this predicate, if it originated from a loop."""
         return self._loop_end
 
-    def to_concrete_access(
-        self,
-    ) -> PysmtFormula | PysmtRange | PysmtCoordSet | "PysmtSetMembershipPredicate":
+    def to_concrete_access(self) -> PysmtAccessSubset:
         """
         Attempts to simplify the membership predicate into a more concrete access type
         (PysmtFormula for a point, PysmtRange for a 1D range, PysmtCoordSet for multi-dim,
@@ -239,7 +238,7 @@ def _custom_simplify_formula(formula: PysmtFormula) -> PysmtFormula:
 
 def _get_set_membership_condition(
     member_sym: PysmtSymbol,
-    access_formula: PysmtFormula,
+    access_set: PysmtAccessSubset,
     loop_var: PysmtSymbol,
     loop_start: PysmtFormula,
     loop_end: PysmtFormula,
@@ -273,14 +272,21 @@ def _get_set_membership_condition(
     loop_bounds_condition = And(LE(loop_start, k_bound), LE(k_bound, loop_end))
 
     # Substitute the bound variable into the access_formula
-    substituted_access_formula = substitute(access_formula, {loop_var: k_bound})
-
-    # Condition that 'member_sym' is equal to the substituted access_formula
-    member_equals_formula_condition = Equals(member_sym, substituted_access_formula)
+    if isinstance(access_set, PysmtFormula):
+        membership_formula = Equals(
+            substitute(access_set, {loop_var: k_bound}), member_sym
+        )
+    elif isinstance(access_set, PysmtRange):
+        membership_formula = And(
+            GE(access_set.start, member_sym),
+            LE(member_sym, access_set.end),
+        )
+    else:
+        raise TypeError(f"Unimplemented type {type(access_set)}")
 
     # Existentially quantify 'k_bound'
     return PysmtSetMembershipPredicate(
-        Exists([k_bound], And(loop_bounds_condition, member_equals_formula_condition)),
+        Exists([k_bound], And(loop_bounds_condition, membership_formula)),
         member_sym,
         loop_start=loop_start,
         loop_end=loop_end,
