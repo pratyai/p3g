@@ -14,7 +14,8 @@ dependencies = [
     "pysmt",
     "dace @ git+https://github.com/spcl/dace.git",
     "questionary",
-    "jinja2"
+    "jinja2",
+    "plum-dispatch"
 ]
 
 [tool.setuptools.packages.find]
