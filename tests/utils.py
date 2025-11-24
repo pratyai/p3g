@@ -17,7 +17,6 @@ class TimeoutError(Exception):
 
 # --- Solver Configuration ---
 SOLVER_NAME = "z3"  # Can be 'z3', 'cvc5', etc.
-OUTPUT_DIR = "tmp/smt"
 
 
 # --- Graph Printing Utility ---
@@ -187,18 +186,11 @@ def print_p3g_structure(graph: Graph, indent=0):
 # --- End of Graph Printing Utility ---
 
 
-def _solve_smt_string_internal(smt_string: str, case_name: str, result_queue: Queue):
+def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
     """
     Internal function to solve the SMT query. Designed to be run in a separate process.
     Puts (result, model_str) or (exception,) into the queue.
     """
-    filename = os.path.join(OUTPUT_DIR, f"{case_name}.smt2")
-
-    # 1. Write the SMT string to the file (for inspection)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with open(filename, "w") as f:
-        f.write(smt_string)
-
     # 2. Parse the SMT-LIB string into pysmt formulas
     parser = SmtLibParser()
     script = parser.get_script(io.StringIO(smt_string))
@@ -240,9 +232,7 @@ def _solve_smt_string_internal(smt_string: str, case_name: str, result_queue: Qu
         result_queue.put((e,))
 
 
-def solve_smt_string(
-    smt_string: str, case_name: str, timeout_seconds: int = 30
-) -> bool:
+def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> bool:
     """
     Saves the SMT query to a file and runs an in-memory pysmt solver
     (e.g., z3, cvc5) on the parsed string within a separate process with a timeout.
@@ -250,11 +240,9 @@ def solve_smt_string(
     Raises TimeoutError if the solver exceeds the timeout.
     Raises other Exceptions for 'unknown' or solver failures.
     """
-    print(f"SMT query saved to {os.path.join(OUTPUT_DIR, f'{case_name}.smt2')}")
-
     result_queue = Queue()
     process = Process(
-        target=_solve_smt_string_internal, args=(smt_string, case_name, result_queue)
+        target=_solve_smt_string_internal, args=(smt_string, result_queue)
     )
     process.start()
     process.join(timeout=timeout_seconds)
@@ -262,9 +250,7 @@ def solve_smt_string(
     if process.is_alive():
         process.terminate()
         process.join()
-        raise TimeoutError(
-            f"SMT solver timed out after {timeout_seconds} seconds for case: {case_name}"
-        )
+        raise TimeoutError(f"SMT solver timed out after {timeout_seconds} seconds")
 
     if not result_queue.empty():
         result_tuple = result_queue.get()

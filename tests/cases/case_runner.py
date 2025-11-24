@@ -1,7 +1,10 @@
+import os
 from typing import Callable, List, Tuple, Any
 
 from p3g.graph import Graph, Loop, PysmtFormula
 from tests.utils import print_p3g_structure, solve_smt_string
+
+OUTPUT_DIR = "tmp/smt"
 
 
 def run_test_case(
@@ -34,8 +37,15 @@ def run_test_case(
     print(smt_query)
     print("--------------------------------------------------")
 
-    result = solve_smt_string(smt_query, test_name, timeout_seconds=timeout_seconds)
+    if test_name:
+        # Write the SMT string to the file (for inspection)
+        print(f"SMT query saved to {os.path.join(OUTPUT_DIR, f'{test_name}.smt2')}")
+        filename = os.path.join(OUTPUT_DIR, f"{test_name}.smt2")
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        with open(filename, "w") as f:
+            f.write(smt_query)
 
+    result = solve_smt_string(smt_query, timeout_seconds=timeout_seconds)
     if expected_result:
         assert result, f"Expected {test_name} to be SAT but SMT solver returned UNSAT."
     else:
