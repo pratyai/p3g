@@ -334,12 +334,21 @@ class P3GConverter:
         self._declared_arrays: set[str] = set(
             name for name, _ in self.sdfg.arrays.items()
         )
-        # TODO: A table of which arrays are transient proper.
-
         # Persistent arrays are considered output.
-        self.output_data_names: set[str] = set(
+        self.output_arrays: set[str] = set(
             name for name, desc in self.sdfg.arrays.items() if not desc.transient
         )
+        # Transient arrays (those not in output_data_names)
+        self._transient_arrays: set[str] = self._declared_arrays - self.output_arrays
+
+        # Populate _transient_accessed_by_incoming_edge
+        for node, st in self.sdfg.all_nodes_recursive():
+            if (
+                isinstance(node, AccessNode)
+                and node.data in self._transient_arrays
+                and not st.in_degree(node)
+            ):
+                self._transient_arrays.remove(node.data)
 
         # Stores a mapping from SDFG symbol names to their P3G PysmtSymbol representations.
         self.symbols: dict[str, PysmtSymbol] = {}
