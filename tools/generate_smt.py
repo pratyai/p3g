@@ -20,6 +20,8 @@ from p3g.smt import (
     forall_data_forall_bounds_forall_iter_isindep,
 )
 
+from tests.utils import solve_smt_string
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -47,6 +49,30 @@ def main():
 - I-FI/DB: For all data configurations and all loop bounds, are all iteration pairs independent?""",
     )
     args = parser.parse_args()
+
+    # Handle directory input
+    if os.path.isdir(args.input):
+        import questionary
+
+        pcode_files = list(pathlib.Path(args.input).rglob("*.pcode"))
+
+        if not pcode_files:
+            print(f"Error: No .pcode files found in '{args.input}'.")
+            sys.exit(1)
+
+        # Create a list of string paths for the choices
+        choices = [str(f) for f in pcode_files]
+
+        selected_file = questionary.select(
+            "Multiple .pcode files found. Please choose one:",
+            choices=sorted(choices),
+        ).ask()
+
+        if selected_file is None:
+            print("No file selected. Exiting.")
+            sys.exit(1)
+
+        args.input = selected_file
 
     query_type = args.query_type
     if query_type == "?":
@@ -135,6 +161,8 @@ def main():
         f.write(smt_query)
 
     print(f"SMT-LIB query generated and saved to {args.output}")
+
+    solve_smt_string(smt_query)
 
 
 if __name__ == "__main__":

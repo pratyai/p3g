@@ -512,8 +512,7 @@ def exists_data_forall_bounds_forall_iter_isdep(
         A string containing the SMT-LIB query.
     """
 
-    k = loop_node.loop_var  # Use the loop's internal iteration variable
-    existential_quantifier_vars = _get_existential_quantifier_vars(loop_node, k)
+    k = loop_node.loop_var
 
     # Identify symbolic loop bound variables
     symbolic_loop_bounds = set()
@@ -531,30 +530,19 @@ def exists_data_forall_bounds_forall_iter_isdep(
         if free_var not in exclude_from_bounds:
             symbolic_loop_bounds.add(free_var)
 
+    universal_quantifier_vars_just_names = {str(k)}
     universal_quantifier_vars = [f"({k.symbol_name()} {k.get_type()})"]
     for sym in symbolic_loop_bounds:
         universal_quantifier_vars.append(f"({sym.symbol_name()} {sym.get_type()})")
+        universal_quantifier_vars_just_names.add(sym.symbol_name())
 
     builder = _StringSmtBuilder()
 
-    # Declare existential quantifiers
-    for sym in existential_quantifier_vars:
-        builder.declarations.add(sym)
-
-    # Declare universal quantifiers (k and symbolic loop bounds)
-    builder.declarations.add(k)
-    for sym in symbolic_loop_bounds:
-        builder.declarations.add(sym)
-
-    id_to_symbol_map: dict[int, PysmtSymbol] = {}
-    # root_graph = loop_node.builder.root_graph # No longer needed directly here
-
     all_data_nodes: set[Data] = set()
-    _collect_all_data_nodes(
-        loop_node.builder.root_graph, all_data_nodes
-    )  # Collect from the entire graph
+    _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes)
 
     builder.assertions.append("; --- Data Definitions ---")
+    id_to_symbol_map: dict[int, PysmtSymbol] = {}
     for node in all_data_nodes:  # Iterate over all collected Data nodes
         sym = Symbol(f"DATA!{node.graph._array_id_to_name[node.array_id]}", INT)
         id_to_symbol_map[node.array_id] = sym
@@ -565,11 +553,6 @@ def exists_data_forall_bounds_forall_iter_isdep(
 
     builder.assertions.append("\n; --- Loop Bounds ---")
     loop_start, loop_end = loop_node.start, loop_node.end
-
-    builder.add_assertion(
-        GE(loop_end, Plus(loop_start, Int(1))),
-        "Loop runs at least two adjacent iterations",
-    )
 
     builder.assertions.append("\n; --- Dependency Logic Definitions ---")
     loop_runs_at_least_two_iterations = GE(loop_end, Plus(loop_start, Int(1)))
@@ -601,6 +584,18 @@ def exists_data_forall_bounds_forall_iter_isdep(
 
     # No existential quantifiers, just assert the inner forall
     builder.assertions.append(f"(assert {inner_forall_str})")
+    seen_assertions = set()
+    nu_assertions = []
+    for a in builder.assertions:
+        if str(a) not in seen_assertions:
+            seen_assertions.add(str(a))
+            nu_assertions.append(a)
+    builder.assertions = nu_assertions
+    builder.declarations = {
+        d
+        for d in builder.declarations
+        if str(d) not in universal_quantifier_vars_just_names
+    }
 
     smt_query = builder.build_query()
     if verbose:

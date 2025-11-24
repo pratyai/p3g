@@ -275,7 +275,7 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
 
         # Check for declarations
         # We expect N, DATA!A, DATA!B, and i to be declared as Int
-        expected_declarations = {"N", "DATA!A", "DATA!B"}
+        expected_declarations = {"DATA!A", "DATA!B"}
         declared_symbols = {
             cmd.args[0].symbol_name()
             for cmd in inspector.declarations
@@ -341,7 +341,7 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
 
         # Check for declarations
         # We expect N, DATA!A, DATA!B, and i to be declared as Int
-        expected_declarations = {"M", "N", "DATA!A", "DATA!B"}
+        expected_declarations = {"DATA!A", "DATA!B"}
         declared_symbols = {
             cmd.args[0].symbol_name()
             for cmd in inspector.declarations
