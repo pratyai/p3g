@@ -414,6 +414,7 @@ class TestPathModelFn:
             writes=[(B_out, PysmtRange(Int(0), N))],
         ) as loop:
             builder.add_compute("comp1", reads=[(A, i), (B_in, i)], writes=[(B_out, i)])
+        builder.finish()
 
         path_model_fn = create_path_model_fn(loop)
 
@@ -478,6 +479,7 @@ class TestPathModelFn:
                         reads=[(A, Plus(i, Int(1))), (C_in, i)],
                         writes=[(C_out, i)],
                     )
+        builder.finish()
 
         path_model_fn = create_path_model_fn(loop)
         k = Symbol("k", INT)
@@ -547,6 +549,7 @@ class TestPathModelFn:
                     reads=[(A, Plus(i, j)), (B_in, Plus(i, j))],
                     writes=[(B_out, Plus(i, j))],
                 )
+        builder.finish()
 
         path_model_fn = create_path_model_fn(outer_loop)
         k_outer = Symbol("k_outer", INT)
@@ -622,6 +625,7 @@ class TestPathModelFn:
                     reads=[(A, Plus(i, j)), (B_in, Plus(i, j))],
                     writes=[(B_out, Plus(i, j))],
                 )
+            builder.finish()
 
             path_model_fn = create_path_model_fn(outer_loop)
             k_outer = Symbol("k_outer", INT)
@@ -695,6 +699,7 @@ class TestPathModelFn:
                     reads=[(A, Plus(i, j)), (B_in, Plus(i, j))],
                     writes=[(B_out, Plus(i, j))],
                 )
+        builder.finish()
 
         path_model_fn = create_path_model_fn(outer_loop)
         k_outer = Symbol("k_outer", INT)
@@ -777,6 +782,7 @@ class TestPathModelFn:
                 ],
                 writes=[(B_out, PysmtRange(i, Plus(i, Int(1))))],
             )
+        builder.finish()
 
         path_model_fn = create_path_model_fn(loop)
         solver_k = Symbol("solver_k", INT)

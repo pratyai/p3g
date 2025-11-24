@@ -72,6 +72,7 @@ class PseudocodeParser:
             elif peek_type == "NEWLINE":
                 self._consume("NEWLINE")
         self._parse_block()
+        self.builder.finish()
 
         # After initial parsing, run the inference engine
         inference_engine = InferenceEngine(self.builder)

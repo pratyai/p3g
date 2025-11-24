@@ -47,6 +47,7 @@ def build_array_reversal_graph():
             reads=[(A_local_in, k), (A_local_in, idx_rev)],
             writes=[(A_local_out, k), (A_local_out, idx_rev)],
         )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in
 
 
@@ -140,6 +141,7 @@ def build_cholesky_sequential_graph():
                 ],
                 writes=[(L_local_inner_out, PysmtCoordSet(i, j))],
             )
+    b.finish()
     return b.root_graph, outer_loop_node, inner_loop_node, N, L_root_in
 
 
@@ -309,6 +311,7 @@ def build_cholesky_full_kernel_graph():
                 ],  # Read L[j,j] (for division, if modeled)
                 writes=[(L_local_middle_out, PysmtCoordSet(i, j))],  # Write L[i,j]
             )
+    b.finish()
     return (
         b.root_graph,
         outer_loop_node,
@@ -374,6 +377,7 @@ def build_data_aware_bi_graph():
             with B2.add_path(P2):
                 # Data nodes local to this path's graph
                 b.add_compute("T2_skip", reads=[], writes=[])
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root, B_val
 
 
@@ -437,6 +441,7 @@ def build_data_aware_bi_b13_graph():
                     ],
                     writes=[(A_path1_out, k)],
                 )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root, B_val, const_idx
 
 
@@ -484,6 +489,7 @@ def build_gauss_seidel_red_graph():
             ],
             writes=[(A_red_out, i)],
         )
+    b_red.finish()
     return b_red.root_graph, red_loop_node, N_red, A_red_root_in
 
 
@@ -533,6 +539,7 @@ def build_gauss_seidel_black_graph():
             ],
             writes=[(A_black_out, i)],
         )
+    b_black.finish()
     return b_black.root_graph, black_loop_node, N_black, A_black_root_in
 
 
@@ -574,6 +581,7 @@ def build_gauss_seidel_traditional_graph():
             ],
             writes=[(A_local_out, k)],
         )
+    b.finish()
     return b.root_graph, loop_node, N, A_in
 
 
@@ -618,6 +626,7 @@ def build_indirect_read_gather_graph():
             reads=[(A_local_in, k), (B_local_in, read_idx), (IDX_local_in, k)],
             writes=[(A_local_out, k)],
         )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root, IDX_root, IDX_val
 
 
@@ -662,6 +671,7 @@ def build_indirect_write_scatter_graph():
             reads=[(B_local_in, k), (IDX_local_in, k), (A_local_in, write_idx)],
             writes=[(A_local_out, write_idx)],
         )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root, IDX_root, IDX_val
 
 
@@ -733,6 +743,7 @@ def build_long_distance_dependency_graph():
                     reads=[(A_path2_in, Int(0)), (A_path2_in, k), (B_path2_in, k)],
                     writes=[(A_path2_out, k)],
                 )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root
 
 
@@ -806,6 +817,7 @@ def build_nested_loop_outer_dofs_graph():
                 ],
                 writes=[(A_local_inner_out, PysmtCoordSet(i_sym, j_sym))],
             )
+    b.finish()
     return b.root_graph, loop_node, L_inner_node, N, M, A_root_in, B_root
 
 
@@ -878,6 +890,7 @@ def build_nested_loop_inner_dofs_graph():
                 ],
                 writes=[(A_local_inner_out, PysmtCoordSet(i_sym, j_sym))],
             )
+    b.finish()
     return b.root_graph, loop_node, L_inner_node, N, M, A_root_in, B_root
 
 
@@ -962,6 +975,7 @@ def build_non_linear_predicate_graph():
                     ],
                     writes=[(A_path2_out, k)],
                 )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root, C_root
 
 
@@ -1008,6 +1022,7 @@ def build_non_linear_access_graph():
             reads=[(A_local_in, Times(k, k)), (B_local_in, k), (C_local_in, k)],
             writes=[(A_local_out, Times(k, k))],
         )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root, C_root
 
 
@@ -1055,6 +1070,7 @@ def build_non_linear_access_sequential_graph():
             ],
             writes=[(A_local_out, Times(k, k))],
         )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root
 
 
@@ -1096,6 +1112,7 @@ def build_parallel_loop_graph():
             reads=[(A_local_in, k), (B_local_in, k), (C_local_in, k)],
             writes=[(A_local_out, k)],
         )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root, C_root
 
 
@@ -1132,6 +1149,7 @@ def build_sequential_loop_graph():
             reads=[(A_local_in, Minus(k, Int(1))), (A_local_in, k), (B_local_in, k)],
             writes=[(A_local_out, k)],
         )
+    b.finish()
     return b.root_graph, loop_node, N, A_root_in, B_root
 
 
@@ -1204,4 +1222,5 @@ def build_sequential_with_symbolic_max_index_graph():
                     reads=[(A_path2_in, Int(0)), (A_path2_in, k), (B_path2_in, k)],
                     writes=[(A_path2_out, k)],
                 )
+    b.finish()
     return b.root_graph, loop_node, N, w, A_root_in, B_root

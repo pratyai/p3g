@@ -117,6 +117,7 @@ class Graph:
         self.edges: list[Edge] = []
         self.symbols: dict[str, PysmtSymbol] = {}
         self.outputs: set[int] = set()
+        self.transients: set[int] = set()
         self._array_id_to_name: dict[int, str] = {}
 
     def add_node(self, node: Node):
@@ -201,7 +202,10 @@ class Compute(Node):
         """
         read_set = []
         for edge in self.in_edges:
-            if isinstance(edge.src, Data):
+            if (
+                isinstance(edge.src, Data)
+                and edge.src.array_id not in self.graph.transients
+            ):
                 read_set.append((edge.src.array_id, edge.subset))
         return read_set
 
@@ -211,7 +215,10 @@ class Compute(Node):
         """
         write_set = []
         for edge in self.out_edges:
-            if isinstance(edge.dst, Data):
+            if (
+                isinstance(edge.dst, Data)
+                and edge.dst.array_id not in self.graph.transients
+            ):
                 write_set.append((edge.dst.array_id, edge.subset))
         return write_set
 
@@ -287,7 +294,10 @@ class Map(Structure):
         """
         read_set = []
         for edge in self.in_edges:
-            if isinstance(edge.src, Data):
+            if (
+                isinstance(edge.src, Data)
+                and edge.src.array_id not in self.graph.transients
+            ):
                 read_set.append((edge.src.array_id, edge.subset))
         return read_set
 
@@ -297,7 +307,10 @@ class Map(Structure):
         """
         write_set = []
         for edge in self.out_edges:
-            if isinstance(edge.dst, Data):
+            if (
+                isinstance(edge.dst, Data)
+                and edge.dst.array_id not in self.graph.transients
+            ):
                 write_set.append((edge.dst.array_id, edge.subset))
         return write_set
 
@@ -351,7 +364,10 @@ class Loop(Structure):
         """
         read_set = []
         for edge in self.in_edges:
-            if isinstance(edge.src, Data):
+            if (
+                isinstance(edge.src, Data)
+                and edge.src.array_id not in self.graph.transients
+            ):
                 read_set.append((edge.src.array_id, edge.subset))
         return read_set
 
@@ -361,7 +377,10 @@ class Loop(Structure):
         """
         write_set = []
         for edge in self.out_edges:
-            if isinstance(edge.dst, Data):
+            if (
+                isinstance(edge.dst, Data)
+                and edge.dst.array_id not in self.graph.transients
+            ):
                 write_set.append((edge.dst.array_id, edge.subset))
         return write_set
 
@@ -413,7 +432,10 @@ class Branch(Structure):
         """
         read_set = []
         for edge in self.in_edges:
-            if isinstance(edge.src, Data):
+            if (
+                isinstance(edge.src, Data)
+                and edge.src.array_id not in self.graph.transients
+            ):
                 read_set.append((edge.src.array_id, edge.subset))
         return read_set
 
@@ -423,7 +445,10 @@ class Branch(Structure):
         """
         write_set = []
         for edge in self.out_edges:
-            if isinstance(edge.dst, Data):
+            if (
+                isinstance(edge.dst, Data)
+                and edge.dst.array_id not in self.graph.transients
+            ):
                 write_set.append((edge.dst.array_id, edge.subset))
         return write_set
 
@@ -573,6 +598,7 @@ class GraphBuilder:
         self._pysmt_array_sym_to_array_id: dict[PysmtSymbol, int] = {}
         self._data_node_name_counters: dict[str, int] = {}
         self._is_output_arrays: set[int] = set()
+        self._is_transient_arrays: set[int] = set()
 
     def _get_current_owner_node(self) -> Node | None:
         """
@@ -612,6 +638,14 @@ class GraphBuilder:
         """
         array_id = self._get_data_id(name)
         self._is_output_arrays.add(array_id)
+
+    def mark_array_as_transient(self, name: str):
+        """
+        Marks an array as a transient of the overall graph.
+        This should be called during the parsing of 'out' statements.
+        """
+        array_id = self._get_data_id(name)
+        self._is_transient_arrays.add(array_id)
 
     def add_data(
         self,
@@ -873,6 +907,33 @@ class GraphBuilder:
 
         return reduce_node
 
+    def finish(self) -> Graph:
+        """
+        Finalizes the graph construction by propagating output and transient array information
+        throughout the graph hierarchy. This method should be called after all nodes and
+        edges have been added to the builder.
+        """
+
+        def _propagate_array_properties(graph: Graph):
+            # Set outputs and transients for the current graph
+            # This is a shallow copy, but since _is_output_arrays and _is_transient_arrays
+            # are sets, they are mutable. If the intent is for each graph to have
+            # its own independent set that could be modified later, a deep copy is needed.
+            # For now, a direct assignment means all graphs share the same sets.
+            graph.outputs = self._is_output_arrays
+            graph.transients = self._is_transient_arrays
+
+            # Recursively propagate to nested graphs
+            for node in graph.nodes:
+                if isinstance(node, (Map, Loop, Reduce)):
+                    _propagate_array_properties(node.nested_graph)
+                elif isinstance(node, Branch):
+                    for _, nested_branch_graph in node.branches:
+                        _propagate_array_properties(nested_branch_graph)
+
+        _propagate_array_properties(self.root_graph)
+        return self.root_graph
+
 
 def _extract_reads_from_formula(
     formula: PysmtFormula, builder: "GraphBuilder"
@@ -884,9 +945,7 @@ def _extract_reads_from_formula(
     reads: ReadSet = []
 
     if formula.is_select():
-        array_sym = formula.arg(
-            0
-        )  # This is the PysmtSymbol for the array (e.g., B_val)
+        array_sym = formula.arg(0)
         index_expr = formula.arg(1)
 
         # Use the mapping from GraphBuilder to get the array_id

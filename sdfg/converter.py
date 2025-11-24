@@ -335,11 +335,11 @@ class P3GConverter:
             name for name, _ in self.sdfg.arrays.items()
         )
         # Persistent arrays are considered output.
-        self.output_arrays: set[str] = set(
+        self._output_arrays: set[str] = set(
             name for name, desc in self.sdfg.arrays.items() if not desc.transient
         )
         # Transient arrays (those not in output_data_names)
-        self._transient_arrays: set[str] = self._declared_arrays - self.output_arrays
+        self._transient_arrays: set[str] = self._declared_arrays - self._output_arrays
 
         # Populate _transient_accessed_by_incoming_edge
         for node, st in self.sdfg.all_nodes_recursive():
@@ -540,15 +540,11 @@ class P3GConverter:
 
         # Convert the nested SDFG entirely using its own converter.
         # This returns the top-level reads and writes of the nested SDFG.
-        nested_sdfg_reads, nested_sdfg_writes = nested_converter._convert_node(
-            nestedsdfg.sdfg, None
-        )
+        reads, writes = nested_converter._convert_node(nestedsdfg.sdfg, None)
 
         # Represent the entire NestedSDFG as a single Compute node in the parent's P3G.
-        self.builder.add_compute(
-            nestedsdfg.label, list(nested_sdfg_reads), list(nested_sdfg_writes)
-        )
-        return nested_sdfg_reads, nested_sdfg_writes
+        self.builder.add_compute(nestedsdfg.label, list(reads), list(writes))
+        return reads, writes
 
     @dispatch
     def _convert_node(
@@ -757,5 +753,12 @@ class P3GConverter:
         """
         # Call the internal _convert_sdfg method with the SDFG provided at initialization.
         self._convert_node(self.sdfg, None)
+
+        # Mark outputs and transients in the builder
+        for name in self._output_arrays:
+            self.builder.mark_array_as_output(name)
+        for name in self._transient_arrays:
+            self.builder.mark_array_as_transient(name)
+
         # Return the constructed P3G Graph from the builder.
-        return self.builder.root_graph
+        return self.builder.finish()
