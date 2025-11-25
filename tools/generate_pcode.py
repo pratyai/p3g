@@ -1,7 +1,7 @@
-import os
-import sys
-import pathlib
 import argparse
+import os
+import pathlib
+import sys
 
 import dace
 

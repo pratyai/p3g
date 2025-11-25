@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dace
 import sympy as sp
-from dace import InterstateEdge
 from dace.sdfg import SDFG
 from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, NestedSDFG
 from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock
@@ -10,11 +9,7 @@ from dace.sdfg.utils import dfs_topological_sort
 from dace.transformation.passes.analysis.loop_analysis import (
     get_loop_end,
     get_init_assignment,
-    get_loop_stride,
 )
-
-from p3g.graph import PysmtRange, PysmtCoordSet
-from p3g.parser import PseudocodeParser
 
 
 class SDFGToPseudocodeConverter:
@@ -148,6 +143,59 @@ class SDFGToPseudocodeConverter:
         ):
             return f"({expr_str})"
         return expr_str
+
+    def _get_read_accesses_from_expression(
+        self, sympy_expr: sp.Expr
+    ) -> list[tuple[str, str]]:
+        """
+        Recursively extracts read accesses (array name and subset string) from a SymPy expression.
+        """
+        accesses = []
+        if isinstance(sympy_expr, sp.Indexed):
+            base_name = str(sympy_expr.base)
+            indices_str = ", ".join(
+                self._convert_sympy_to_pseudocode_expr(idx, wrap_if_complex=True)
+                for idx in sympy_expr.indices
+            )
+            accesses.append((base_name, indices_str))
+        for arg in sympy_expr.args:
+            accesses.extend(self._get_read_accesses_from_expression(arg))
+        return accesses
+
+    def _parse_code_block_to_sympy(
+        self, code_block: dace.properties.CodeBlock
+    ) -> sp.Expr:
+        """Converts a dace.properties.CodeBlock into a sympy.Expr."""
+        code_str = code_block.as_string
+        try:
+            return sp.sympify(code_str)
+        except TypeError as e:
+            if "'Symbol' object is not subscriptable" in str(e):
+                # SymPy struggles with direct array indexing.
+                # Provide context for declared arrays as IndexedBase.
+                sympy_locals = {
+                    name: sp.IndexedBase(name) for name in self._declared_arrays
+                }
+                # Also include loop variables and symbols for completeness
+                sympy_locals.update(
+                    {name: sp.Symbol(name) for name in self._declared_loop_vars}
+                )
+                sympy_locals.update(
+                    {name: sp.Symbol(name) for name in self._declared_symbols}
+                )
+                try:
+                    return sp.sympify(code_str, locals=sympy_locals)
+                except (sp.SympifyError, TypeError) as e2:
+                    print(
+                        f"Warning: Failed to sympify with IndexedBase context '{code_str}': {e2}"
+                    )
+                    return sp.symbols(code_str)
+            else:
+                print(f"Warning: Could not directly sympify '{code_str}': {e}")
+                return sp.symbols(code_str)
+        except sp.SympifyError as e:
+            print(f"Warning: Could not directly sympify '{code_str}': {e}")
+            return sp.symbols(code_str)
 
     def _convert_sympy_boolean_to_pseudocode(self, expr: sp.Expr) -> str:
         """
@@ -335,6 +383,8 @@ class SDFGToPseudocodeConverter:
 
         read_str = self._convert_accesses_to_pseudocode(reads_map_boundary)
         write_str = self._convert_accesses_to_pseudocode(writes_map_boundary)
+
+        stmt_name = self._get_next_stmt_name("M")
 
         # Construct source_states string for pseudocode
         unique_source_stmts = sorted(list(set(source_states.values())))
@@ -599,28 +649,39 @@ class SDFGToPseudocodeConverter:
         )
 
         else_handled = False
-        for i, (cond_expr, branch_cfg) in enumerate(cond_block.branches):
+        num_branches = len(cond_block.branches)
+        for i, (dace_cond_codeblock, branch_cfg) in enumerate(cond_block.branches):
             # Restore _array_state to the state before the conditional block for each branch
             self._array_state = initial_array_state_for_branches.copy()
 
-            if cond_expr is None:  # else branch
+            # Determine if this is an 'else' branch
+            is_else_branch = False
+            if (
+                dace_cond_codeblock.code == "1"
+            ):  # '1' is the default for an unconditional else in DaCe
+                is_else_branch = True
+            elif num_branches > 1 and i == num_branches - 1 and not else_handled:
+                # Heuristic: If it's the last branch in a multi-branch conditional,
+                # and no 'else' has been handled yet, treat it as the implicit 'else'.
+                is_else_branch = True
+
+            if is_else_branch:  # This branch is the 'else'
                 self._add_line(f"else:")
                 else_handled = True
             else:
                 if else_handled:
                     raise ValueError("'else' branch must be last in ConditionalBlock.")
-                cond_str = self._convert_sympy_to_pseudocode_expr(
-                    cond_expr, wrap_if_complex=True
-                )
+
+                # Parse the CodeBlock condition to a SymPy expression
+                sympy_cond_expr = self._parse_code_block_to_sympy(dace_cond_codeblock)
+                cond_str = self._convert_sympy_boolean_to_pseudocode(sympy_cond_expr)
+
                 if i == 0:  # First branch is 'if'
                     self._add_line(
                         f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}| if {cond_str}:"
                     )
-                else:  # Subsequent branches are effectively 'elif' but P3G doesn't have it, so treat as 'if' or nested.
-                    # For simplicity, we just use a plain 'if' and the parser will handle it.
-                    self._add_line(
-                        f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}_{i}| if {cond_str}:"
-                    )
+                else:  # Subsequent branches are 'else if'
+                    self._add_line(f"else if {cond_str}:")
 
             self._indent_level += 1
             # Recursively convert CFG nodes inside the branch

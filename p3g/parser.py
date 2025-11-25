@@ -69,6 +69,20 @@ class PseudocodeParser:
         self.pos = 0
         self._preprocess_declarations()  # Call the new preprocessing method
         self.pos = 0  # Reset pos for the main parsing pass
+
+        # Populate the initial array state for globally declared arrays
+        for array_name in self._declared_arrays:
+            initial_data_node = self.builder.add_data(
+                array_name,
+                pysmt_array_sym=self._get_symbol(f"{array_name}_val"),
+            )
+            # Mark its producer as the initial state "."
+            self._array_state[(self.builder.current_graph, ".", array_name)] = (
+                initial_data_node
+            )
+            # Also add to the initial scope inputs for array access resolution
+            self._current_scope_inputs_stack[0][array_name] = initial_data_node
+
         while self._peek().type in ["DECL", "SYM", "VAR", "OUT", "NEWLINE"]:
             peek_type = self._peek().type
             if peek_type == "DECL":
@@ -454,14 +468,17 @@ class PseudocodeParser:
         ) as loop:
             self.known_symbols[var] = loop.loop_var
 
-            # New: Populate and push scope inputs
-            if hierarchical_reads is None:
-                scope_inputs = {}
-            else:
-                scope_inputs = {
-                    node.graph._array_id_to_name[node.array_id]: node
-                    for node, _ in hierarchical_reads
-                }
+            # Populate and push scope inputs
+            # Inherit from parent scope (the current top of the stack)
+            scope_inputs = self._current_scope_inputs_stack[-1].copy()
+
+            # Augment/override with arrays explicitly passed in the hierarchical_reads of the loop itself
+            # These represent the versions of arrays that are *inputs* to this loop scope
+            if hierarchical_reads is not None:
+                for node, _ in hierarchical_reads:
+                    # The 'node' here is already the correct Data object for the version
+                    scope_inputs[node.label] = node
+
             self._current_scope_inputs_stack.append(scope_inputs)
 
             self._current_array_state_stack.append(".")
@@ -505,14 +522,15 @@ class PseudocodeParser:
         total_body_reads, total_body_writes = [], []
 
         with branch_node.add_path(predicate):
-            # New: Populate and push scope inputs
-            if hierarchical_reads is None:
-                scope_inputs = {}
-            else:
-                scope_inputs = {
-                    node.graph._array_id_to_name[node.array_id]: node
-                    for node, _ in hierarchical_reads
-                }
+            # Populate and push scope inputs for the 'if' branch
+            # Inherit from parent scope (the current top of the stack, which is the scope *before* the if statement)
+            scope_inputs = self._current_scope_inputs_stack[-1].copy()
+
+            # Augment/override with arrays explicitly passed in the hierarchical_reads of the if statement itself
+            if hierarchical_reads is not None:
+                for node, _ in hierarchical_reads:
+                    scope_inputs[node.label] = node
+
             self._current_scope_inputs_stack.append(scope_inputs)
 
             self._current_array_state_stack.append(".")
@@ -533,14 +551,15 @@ class PseudocodeParser:
 
             else_predicate = Not(predicate)
             with branch_node.add_path(else_predicate):
-                # New: Populate and push scope inputs
-                if hierarchical_reads is None:
-                    scope_inputs = {}
-                else:
-                    scope_inputs = {
-                        node.graph._array_id_to_name[node.array_id]: node
-                        for node, _ in hierarchical_reads
-                    }
+                # Populate and push scope inputs for the 'else' branch
+                # Inherit from parent scope (the current top of the stack, which is the scope *before* the if statement)
+                scope_inputs = self._current_scope_inputs_stack[-1].copy()
+
+                # Augment/override with arrays explicitly passed in the hierarchical_reads of the if statement itself
+                if hierarchical_reads is not None:
+                    for node, _ in hierarchical_reads:
+                        scope_inputs[node.label] = node
+
                 self._current_scope_inputs_stack.append(scope_inputs)
 
                 self._current_array_state_stack.append(".")

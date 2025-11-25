@@ -1,13 +1,11 @@
 import os
-import sys
 import pathlib
+import sys
 
 import dace
-from dace import dtypes
-import dace.sdfg.nodes as nodes
+from dace.properties import CodeBlock
 from dace.sdfg import SDFG, InterstateEdge
-from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock, ControlFlowRegion
-from dace.properties import CodeProperty, CodeBlock
+from dace.sdfg.state import ConditionalBlock, ControlFlowRegion
 
 # Add the project root to the sys.path
 script_dir = os.path.dirname(__file__)
