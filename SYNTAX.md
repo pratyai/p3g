@@ -99,6 +99,63 @@ decl A, B
 out A
 ```
 
+### Output Specification (`out`)
+
+You must specify which arrays are considered outputs of the program. This is crucial for certain types of dependency analysis.
+
+**Syntax:**
+```
+out <array1>, <array2>, ...
+```
+
+**Example:**
+```pcode
+decl A, B
+out A
+```
+
+### Comments
+
+Comments are used to annotate the pseudocode for better readability and are ignored by the parser. The language supports both single-line and block comments.
+
+#### Single-line Comments
+
+A semicolon (`;`) starts a single-line comment. Any text from the semicolon to the end of the line will be treated as a comment.
+
+**Syntax:**
+```
+; This is a single-line comment
+<code_statement> ; This is an inline comment
+```
+
+**Example:**
+```pcode
+sym N ; Declare N as a symbolic constant
+decl A, B ; Declare arrays A and B
+```
+
+#### Block Comments
+
+A semicolon (`;`) alone on a line acts as a toggle for block comments. The parser ignores all lines between an opening semicolon and a closing semicolon.
+
+**Syntax:**
+```
+;
+This entire block will be ignored by the parser.
+It can span multiple lines.
+;
+```
+
+**Example:**
+```pcode
+sym N
+;
+This is a block comment.
+The following code declares array A.
+;
+decl A
+```
+
 ### Statements
 
 The body of the program consists of a sequence of statements. Each statement is defined by its data accesses (reads and writes) and the operation it performs (e.g., a loop, a conditional branch, or a generic computation).

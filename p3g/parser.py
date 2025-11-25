@@ -89,7 +89,7 @@ class PseudocodeParser:
     # --- Tokenizer ---
 
     def _tokenize(self, code: str) -> list[Token]:
-        """Converts code string into a stream of tokens."""
+        """Converts code string into a stream of tokens, handling comments."""
         token_specification = [
             ("DECL", r"decl"),
             ("SYM", r"sym"),
@@ -129,11 +129,31 @@ class PseudocodeParser:
         line_num = 0
         indent_stack = [0]
         tokens = []
+        in_block_comment = False  # New flag for block comments
 
         lines = code.strip().split("\n")
         for line in lines:
             line_num += 1
-            if not line.strip():
+            original_line = line  # Keep original for column calculation
+            stripped_line = line.strip()
+
+            # Handle block comments
+            if stripped_line == ";":
+                in_block_comment = not in_block_comment
+                continue  # Skip this line, it's just a comment delimiter
+
+            if in_block_comment:
+                continue  # Skip lines within a block comment
+
+            # Handle line comments
+            line_comment_start = stripped_line.find(";")
+            if line_comment_start != -1:
+                # If the line starts with a comment or has content before it
+                line = line[
+                    : line.find(";", len(line) - len(stripped_line))
+                ]  # Truncate the line at the comment, finding from the start of content
+
+            if not line.strip():  # Check again after comment removal
                 continue
 
             indent = len(line) - len(line.lstrip(" "))
@@ -149,16 +169,24 @@ class PseudocodeParser:
                     "unindent does not match any outer indentation level"
                 )
 
-            for mo in re.finditer(tok_regex, line.lstrip(" ")):
+            # Process tokens from the (potentially truncated) line
+            processed_line_for_tokenize = line.lstrip(" ")
+            current_line_start_col = len(line) - len(processed_line_for_tokenize)
+
+            for mo in re.finditer(tok_regex, processed_line_for_tokenize):
                 kind = mo.lastgroup
                 value = mo.group()
-                column = mo.start()
+                # column calculation needs to be relative to the original line
+                column = current_line_start_col + mo.start()
+
                 if kind == "SKIP":
                     continue
                 if kind == "MISMATCH":
                     raise RuntimeError(f"{value!r} unexpected on line {line_num}")
                 tokens.append(Token(kind, value, line_num, column))
-            tokens.append(Token("NEWLINE", "\n", line_num, len(line)))
+            tokens.append(
+                Token("NEWLINE", "\n", line_num, len(original_line))
+            )  # Use original_line length for NEWLINE
 
         while len(indent_stack) > 1:
             indent_stack.pop()

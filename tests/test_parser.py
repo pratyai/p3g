@@ -195,6 +195,42 @@ class TestPseudocodeParser:
         assert "(0 < N)" in assertion_strs
         assert "(M = 10)" in assertion_strs
 
+    def test_comment_parsing(self):
+        code = textwrap.dedent("""
+            ; This is a full line comment
+            sym N, M ; inline comment for N, M
+            var i ; another inline comment
+            decl A, B ; declare arrays
+            out A ; specify output
+
+            ;
+            This is a block comment
+            It spans multiple lines
+            ;
+            ! (N > 0) ; assertion with inline comment
+            (A[0] => A[0]) S1| op(init) ; operation
+            ; another comment line
+        """).strip()
+        parser = PseudocodeParser()
+        graph = parser.parse(code)
+
+        graph_string = get_p3g_structure_string(graph)
+
+        expected_string = textwrap.dedent("""
+            ### root ### (Symbols: ['A_val', 'M', 'N'])
+              Data Nodes (IDs): DATA[A(0)/10001], DATA[A(1)/10001]
+              Assertions:
+                - (0 < N)
+              COMPUTE(S1): Reads=A(0)[0], Writes=A(1)[0]
+        """).strip()
+
+        normalized_actual = _normalize_graph_string(graph_string).strip()
+        normalized_expected = _normalize_graph_string(expected_string).strip()
+
+        assert normalized_actual == normalized_expected
+        assert len(graph.assertions) == 1
+        assert "(0 < N)" in [str(a) for a in graph.assertions]
+
 
 class TestGraphDefinitionsParsing:
     """
