@@ -99,21 +99,6 @@ decl A, B
 out A
 ```
 
-### Output Specification (`out`)
-
-You must specify which arrays are considered outputs of the program. This is crucial for certain types of dependency analysis.
-
-**Syntax:**
-```
-out <array1>, <array2>, ...
-```
-
-**Example:**
-```pcode
-decl A, B
-out A
-```
-
 ### Comments
 
 Comments are used to annotate the pseudocode for better readability and are ignored by the parser. The language supports both single-line and block comments.
@@ -191,8 +176,8 @@ This part explicitly defines the data dependencies between statements.
 
 -   `(<source_states>)`: Optional. A comma-separated list of the names of previous statements. The data read by the current statement will be sourced from the versions produced by these specified source statements.
 -   `.`: A dot separating the source states from the current statement's name.
--   If `(<source_states>)` is omitted (e.g., `.S1|`), the statement depends on the initial state of the arrays.
--   If the entire dataflow specification is omitted, the statement is assumed to depend on the lexically preceding statement.
+-   **If `()` is used for `source_states` (e.g., `().S1|`), it explicitly declares that the statement does *not* depend on any prior named statement's output. The data read by this statement will be sourced from the initial state of the arrays.**
+-   **If the entire dataflow specification (`(<source_states>).`) is omitted, the statement is assumed to depend on the lexically preceding statement's output for its inputs.**
 
 ### 3. Statement Naming
 
@@ -266,33 +251,36 @@ decl A, B
 
 ### Assertion (`!`)
 
-Represents a precise assertion about the program state. This is not a computational statement but a declaration that a certain condition must hold. Assertions are specified on a line starting with `!`.
+Represents a precise assertion about the program state. This is not a computational statement but a declaration that a certain condition must hold. Assertions are specified on a line starting with `!`, followed by the condition enclosed in parentheses.
 
 **Syntax:**
 ```
-! <condition>
-```
-The condition can also be enclosed in parentheses for clarity:
-```
 ! (<condition>)
 ```
+- `<condition>`: A boolean expression in SMT-LIB format, e.g., `(> N 0)` or `(forall ((k Int)) (> k 0))`.
 
-- `<condition>`: A boolean expression, e.g., `N > 0`.
+#### Supported SMT-LIB Keywords and Operators
+Within assertion conditions, the parser supports the following SMT-LIB constructs:
+-   **Quantifiers**: `forall`, `exists`
+-   **Logical Operators**: `and`, `or`, `not`, `=>` (implication)
+-   **Array Access**: `select`
+-   **Types**: `Int`
+-   **Comparison Operators**: `=`, `>`, `<`, `>=`, `<=`
+-   **Arithmetic Operators**: `+`, `-`, `*`
 
 **Example:**
 ```pcode
 decl A
 out A
 
-! (N > 0)
+! (> N 0)
 
 () => (A[0]) S1| op(init)
 
 (A[0:N-1]) => (A[1:N]) L1| for i = 1 to N:
     (A[i-1]) => (A[i]) S2| op(step)
 ```
-
-In this example, `! (N > 0)` asserts that the symbol `N` is positive before the loop begins. These assertions can be used by backend analysis tools to verify properties or optimize the program representation.
+In this example, `! (> N 0)` asserts that the symbol `N` is positive before the loop begins. These assertions can be used by backend analysis tools to verify properties or optimize the program representation.
 
 ---
 
