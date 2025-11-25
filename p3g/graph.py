@@ -58,8 +58,8 @@ class Node:
     def __init__(
         self,
         name: str,
-        graph: "Graph" | None = None,
-        parent: "Node" | None = None,
+        graph: "Graph | None" = None,
+        parent: "Node | None" = None,
     ):
         self.name = name
         self.graph = graph  # Reference to the graph this node belongs to
@@ -170,8 +170,8 @@ class Data(Node):
         self,
         name: str,
         array_id: int,
-        graph: "Graph" | None = None,
-        parent: "Node" | None = None,
+        graph: "Graph | None" = None,
+        parent: "Node | None" = None,
     ):
         super().__init__(name, graph=graph, parent=parent)
         self.array_id = array_id
@@ -189,8 +189,8 @@ class Compute(Node):
     def __init__(
         self,
         name: str,
-        graph: "Graph" | None = None,
-        parent: "Node" | None = None,
+        graph: "Graph | None" = None,
+        parent: "Node | None" = None,
     ):
         super().__init__(name, graph=graph, parent=parent)
 
@@ -236,8 +236,8 @@ class Structure(Node):
         self,
         name: str,
         builder: "GraphBuilder",
-        graph: "Graph" | None = None,
-        parent: "Node" | None = None,
+        graph: "Graph | None" = None,
+        parent: "Node | None" = None,
     ):
         super().__init__(name, graph=graph, parent=parent)
         self.builder = builder
@@ -268,8 +268,8 @@ class Map(Structure):
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
-        graph: "Graph" | None = None,
-        parent: "Node" | None = None,
+        graph: "Graph | None" = None,
+        parent: "Node | None" = None,
     ):
         super().__init__(name, builder, graph=graph, parent=parent)
         self.loop_var = Symbol(loop_var_name, INT)
@@ -338,8 +338,8 @@ class Loop(Structure):
         loop_var_name: str,
         start: PysmtFormula,
         end: PysmtFormula,
-        graph: "Graph" | None = None,
-        parent: "Node" | None = None,
+        graph: "Graph | None" = None,
+        parent: "Node | None" = None,
     ):
         super().__init__(name, builder, graph=graph, parent=parent)
         self.loop_var = Symbol(loop_var_name, INT)
@@ -404,8 +404,8 @@ class Branch(Structure):
         self,
         name: str,
         builder: "GraphBuilder",
-        graph: "Graph" | None = None,
-        parent: "Node" | None = None,
+        graph: "Graph | None" = None,
+        parent: "Node | None" = None,
     ):
         super().__init__(name, builder, graph=graph, parent=parent)
         self.branches: list[tuple[PysmtFormula, Graph]] = []
@@ -491,8 +491,8 @@ class Reduce(Structure):
         start: PysmtFormula,
         end: PysmtFormula,
         wcr: PysmtFormula,
-        graph: "Graph" | None = None,
-        parent: "Node" | None = None,
+        graph: "Graph | None" = None,
+        parent: "Node | None" = None,
     ):
         super().__init__(name, builder, graph=graph, parent=parent)
         self.loop_var = Symbol(loop_var_name, INT)
