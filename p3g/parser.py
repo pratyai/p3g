@@ -830,6 +830,12 @@ class PseudocodeParser:
             formula, reads = self._parse_expression()
             self._consume("RPAREN")
             return formula, reads
+        if self._peek().type == "MINUS":  # Handle unary minus
+            self._consume("MINUS")
+            formula, reads = (
+                self._parse_factor()
+            )  # Recursively parse the factor being negated
+            return Minus(Int(0), formula), reads  # Represent as 0 - formula
         raise ValueError(
             f"Unsupported or malformed factor starting with {self._peek()}"
         )
