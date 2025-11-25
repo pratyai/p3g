@@ -1,3 +1,5 @@
+sym N
+var k
 decl A, B
 out A
 (A[0:N-1], A[1:N], B[1:N] => A[1:N]) L1 | for k = 1 to N:
@@ -5,3 +7,14 @@ out A
         (A[k-1], A[k] => A[k]) T1_seq | op(comp)
     (B[k] =>) .B2 | if B[k] <= 0:
         (=>) T2_skip | op(comp)
+
+;
+; This example demonstrates a "data-aware" branch within a loop.
+; The loop's behavior depends on the value of `B[k]`. If `B[k] > 0`, a computation
+; `A[k] = A[k-1]` occurs, otherwise, nothing explicit happens (`T2_skip`).
+;
+; Expected SMT Result: SAT
+; Reason: A data dependency exists if the `if B[k] > 0` condition is met across
+; consecutive loop iterations, causing `A[k]` to depend on `A[k-1]`.
+; The SMT solver should find an assignment to `N` and `B` that satisfies this.
+;

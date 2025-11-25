@@ -1,4 +1,18 @@
+sym N
+var k
 decl A, B, C
 out A
 (A[0:N], B[0:N], C[0:N] => A[0:N]) L1 | for k = 0 to N:
     (A[k], B[k], C[k] => A[k]) T1 | op(comp)
+
+;
+; This example demonstrates a parallelizable loop.
+; Each iteration `k` computes `A[k]` using only data indexed by `k` (including `A[k]` itself).
+; There are no explicit cross-iteration data dependencies.
+;
+; Expected SMT Result: UNSAT
+; Reason: For a true dependency to exist, there must be an overlap between an
+; access at iteration `k` and an access at iteration `k+1`. In this loop,
+; all accesses are strictly local to the current iteration index `k`, meaning
+; no such overlap can occur for distinct iterations.
+;

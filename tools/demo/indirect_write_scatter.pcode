@@ -1,4 +1,18 @@
+sym N
+var k
 decl A, B, IDX
 out A
 (A[0:N], B[0:N], IDX[0:N] => A[0:N]) L1 | for k = 1 to N:
     (A[IDX[k]], B[k], IDX[k] => A[IDX[k]]) T1_scatter | op(comp)
+
+;
+; This example demonstrates a loop with an indirect write (scatter) operation.
+; The write access to array `A` is determined by the `IDX` array (`A[IDX[k]]`).
+; This pattern is prone to dependencies due to aliasing if `IDX` values are not unique
+; or overlap in a specific way.
+;
+; Expected SMT Result: SAT
+; Reason: An SMT solver should be able to find an assignment to the `IDX` array
+; such that `IDX[k_1]` for one iteration overlaps with `IDX[k_2]` or `k_2` itself
+; for another iteration, thus creating a write-write or write-read dependency.
+;

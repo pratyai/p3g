@@ -1,3 +1,5 @@
+sym N
+var i
 decl A, IDX
 out A
 (A[0:N], IDX[0:N], A[1:N] => A[1:N]) L1 | for i = 1 to N:
@@ -5,3 +7,20 @@ out A
         (IDX[i], IDX[i-1], A[IDX[i] * IDX[i-1]], A[i] => A[i]) C1 | op(A[i] = A[IDX[i] * IDX[i-1]] + 1)
     (IDX[i], IDX[i-1], A[i] => A[i]) .B2 | if IDX[i] * IDX[i-1] <= i:
         (A[i] => A[i]) C1 | op(A[i] = 0)
+
+;
+; This example features a loop with a conditional, polynomial guard and indirect array access.
+; Specifically, the array access `A[IDX[i] * IDX[i-1]]` uses a non-linear indirect index,
+; and the execution path is determined by the condition `IDX[i] * IDX[i-1] > i`.
+; This tests the parser's and SMT solver's ability to handle complex control flow and data patterns.
+;
+; Expected SMT Result: UNSAT
+; Reason: The query seeks to find an `IDX` array configuration (and `N`) such that for
+; *every* pair of adjacent iterations (`i` and `i+1`), a data dependency *must* exist.
+; Because the relevant array indices (`i` and `IDX[i] * IDX[i-1]`) are dependent on the loop
+; variable `i` (which varies across iterations), no single, fixed `IDX` configuration can
+; simultaneously satisfy a dependency condition (e.g., `IDX[k_1]*IDX[k_0] = k_2` or `k_1 = IDX[k_2]*IDX[k_1]`)
+; for *all* possible adjacent iteration pairs `(k_0, k_1)` where `k_1 = k_0 + 1`.
+; Thus, the solver correctly determines that no such `IDX` exists that forces a dependency
+; in *every* iteration pair.
+;

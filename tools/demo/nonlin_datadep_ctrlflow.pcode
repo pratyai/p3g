@@ -1,5 +1,18 @@
+sym N
+var i
 decl A, B
 out A
 (A[0:N-1], A[1:N], B[1:N] => A[1:N]) L1 | for i = 1 to N:
     (A[i-1], A[i], B[i], B[5], B[13] => A[i]) B1 | if B[i]*B[i] > B[5]*B[13]:
         (A[i-1], A[i] => A[i]) C1 | op(A[i] = A[i-1] + 1)
+
+;
+; This example demonstrates a loop with a non-linear data-dependent control flow.
+; The condition `B[i]*B[i] > B[5]*B[13]` involves non-linear arithmetic and fixed
+; indexed accesses to array B, which can influence whether a dependency exists.
+;
+; Expected SMT Result: SAT
+; Reason: A data dependency can exist if the condition `B[i]*B[i] > B[5]*B[13]`
+; holds for consecutive iterations. The SMT solver should find values for N and B
+; that satisfy this, demonstrating the dependency.
+;

@@ -1,3 +1,16 @@
+sym N
+var i
 decl A, B
 (A[1:(N-1)], A[2:N], B[2:N] => A[2:N]) L | for i = 2 to N:
   (A[i-1], A[i], B[i] => A[i]) comp | op(A[i] = A[i-1] + B[i])
+
+;
+; This example demonstrates a simple sequential loop.
+; Each iteration `i` computes `A[i]` based on `A[i-1]` and `B[i]`.
+; This pattern typically exhibits a true dependency across loop iterations.
+;
+; Expected SMT Result: SAT
+; Reason: The read of `A[i-1]` in iteration `i` will conflict with the write
+; of `A[i]` in iteration `i-1`, demonstrating a flow (RAW) dependency.
+; The SMT solver should be able to find a satisfying assignment for this.
+;

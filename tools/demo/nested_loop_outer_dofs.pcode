@@ -1,5 +1,19 @@
+sym N, M
+var i, j
 decl A, B
 out A
 (A[1:N, 1:M], B[1:N, 1:M] => A[1:N, 1:M]) L_outer | for i = 1 to N:
   (A[i, 1:M], A[i-1, 1:M], B[i, 1:M] => A[i, 1:M]) L_inner | for j = 1 to M:
     (A[i-1, j], A[i, j], B[i, j] => A[i, j]) T_comp | op(comp)
+
+;
+; This example demonstrates a nested loop with 2D array access.
+; The inner loop's computation `T_comp` reads `A[i-1, j]`, indicating a
+; dependency on the previous iteration of the *outer* loop.
+;
+; Expected SMT Result: SAT
+; Reason: The access `A[i-1, j]` implies a read from data written in the
+; previous iteration of the outer loop (`i-1`). This constitutes a true
+; data dependency across outer loop iterations. The SMT solver should find
+; such an overlap.
+;
