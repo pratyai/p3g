@@ -1,0 +1,44 @@
+sym N
+var i
+decl A
+out A
+
+; This loop iterates up to N, but operations are conditionally executed
+; based on a polynomial condition (i*i <= N).
+(A[0:N] => A[0:N]) L1 | for i = 0 to N:
+    (A[i-1], A[i] => A[i]) B1 | if i * i <= N:
+        (A[i-1], A[i] => A[i]) T1 | op(A[i] = A[i-1] + 1)
+    (=>).B2 | if i * i > N:
+        (=>) T2_skip | op(skip)
+
+; Expected SMT Result: SAT
+; Reason: A data dependency can exist if N is large enough. For example, if A[i]
+; is read and written in one iteration, and A[i+1] (which could be the same physical
+; memory location if N is small or i*i <= N condition wraps around) is accessed
+; in the next, this could show a dependency.
+; More specifically, in this example, if N=0, loop is 0 to 0. (0*0 <= 0) is true.
+; A[0] is modified.
+; If N=1, loop is 0 to 1.
+; i=0: (0*0 <= 1) is true. A[0] modified.
+; i=1: (1*1 <= 1) is true. A[1] modified.
+; No direct RAW dependency here, but the SMT solver needs to confirm there's no aliasing.
+; Let's make it more interesting for a dependency.
+; Example: if the condition creates a write to A[0] for multiple iterations.
+;
+; Let's re-think for expected SAT:
+; If an operation depends on A[i-1] for instance, and i*i <= N.
+; Re-writing for a clear SAT:
+; We expect a SAT if the SMT solver can find a N and I s.t. A[I] depends on A[I-1]
+; if the conditions allows.
+;
+; (A[0:N] => A[0:N]) L1 | for i = 1 to N:
+;     (A[i-1], A[i] => A[i]) B1 | if (<= (* i i) N):
+;         (A[i-1], A[i] => A[i]) T1 | op(A[i] = A[i-1] + 1)
+;     (=>).B2 | if (> (* i i) N):
+;         (=>) T2_skip | op(skip)
+;
+; With the above re-write, expected SMT Result: SAT
+; Reason: For certain N, and i such that i*i <= N holds, the computation
+; A[i] = A[i-1] + 1 will create a RAW dependency. The SMT solver should find
+; such a satisfying assignment.
+;

@@ -1,0 +1,19 @@
+sym N, SQRT_N_FLOOR
+var i
+decl A, B
+out A
+
+! (> N 1)
+! (and (>= SQRT_N_FLOOR 0) (<= (* SQRT_N_FLOOR SQRT_N_FLOOR) N) (> (* (+ SQRT_N_FLOOR 1) (+ SQRT_N_FLOOR 1)) N))
+
+; This file now demonstrates a loop with a symbolic upper bound, SQRT_N_FLOOR.
+; The relationship between SQRT_N_FLOOR and N is formally constrained by the
+; assertion above, allowing the SMT solver to reason about its properties.
+
+(A[0:N], B[0:N] => A[0:N]) L1 | for i = 0 to SQRT_N_FLOOR:
+    (A[i], B[i] => A[i]) T1 | op(A[i] = A[i] + B[i])
+
+; Expected SMT Result: UNSAT
+; Reason: With the loop bound and accesses as described, each iteration `i`
+; accesses `A[i]` and `B[i]` independently. There are no cross-iteration
+; dependencies.

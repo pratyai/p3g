@@ -163,12 +163,38 @@ def main():
     print(f"SMT-LIB query generated and saved to {args.output}")
 
     try:
-        solve_smt_string(
-            smt_query
-        )  # This prints the result and returns bool, or raises.
+        main_is_sat = solve_smt_string(smt_query)
+        # This part handles the case where the main query is UNSAT for D-FS/B
+        if query_type == "D-FS/B" and not main_is_sat:
+            print(
+                "\nRegular query returned UNSAT. Trying negated query to find a witness..."
+            )
+            negated_query = exists_data_forall_bounds_forall_iters_chained(
+                loop_node, verbose=False, build_negated=True
+            )
+            negated_output_path = args.output.replace(".smt2", "_negated.smt2")
+            with open(negated_output_path, "w") as f:
+                f.write(negated_query)
+            print(f"Negated SMT-LIB query generated and saved to {negated_output_path}")
+
+            try:
+                # solve_smt_string will print the model if SAT
+                negated_is_sat = solve_smt_string(negated_query)
+                print("\n---")
+                print(f"Regular query result: UNSAT")
+                print(
+                    f"Negated query result: {'SAT (witness found)' if negated_is_sat else 'UNSAT (no witness)'}"
+                )
+                print("---")
+            except SolverReturnedUnknownResultError:
+                print("\nNegated query returned UNKNOWN. Cannot provide a witness.")
+            except Exception as e:
+                print(
+                    f"\nAn error occurred while solving the negated query for witness: {e}"
+                )
+
     except SolverReturnedUnknownResultError:
-        # This fallback logic only applies to D-FS/B, other query types are not expected
-        # to use this fallback.
+        # This existing fallback logic handles cases where the main query returns UNKNOWN
         # We re-generate the negated query here.
         if query_type == "D-FS/B":
             print("\nRegular query returned UNKNOWN. Trying negated query...")
