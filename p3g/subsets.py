@@ -1,5 +1,6 @@
 # --- Pysmt Type Aliases for Clarity ---
 import uuid
+from io import StringIO
 
 import z3
 from pysmt.fnode import FNode
@@ -18,6 +19,7 @@ from pysmt.shortcuts import (
     TRUE,
     GE,
 )
+from pysmt.smtlib.parser import SmtLibParser
 from pysmt.solvers.z3 import Z3Converter
 from pysmt.typing import INT
 
@@ -470,6 +472,42 @@ def _create_set_intersection_formula(
         return clauses[0]
     else:
         return Or(clauses)
+
+
+def _substitute_subset_expr(subset_expr, substitution_map):
+    """
+    Helper that recursively applies substitution to a single subset expression.
+    """
+    if subset_expr is None:
+        return None
+    if isinstance(subset_expr, PysmtRange):
+        return PysmtRange(
+            _substitute_subset_expr(subset_expr.start, substitution_map),
+            _substitute_subset_expr(subset_expr.end, substitution_map),
+        )
+    elif isinstance(subset_expr, PysmtCoordSet):
+        return PysmtCoordSet(
+            *(_substitute_subset_expr(item, substitution_map) for item in subset_expr)
+        )
+    elif isinstance(subset_expr, PysmtSetMembershipPredicate):
+        substituted_formula = substitute(subset_expr.formula, substitution_map)
+        return PysmtSetMembershipPredicate(
+            substituted_formula, subset_expr.member_symbol
+        )
+    else:  # PysmtFormula
+        return substitute(subset_expr, substitution_map)
+
+
+def substitute_subset(
+    subset_list: list[tuple[int, PysmtAccessSubset | None]], substitution_map: dict
+) -> list[tuple[int, PysmtAccessSubset | None]]:
+    """
+    Applies substitution to all subset expressions in a ReadSet or WriteSet.
+    """
+    return [
+        (arr_id, _substitute_subset_expr(subset, substitution_map))
+        for arr_id, subset in subset_list
+    ]
 
 
 # Helper for recursive free variable extraction (needed for multi-dimensional access tuples)

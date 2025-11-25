@@ -109,6 +109,8 @@ class TestProveExistsDataForallIterIsdep:
     def test_simple_loop(self):
         inspector = pseudocode_to_inspector(
             """
+            sym N
+            var i
             decl A, B
             out B
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
@@ -175,6 +177,8 @@ class TestProveExistsDataForallIterIsdep:
     def test_with_extra_assertions(self):
         inspector = pseudocode_to_inspector(
             """
+            sym N
+            var i
             decl A, B
             out B
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
@@ -189,6 +193,8 @@ class TestProveExistsDataForallIterIsdep:
     def test_with_array_data(self):
         inspector = pseudocode_to_inspector(
             """
+            sym N
+            var i
             decl A
             out A
             (A[0:N] => A[0:N]) loop1 | for i = 0 to N:
@@ -265,6 +271,8 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
     def test_simple_loop(self):
         inspector = pseudocode_to_inspector(
             """
+            sym N
+            var i
             decl A, B
             out B
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
@@ -331,6 +339,8 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
     def test_symbolic_lower_bound(self):
         inspector = pseudocode_to_inspector(
             """
+            sym M, N
+            var i
             decl A, B
             out B
             (A[M:N], B[M:N] => B[M:N]) loop1 | for i = M to N:
@@ -399,6 +409,8 @@ class TestProveExistsDataForallIterIsindep:
     def test_simple_loop(self):
         inspector = pseudocode_to_inspector(
             """
+            sym N
+            var i
             decl A, B
             out B
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
@@ -469,6 +481,8 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
     def test_simple_loop_independence_forall_bounds(self):
         inspector = pseudocode_to_inspector(
             """
+            sym N
+            var i
             decl A, B
             out B
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
@@ -537,6 +551,8 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
     def test_symbolic_lower_bound_forall_bounds(self):
         inspector = pseudocode_to_inspector(
             """
+            sym M, N
+            var i
             decl A, B
             out B
             (A[M:N], B[M:N] => B[M:N]) loop1 | for i = M to N:
@@ -607,6 +623,8 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
     def test_simple_loop_independence_forall_data_forall_bounds(self):
         inspector = pseudocode_to_inspector(
             """
+            sym N
+            var i
             decl A, B, IDX
             out B
             (A[0:N], B[0:N], IDX[0:N] => B[0:N]) loop1 | for i = 0 to N:
@@ -678,6 +696,8 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
     def test_symbolic_lower_bound_forall_data_forall_bounds(self):
         inspector = pseudocode_to_inspector(
             """
+            sym M, N
+            var i
             decl A, B, IDX
             out B
             (A[M:N], B[M:N], IDX[M:N] => B[M:N]) loop1 | for i = M to N:
@@ -751,6 +771,8 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
     def test_simple_loop_find_dependency(self):
         inspector = pseudocode_to_inspector(
             """
+            sym N
+            var i
             decl A, B, IDX
             out B
             (A[0:N], B[0:N], IDX[0:N] => B[0:N]) loop1 | for i = 0 to N:
@@ -807,6 +829,8 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
     def test_symbolic_lower_bound_find_dependency(self):
         inspector = pseudocode_to_inspector(
             """
+            sym M, N
+            var i
             decl A, B, IDX
             out B
             (A[M:N], B[M:N], IDX[M:N] => B[M:N]) loop1 | for i = M to N:

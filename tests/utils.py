@@ -71,7 +71,13 @@ def get_p3g_structure_string(graph: Graph, indent=0) -> str:
             f"{s_indent}  Data Nodes (IDs): {', '.join([repr(d) for d in data_nodes])}"
         )
 
-    # 2. Print Control/Structure and Compute Nodes, sorted by name
+    # 2. Print Assertions
+    if graph.assertions:
+        output_lines.append(f"{s_indent}  Assertions:")
+        for assertion in graph.assertions:
+            output_lines.append(f"{s_indent}    - {assertion}")
+
+    # 3. Print Control/Structure and Compute Nodes, sorted by name
     other_nodes = sorted(
         [n for n in graph.nodes if not isinstance(n, Data)], key=lambda x: x.name
     )

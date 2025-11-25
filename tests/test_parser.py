@@ -80,6 +80,8 @@ def _normalize_graph_string(graph_string: str) -> str:
 class TestPseudocodeParser:
     def test_sequential_loop_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var i
             decl A, B
             (A[1:(N-1)], A[2:N], B[2:N] => A[2:N]) L | for i = 2 to N:
               (A[i-1], A[i], B[i] => A[i]) comp | op(A[i] = A[i-1] + B[i])
@@ -104,6 +106,8 @@ class TestPseudocodeParser:
 
     def test_data_aware_bi_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var i
             decl A, B
             (A[0:N], A[1:N], B[1:N] => A[1:N]) L | for i = 1 to N:
               (A[i-1], A[i], B[i] => A[i]) B | if B[i] > 0:
@@ -136,6 +140,7 @@ class TestPseudocodeParser:
 
     def test_named_op_parsing(self):
         code = textwrap.dedent("""
+            sym i
             decl A
             (A[i] => A[i]) comp | op(comp)
         """).strip()
@@ -160,6 +165,36 @@ class TestPseudocodeParser:
             == _normalize_graph_string(expected_string).strip()
         )
 
+    def test_assertion_parsing(self):
+        code = textwrap.dedent("""
+            sym N, M
+            decl A
+            out A
+            ! (N > 0)
+            ! (M == 10)
+            (A[0] => A[0]) S1| op(init)
+        """).strip()
+        parser = PseudocodeParser()
+        graph = parser.parse(code)
+
+        graph_string = get_p3g_structure_string(graph)
+
+        expected_string = textwrap.dedent("""
+            ### root ### (Symbols: ['A_val', 'M', 'N'])
+              Data Nodes (IDs): DATA[A(0)/10001], DATA[A(1)/10001]
+              Assertions:
+                - (0 < N)
+                - (M = 10)
+              COMPUTE(S1): Reads=A(0)[0], Writes=A(1)[0]
+        """).strip()
+
+        assert graph_string.strip() == expected_string
+        assert len(graph.assertions) == 2
+        # Check if the assertions are present and correctly parsed (order might vary based on pysmt internals)
+        assertion_strs = [str(a) for a in graph.assertions]
+        assert "(0 < N)" in assertion_strs
+        assert "(M = 10)" in assertion_strs
+
 
 class TestGraphDefinitionsParsing:
     """
@@ -171,6 +206,8 @@ class TestGraphDefinitionsParsing:
 
     def test_array_reversal_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var k
             decl A
             out A
             (A[0:N-1] => A[0:N-1]) L_k | for k = 0 to N-1:
@@ -188,6 +225,8 @@ class TestGraphDefinitionsParsing:
 
     def test_cholesky_sequential_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var i, j
             decl L
             out L
             (L[1:N, 1:(N-1)], L[2:N, 2:N] => L[2:N, 2:N]) L_outer | for i = 2 to N:
@@ -206,6 +245,8 @@ class TestGraphDefinitionsParsing:
 
     def test_data_aware_bi_parsing_from_def(self):
         code = textwrap.dedent("""
+            sym N
+            var k
             decl A, B
             out A
             (A[0:N-1], A[1:N], B[1:N] => A[1:N]) L1 | for k = 1 to N:
@@ -226,6 +267,8 @@ class TestGraphDefinitionsParsing:
 
     def test_data_aware_bi_b13_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var k
             decl A, B
             out A
             (A[0:N-1], A[1:N], B[1:N], B[13] => A[1:N]) L1 | for k = 1 to N:
@@ -244,6 +287,8 @@ class TestGraphDefinitionsParsing:
 
     def test_gauss_seidel_traditional_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var k
             decl A
             out A
             (A[0:N], A[1:N-1] => A[1:N-1]) L1 | for k = 1 to N-1:
@@ -261,6 +306,8 @@ class TestGraphDefinitionsParsing:
 
     def test_indirect_read_gather_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var k
             decl A, B, IDX
             out A
             (A[0:N], B[0:N], IDX[0:N] => A[0:N]) L1 | for k = 1 to N:
@@ -278,6 +325,8 @@ class TestGraphDefinitionsParsing:
 
     def test_indirect_write_scatter_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var k
             decl A, B, IDX
             out A
             (A[0:N], B[0:N], IDX[0:N] => A[0:N]) L1 | for k = 1 to N:
@@ -295,6 +344,8 @@ class TestGraphDefinitionsParsing:
 
     def test_long_distance_dependency_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var k
             decl A, B
             out A
             (A[0:N], A[2:N], B[2:N] => A[2:N]) L1 | for k = 2 to N:
@@ -315,6 +366,8 @@ class TestGraphDefinitionsParsing:
 
     def test_nested_loop_outer_dofs_parsing(self):
         code = textwrap.dedent("""
+            sym N, M
+            var i, j
             decl A, B
             out A
             (A[1:N, 1:M], B[1:N, 1:M] => A[1:N, 1:M]) L_outer | for i = 1 to N:
@@ -333,6 +386,8 @@ class TestGraphDefinitionsParsing:
 
     def test_nested_loop_inner_dofs_parsing(self):
         code = textwrap.dedent("""
+            sym N, M
+            var i, j
             decl A, B
             out A
             (A[1:N, 1:M], B[1:N, 1:M] => A[1:N, 1:M]) L_outer | for i = 1 to N:
@@ -351,6 +406,8 @@ class TestGraphDefinitionsParsing:
 
     def test_parallel_loop_parsing(self):
         code = textwrap.dedent("""
+            sym N
+            var k
             decl A, B, C
             out A
             (A[0:N], B[0:N], C[0:N] => A[0:N]) L1 | for k = 0 to N:
@@ -368,6 +425,8 @@ class TestGraphDefinitionsParsing:
 
     def test_sequential_loop_parsing_from_def(self):
         code = textwrap.dedent("""
+            sym N
+            var k
             decl A, B
             out A
             (A[1:N-1], A[2:N], B[2:N] => A[2:N]) L1 | for k = 2 to N:
@@ -385,6 +444,8 @@ class TestGraphDefinitionsParsing:
 
     def test_sequential_with_symbolic_max_index_parsing(self):
         code = textwrap.dedent("""
+            sym N, w
+            var k
             decl A, B
             out A
             (A[0:N], A[2:N], B[2:N] => A[2:N]) L1 | for k = 2 to N:

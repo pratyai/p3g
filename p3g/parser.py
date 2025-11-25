@@ -49,6 +49,8 @@ class PseudocodeParser:
         self.pos = 0
         self.output_data_names: set[str] = set()
         self._declared_arrays: set[str] = set()  # Track declared arrays
+        self._declared_symbols: set[str] = set()  # Track declared symbols
+        self._declared_loop_vars: set[str] = set()  # Track declared loop vars
 
         # Graph -> State -> Array -> Ref.
         self._array_state: dict[tuple[Graph, str, str], Data] = {}
@@ -63,10 +65,14 @@ class PseudocodeParser:
         self.pos = 0
         self._preprocess_declarations()  # Call the new preprocessing method
         self.pos = 0  # Reset pos for the main parsing pass
-        while self._peek().type in ["DECL", "OUT", "NEWLINE"]:
+        while self._peek().type in ["DECL", "SYM", "VAR", "OUT", "NEWLINE"]:
             peek_type = self._peek().type
             if peek_type == "DECL":
                 self._parse_decl_statement()
+            elif peek_type == "SYM":
+                self._parse_sym_statement()
+            elif peek_type == "VAR":
+                self._parse_var_statement()
             elif peek_type == "OUT":
                 self._parse_out_statement()
             elif peek_type == "NEWLINE":
@@ -86,6 +92,8 @@ class PseudocodeParser:
         """Converts code string into a stream of tokens."""
         token_specification = [
             ("DECL", r"decl"),
+            ("SYM", r"sym"),
+            ("VAR", r"var"),
             ("OUT", r"out"),
             ("FOR", r"for"),
             ("TO", r"to"),
@@ -101,6 +109,7 @@ class PseudocodeParser:
             ("EQ", r"=="),
             ("GT", r">"),
             ("LT", r"<"),
+            ("BANG", r"!"),
             ("ASSIGN", r"="),
             ("COLON", r":"),
             ("LPAREN", r"\("),
@@ -194,6 +203,8 @@ class PseudocodeParser:
 
     def _parse_statement(self) -> tuple[list, list]:
         """Parses a single statement."""
+        if self._peek().type == "BANG":
+            return self._parse_assertion_statement()
 
         # Parse the access descriptions.
         self._consume("LPAREN")
@@ -345,6 +356,34 @@ class PseudocodeParser:
 
         self._consume("NEWLINE")
 
+    def _parse_sym_statement(self):
+        """Parses a sym statement: sym N, M, ..."""
+        self._consume("SYM")
+        name = self._consume("ID").value
+        self._declared_symbols.add(name)
+        self._get_symbol(name)  # Pre-create the symbol
+
+        while self._peek().type == "COMMA":
+            self._consume("COMMA")
+            name = self._consume("ID").value
+            self._declared_symbols.add(name)
+            self._get_symbol(name)  # Pre-create the symbol
+
+        self._consume("NEWLINE")
+
+    def _parse_var_statement(self):
+        """Parses a var statement: var i, j, ..."""
+        self._consume("VAR")
+        name = self._consume("ID").value
+        self._declared_loop_vars.add(name)
+
+        while self._peek().type == "COMMA":
+            self._consume("COMMA")
+            name = self._consume("ID").value
+            self._declared_loop_vars.add(name)
+
+        self._consume("NEWLINE")
+
     def _parse_for_loop(
         self,
         hierarchical_reads: list[tuple[Data, PysmtAccessSubset | None]],
@@ -354,6 +393,10 @@ class PseudocodeParser:
         """Parses a for loop: for i = start to end: ..."""
         self._consume("FOR")
         var = self._consume("ID").value
+        if var not in self._declared_loop_vars:
+            raise ValueError(
+                f"Loop variable '{var}' was not declared. Use 'var {var}'."
+            )
         self._consume("ASSIGN")
         start_formula, start_reads = self._parse_expression()
         self._consume("TO")
@@ -403,7 +446,12 @@ class PseudocodeParser:
     ) -> tuple[list, list]:
         """Parses an if-else statement: if condition: ... else: ..."""
         self._consume("IF")
+        has_paren = self._peek().type == "LPAREN"
+        if has_paren:
+            self._consume("LPAREN")
         predicate, condition_reads = self._parse_condition()
+        if has_paren:
+            self._consume("RPAREN")
         self._consume("COLON")
         self._consume("NEWLINE")
         self._consume("INDENT")
@@ -530,6 +578,24 @@ class PseudocodeParser:
             compute_name, reads=hierarchical_reads, writes=hierarchical_writes
         )
         return hierarchical_reads, hierarchical_writes
+
+    def _parse_assertion_statement(self) -> tuple[list, list]:
+        """Parses an assertion statement: ! (condition)"""
+        self._consume("BANG")
+
+        has_paren = self._peek().type == "LPAREN"
+        if has_paren:
+            self._consume("LPAREN")
+
+        assertion_formula, assertion_reads = self._parse_condition()
+
+        if has_paren:
+            self._consume("RPAREN")
+
+        self.builder.add_assertion(assertion_formula)
+
+        self._consume("NEWLINE")
+        return [], []
 
     # --- Expression & Grammar Rule Parsers ---
 
@@ -683,16 +749,32 @@ class PseudocodeParser:
     # --- Helpers ---
 
     def _get_symbol(self, name: str, is_array_val=False) -> PysmtFormula:
-        """Gets or creates a PysmtSymbol."""
+        """Gets or creates a PysmtSymbol, enforcing declaration-before-use."""
         if is_array_val:
             # Extract base array name from something like "A_val"
             base_name = name.split("_val")[0]
             if base_name not in self._declared_arrays:
                 raise ValueError(f"Array '{base_name}' used before being declared.")
 
-        if name not in self.known_symbols:
-            sym_type = ArrayType(INT, INT) if is_array_val else INT
-            self.known_symbols[name] = self.builder.add_symbol(name, sym_type)
+            # For A_val symbols, they are internally generated to represent the array's contents.
+            # They do not require an explicit 'sym' declaration.
+            if name not in self.known_symbols:
+                sym_type = ArrayType(INT, INT)  # A_val is always an ArrayType
+                self.known_symbols[name] = self.builder.add_symbol(name, sym_type)
+            return self.known_symbols[name]
+
+        # For non-array-value symbols, enforce declaration-before-use.
+        if name in self.known_symbols:
+            return self.known_symbols[name]
+
+        if name not in self._declared_symbols:
+            raise ValueError(f"Symbol '{name}' not declared. Use 'sym {name}'.")
+
+        # If we reach here, it's a declared symbol that somehow wasn't pre-created
+        # in known_symbols during the pre-pass (shouldn't happen with current logic).
+        # Create it as a fallback.
+        sym_type = INT  # Regular symbols are INT
+        self.known_symbols[name] = self.builder.add_symbol(name, sym_type)
         return self.known_symbols[name]
 
     def _preprocess_declarations(self):

@@ -119,6 +119,7 @@ class Graph:
         self.outputs: set[int] = set()
         self.transients: set[int] = set()
         self._array_id_to_name: dict[int, str] = {}
+        self.assertions: list[PysmtFormula] = []
 
     def add_node(self, node: Node):
         """
@@ -630,6 +631,10 @@ class GraphBuilder:
     def add_symbol(self, name: str, type=INT) -> PysmtSymbol:
         """Adds a symbol to the root graph."""
         return self.root_graph.add_symbol(name, type)
+
+    def add_assertion(self, assertion: PysmtFormula):
+        """Adds an assertion to the current graph."""
+        self.current_graph.assertions.append(assertion)
 
     def mark_array_as_output(self, name: str):
         """
