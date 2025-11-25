@@ -18,6 +18,13 @@ from pysmt.shortcuts import (
     Not,
     Select,
     ArrayType,
+    ForAll,
+    Exists,
+    And,
+    Or,
+    Implies,
+    Times,
+    Symbol,
 )
 
 from p3g.graph import (
@@ -28,8 +35,6 @@ from p3g.graph import (
     PysmtRange,
     PysmtCoordSet,
     PysmtAccessSubset,
-    Loop,
-    Branch,
 )
 from p3g.inference import InferenceEngine
 
@@ -91,6 +96,15 @@ class PseudocodeParser:
     def _tokenize(self, code: str) -> list[Token]:
         """Converts code string into a stream of tokens, handling comments."""
         token_specification = [
+            # SMT-LIB specific keywords and types (must come before other keywords and ID)
+            ("FORALL", r"forall"),
+            ("EXISTS", r"exists"),
+            ("AND", r"and"),
+            ("OR", r"or"),
+            ("NOT", r"not"),
+            ("SELECT", r"select"),
+            ("INT_TYPE", r"Int"),
+            # Keywords (must come before ID)
             ("DECL", r"decl"),
             ("SYM", r"sym"),
             ("VAR", r"var"),
@@ -100,17 +114,15 @@ class PseudocodeParser:
             ("IF", r"if"),
             ("ELSE", r"else"),
             ("OP", r"op"),
-            ("NUMBER", r"\d+"),
-            ("ID", r"[A-Za-z_]\w*"),
-            ("ARROW", r"=>"),
-            ("PIPE", r"\|"),
+            # Multi-character operators (must come before single-char ops and ID)
             ("GE", r">="),
             ("LE", r"<="),
-            ("EQ", r"=="),
+            ("ARROW", r"=>"),
+            ("EQ", r"="),
+            # Single-character operators
             ("GT", r">"),
             ("LT", r"<"),
-            ("BANG", r"!"),
-            ("ASSIGN", r"="),
+            ("PIPE", r"\|"),
             ("COLON", r":"),
             ("LPAREN", r"\("),
             ("RPAREN", r"\)"),
@@ -122,6 +134,11 @@ class PseudocodeParser:
             ("COMMA", r","),
             ("DOT", r"\."),
             ("QUESTION_MARK", r"\?"),
+            ("BANG", r"!"),
+            # Generic identifier (must come after all keywords and multi-char tokens)
+            ("ID", r"[A-Za-z_]\w*"),
+            # Numbers
+            ("NUMBER", r"\d+"),
             ("SKIP", r"[ \t]+"),
             ("MISMATCH", r"."),
         ]
@@ -300,9 +317,7 @@ class PseudocodeParser:
                 else:
                     read_node = self.builder.add_data(
                         name,
-                        pysmt_array_sym=self._get_symbol(
-                            f"{name}_val", is_array_val=True
-                        ),
+                        pysmt_array_sym=self._get_symbol(f"{name}_val"),
                     )
                     self._array_state[dot_key] = read_node
             consolidated_reads.append((read_node, subset))
@@ -312,7 +327,7 @@ class PseudocodeParser:
         for name in {name for name, subset in hierarchical_writes_raw}:
             new_node = self.builder.add_data(
                 name,
-                pysmt_array_sym=self._get_symbol(f"{name}_val", is_array_val=True),
+                pysmt_array_sym=self._get_symbol(f"{name}_val"),
             )
             key = (
                 self.builder.current_graph,
@@ -425,7 +440,7 @@ class PseudocodeParser:
             raise ValueError(
                 f"Loop variable '{var}' was not declared. Use 'var {var}'."
             )
-        self._consume("ASSIGN")
+        self._consume("EQ")
         start_formula, start_reads = self._parse_expression()
         self._consume("TO")
         end_formula, end_reads = self._parse_expression()
@@ -477,7 +492,8 @@ class PseudocodeParser:
         has_paren = self._peek().type == "LPAREN"
         if has_paren:
             self._consume("LPAREN")
-        predicate, condition_reads = self._parse_condition()
+        # Predicates in if statements are infix conditions
+        predicate, condition_reads = self._parse_infix_condition()
         if has_paren:
             self._consume("RPAREN")
         self._consume("COLON")
@@ -608,27 +624,19 @@ class PseudocodeParser:
         return hierarchical_reads, hierarchical_writes
 
     def _parse_assertion_statement(self) -> tuple[list, list]:
-        """Parses an assertion statement: ! (condition)"""
+        """Parses an assertion statement: ! (SMT_LIB_formula)"""
         self._consume("BANG")
 
-        has_paren = self._peek().type == "LPAREN"
-        if has_paren:
-            self._consume("LPAREN")
-
-        assertion_formula, assertion_reads = self._parse_condition()
-
-        if has_paren:
-            self._consume("RPAREN")
+        # The actual parsing of the SMT-LIB formula
+        assertion_formula, assertion_reads = self._parse_smt_lib_formula()
 
         self.builder.add_assertion(assertion_formula)
 
         self._consume("NEWLINE")
         return [], []
 
-    # --- Expression & Grammar Rule Parsers ---
-
-    def _parse_condition(self) -> tuple[PysmtFormula, list]:
-        """Parses a condition: expr > expr"""
+    def _parse_infix_condition(self) -> tuple[PysmtFormula, list]:
+        """Parses an infix condition: expr > expr. Used for 'if' statements."""
         lhs_formula, lhs_reads = self._parse_expression()
 
         op_token = self._consume(["GT", "LT", "GE", "LE", "EQ"])
@@ -639,6 +647,156 @@ class PseudocodeParser:
         predicate = op_map[op_token.type](lhs_formula, rhs_formula)
 
         return predicate, lhs_reads + rhs_reads
+
+    def _parse_smt_lib_formula(self) -> tuple[PysmtFormula, list]:
+        """Parses a full SMT-LIB formula, handling quantifiers, logical ops, etc."""
+        # SMT-LIB formulas are generally parenthesized, or they are atomic terms (ID, NUMBER)
+        token_type = self._peek().type
+
+        if token_type == "LPAREN":
+            self._consume("LPAREN")  # Consume the opening parenthesis
+            operator_token_type = self._peek().type
+
+            if operator_token_type in ["FORALL", "EXISTS"]:
+                formula, reads = self._parse_quantifier()
+            elif operator_token_type == "NOT":
+                formula, reads = self._parse_not_operator()
+            elif operator_token_type in [
+                "AND",
+                "OR",
+                "ARROW",
+                "EQ",
+                "GT",
+                "LT",
+                "GE",
+                "LE",
+                "PLUS",
+                "MINUS",
+                "TIMES",
+                "SELECT",
+            ]:
+                formula, reads = self._parse_prefix_logical_or_comparison_operator()
+            elif operator_token_type == "LPAREN":
+                formula, reads = self._parse_smt_lib_formula()
+            else:
+                raise ValueError(
+                    f"Expected SMT-LIB operator or quantifier after '(', got {self._peek().type} at line {self._peek().line}"
+                )
+
+            self._consume("RPAREN")
+            return formula, reads
+        else:
+            # Atomic formula: a bare ID (boolean variable), NUMBER, or array access.
+            # This is generally used for boolean literals or terms in an expression context.
+            # If a comparison (e.g. `x > 0`) is intended, it must be wrapped as `(GT x 0)`.
+            if token_type in ["ID", "NUMBER"]:  # Check if it's an ID or NUMBER
+                return self._parse_factor()
+            else:
+                raise ValueError(
+                    f"Expected '(' or atomic factor (ID/NUMBER), got {self._peek().type} at line {self._peek().line}"
+                )
+
+    def _parse_quantifier(self) -> tuple[PysmtFormula, list]:
+        """Parses a quantifier (forall or exists) statement."""
+        quantifier_token_type = self._consume(["FORALL", "EXISTS"]).type
+        self._consume("LPAREN")  # ( (x1 T1) (x2 T2) ... )
+
+        # Parse bound variables
+        bound_vars_list = []
+        bound_vars_symbols = []
+        original_known_symbols = self.known_symbols.copy()  # Save state for scope
+
+        while self._peek().type == "LPAREN":
+            self._consume("LPAREN")
+            var_name = self._consume("ID").value
+            # For now, all quantifier variables are INT
+            var_symbol = Symbol(var_name, INT)
+            self.known_symbols[var_name] = (
+                var_symbol  # Add to known symbols for formula parsing
+            )
+            bound_vars_list.append(var_symbol)
+            self._consume("INT_TYPE")  # Consume the type 'Int'
+            self._consume("RPAREN")
+        self._consume("RPAREN")
+
+        # Parse the body of the quantified formula
+        body_formula, body_reads = self._parse_smt_lib_formula()
+
+        # Restore known_symbols state after quantifier scope
+        self.known_symbols = original_known_symbols
+
+        if quantifier_token_type == "FORALL":
+            return ForAll(bound_vars_list, body_formula), body_reads
+        else:  # EXISTS
+            return Exists(bound_vars_list, body_formula), body_reads
+
+    def _parse_not_operator(self) -> tuple[PysmtFormula, list]:
+        """Parses a NOT operator: (not formula)"""
+        self._consume("NOT")
+        formula, reads = self._parse_smt_lib_formula()
+        return Not(formula), reads
+
+    def _parse_prefix_logical_or_comparison_operator(self) -> tuple[PysmtFormula, list]:
+        """Parses prefix logical (and, or, =>) or comparison (>, <, =, >=, <=) operators."""
+        op_token_type = self._consume(
+            [
+                "AND",
+                "OR",
+                "ARROW",
+                "EQ",
+                "GT",
+                "LT",
+                "GE",
+                "LE",
+                "PLUS",
+                "MINUS",
+                "TIMES",
+                "SELECT",
+            ]
+        ).type
+
+        args = []
+        all_reads = []
+        while self._peek().type != "RPAREN":
+            arg_formula, arg_reads = self._parse_smt_lib_formula()
+            args.append(arg_formula)
+            all_reads.extend(arg_reads)
+
+        if op_token_type == "AND":
+            return And(args), all_reads
+        elif op_token_type == "OR":
+            return Or(args), all_reads
+        elif op_token_type == "ARROW":
+            if len(args) != 2:
+                raise ValueError("Implies operator expects exactly two arguments.")
+            return Implies(*args), all_reads
+        elif op_token_type in "EQ":
+            if len(args) != 2:
+                raise ValueError("Equals operator expects exactly two arguments.")
+            return Equals(*args), all_reads
+        elif op_token_type == "PLUS":
+            return Plus(args), all_reads
+        elif op_token_type == "MINUS":
+            if len(args) != 2:
+                raise ValueError("Minus operator expects exactly two arguments.")
+            return Minus(*args), all_reads
+        elif op_token_type == "TIMES":
+            if len(args) != 2:
+                raise ValueError("Times operator expects exactly two arguments.")
+            return Times(*args), all_reads
+        elif op_token_type == "SELECT":
+            if len(args) != 2:
+                raise ValueError(
+                    "Select operator expects exactly two arguments (array, index)."
+                )
+            return Select(*args), all_reads
+        else:  # GT, LT, GE, LE
+            op_map = {"GT": GT, "LT": LT, "GE": GE, "LE": LE}
+            if len(args) != 2:
+                raise ValueError(
+                    f"{op_token_type} operator expects exactly two arguments."
+                )
+            return op_map[op_token_type](*args), all_reads
 
     def _parse_expression(self) -> tuple[PysmtFormula, list]:
         """Parses an expression: term (+|-) term ..."""
@@ -665,7 +823,7 @@ class PseudocodeParser:
         return formula, reads
 
     def _parse_factor(self) -> tuple[PysmtFormula, list]:
-        """Parses a term: number | symbol | access"""
+        """Parses a factor: number | symbol | access | (expression)"""
         if self._peek().type == "NUMBER":
             return Int(int(self._consume("NUMBER").value)), []
         if self._peek().type == "ID":
@@ -679,7 +837,7 @@ class PseudocodeParser:
             self._consume("RPAREN")
             return formula, reads
         raise ValueError(
-            f"Unsupported or malformed statement starting with {self._peek()}"
+            f"Unsupported or malformed factor starting with {self._peek()}"
         )
 
     def _parse_access_item(self) -> tuple[PysmtFormula | PysmtRange | None, list]:
@@ -769,41 +927,38 @@ class PseudocodeParser:
                 "Multi-dim access in expressions not supported for formula generation."
             )
 
-        array_sym = self._get_symbol(f"{name}_val", is_array_val=True)
+        array_sym = self._get_symbol(f"{name}_val")
         formula = Select(array_sym, indices[0])
 
         return formula, reads
 
     # --- Helpers ---
 
-    def _get_symbol(self, name: str, is_array_val=False) -> PysmtFormula:
+    def _get_symbol(self, name: str) -> PysmtFormula:
         """Gets or creates a PysmtSymbol, enforcing declaration-before-use."""
-        if is_array_val:
-            # Extract base array name from something like "A_val"
-            base_name = name.split("_val")[0]
-            if base_name not in self._declared_arrays:
-                raise ValueError(f"Array '{base_name}' used before being declared.")
-
-            # For A_val symbols, they are internally generated to represent the array's contents.
-            # They do not require an explicit 'sym' declaration.
-            if name not in self.known_symbols:
-                sym_type = ArrayType(INT, INT)  # A_val is always an ArrayType
-                self.known_symbols[name] = self.builder.add_symbol(name, sym_type)
-            return self.known_symbols[name]
-
-        # For non-array-value symbols, enforce declaration-before-use.
         if name in self.known_symbols:
             return self.known_symbols[name]
 
-        if name not in self._declared_symbols:
-            raise ValueError(f"Symbol '{name}' not declared. Use 'sym {name}'.")
+        # Check if it's a declared array's internal SMT array symbol (e.g., A_val)
+        if name.endswith("_val"):
+            base_name = name.split("_val")[0]
+            if base_name in self._declared_arrays:
+                sym_type = ArrayType(INT, INT)
+                self.known_symbols[name] = self.builder.add_symbol(name, sym_type)
+                return self.known_symbols[name]
+            else:
+                raise ValueError(f"Array '{base_name}' used before being declared.")
 
-        # If we reach here, it's a declared symbol that somehow wasn't pre-created
-        # in known_symbols during the pre-pass (shouldn't happen with current logic).
-        # Create it as a fallback.
-        sym_type = INT  # Regular symbols are INT
-        self.known_symbols[name] = self.builder.add_symbol(name, sym_type)
-        return self.known_symbols[name]
+        # Check if it's a declared scalar symbol (e.g., N, M)
+        if name in self._declared_symbols:
+            sym_type = INT  # Regular symbols are INT
+            self.known_symbols[name] = self.builder.add_symbol(name, sym_type)
+            return self.known_symbols[name]
+
+        # If we reach here, the symbol is undeclared
+        raise ValueError(
+            f"Symbol '{name}' not declared. Use 'sym {name}' or 'decl {name}' for arrays."
+        )
 
     def _preprocess_declarations(self):
         temp_pos = 0
@@ -823,59 +978,35 @@ class PseudocodeParser:
                 self._consume("NEWLINE")
                 temp_pos = self.pos  # Advance temp_pos past the statement
                 self.pos = current_pos  # Restore original pos
-            elif token.type == "OUT":
-                # Temporarily parse OUT statement
+            elif token.type == "SYM":
+                # Temporarily parse SYM statement
                 current_pos = self.pos
                 self.pos = temp_pos
-                self._consume("OUT")
+                self._consume("SYM")
                 name = self._consume("ID").value
-                self.output_data_names.add(name)
+                self._declared_symbols.add(name)
+                self._get_symbol(name)  # Pre-create the symbol
                 while self._peek().type == "COMMA":
                     self._consume("COMMA")
                     name = self._consume("ID").value
-                    self.output_data_names.add(name)
+                    self._declared_symbols.add(name)
+                    self._get_symbol(name)  # Pre-create the symbol
+                self._consume("NEWLINE")
+                temp_pos = self.pos  # Advance temp_pos past the statement
+                self.pos = current_pos  # Restore original pos
+            elif token.type == "VAR":
+                # Temporarily parse VAR statement
+                current_pos = self.pos
+                self.pos = temp_pos
+                self._consume("VAR")
+                name = self._consume("ID").value
+                self._declared_loop_vars.add(name)
+                while self._peek().type == "COMMA":
+                    self._consume("COMMA")
+                    name = self._consume("ID").value
+                    self._declared_loop_vars.add(name)
                 self._consume("NEWLINE")
                 temp_pos = self.pos  # Advance temp_pos past the statement
                 self.pos = current_pos  # Restore original pos
             else:
-                temp_pos += 1  # Move to next token if not DECL/OUT
-
-
-if __name__ == "__main__":
-    # Example Usage
-
-    # --- Example 1: Sequential Loop ---
-    print("--- " + " Parsing Sequential Loop" + " ---")
-    seq_code = """
-    for i = 2 to N:
-      A[i] = A[i-1] + B[i]
-    """
-    parser_seq = PseudocodeParser()
-    graph_seq = parser_seq.parse(seq_code)
-
-    # Basic verification
-    assert len(graph_seq.nodes) == 1  # Loop
-    loop_node = graph_seq.nodes[0]
-    assert isinstance(loop_node, Loop)
-    assert len(loop_node.nested_graph.nodes) == 3  # A, B, Compute
-    print("Sequential loop parsed successfully.")
-
-    # --- Example 2: Data-Aware BI ---
-    print("\n--- " + " Parsing Data-Aware BI" + " ---")
-    da_code = """
-    for i = 1 to N:
-      if B[i] > 0:
-        A[i] = A[i-1]
-    """
-    parser_da = PseudocodeParser()
-    graph_da = parser_da.parse(da_code)
-
-    # Basic verification
-    assert len(graph_da.nodes) == 1  # Loop
-    loop_node_da = graph_da.nodes[0]
-    assert isinstance(loop_node_da, Loop)
-    assert len(loop_node_da.nested_graph.nodes) == 1  # Branch
-    branch_node = loop_node_da.nested_graph.nodes[0]
-    assert isinstance(branch_node, Branch)
-    assert len(branch_node.branches) == 1
-    print("Data-aware loop parsed successfully.")
+                temp_pos += 1  # Move to next token if not DECL/OUT/SYM/VAR

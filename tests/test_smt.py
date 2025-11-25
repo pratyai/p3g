@@ -328,13 +328,10 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         assert set(str(a) for a in loop_bounds_formula.args()) == {
             "(0 <= i)",
             "((i + 1) <= N)",
-            "((0 + 1) <= N)",
+            "(1 <= N)",
         }
-
-        assert dependency_let_formula.is_or()
-        assert set(str(a) for a in dependency_let_formula.args()) == {
-            "((DATA!B = DATA!B) & (i = (i + 1)))"
-        }
+        assert dependency_let_formula.is_equals()
+        assert str(dependency_let_formula) == "(i = (i + 1))"
 
     def test_symbolic_lower_bound(self):
         inspector = pseudocode_to_inspector(
@@ -399,10 +396,8 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
             "((M + 1) <= N)",
         }
 
-        assert dependency_let_formula.is_or()
-        assert set(str(a) for a in dependency_let_formula.args()) == {
-            "((DATA!B = DATA!B) & (i = (i + 1)))"
-        }
+        assert dependency_let_formula.is_equals()
+        assert set(str(a) for a in dependency_let_formula.args()) == {"i", "(i + 1)"}
 
 
 class TestProveExistsDataForallIterIsindep:

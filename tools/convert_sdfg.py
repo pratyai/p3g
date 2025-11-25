@@ -36,8 +36,9 @@ from pysmt.shortcuts import (
     GT,
     LT,
     Equals,
-    Solver,
 )
+
+from sdfg.converter import P3GConverter
 
 # Add the project root to the sys.path
 script_dir = os.path.dirname(__file__)
@@ -46,8 +47,8 @@ sys.path.insert(0, project_root)
 
 from p3g.subsets import PysmtFormula
 from p3g.graph import GraphBuilder, Graph, Loop, PysmtRange, PysmtCoordSet
-from p3g.smt import exists_data_forall_bounds_forall_iter_isdep
-from tests.utils import print_p3g_structure
+from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
+from tests.utils import print_p3g_structure, solve_smt_string
 
 N = dace.symbol("N", dace.int32)
 
@@ -553,7 +554,7 @@ if __name__ == "__main__":
     loops = tuple(n for n in p3g.nodes if isinstance(n, Loop))
     assert len(loops) == 1
     (loop,) = loops
-    smt = exists_data_forall_bounds_forall_iter_isdep(loop, verbose=False)
+    smt = exists_data_forall_bounds_forall_iters_chained(loop, verbose=False)
 
     # If the user requested, dump the P3G structure
     if args.dump_p3g:
@@ -565,9 +566,7 @@ if __name__ == "__main__":
 
     # Optionally solve the SMT
     if args.solve:
-        solver = Solver()
-        solver.from_string(smt)
-        if solver.check_sat():
+        if solve_smt_string(smt):
             print("SMT is SAT")
         else:
             print("SMT is UNSAT")

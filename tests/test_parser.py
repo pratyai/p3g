@@ -167,12 +167,15 @@ class TestPseudocodeParser:
 
     def test_assertion_parsing(self):
         code = textwrap.dedent("""
-            sym N, M
+            sym N, M, K
             decl A
             out A
-            ! (N > 0)
-            ! (M == 10)
-            (A[0] => A[0]) S1| op(init)
+            var i
+            ! (> N 0)
+            ! (= M 10)
+            (A[0:K] => A[0:K]) L1 | for i = 0 to K:
+                ! (< i M)
+                (A[i] => A[i]) S1| op(init)
         """).strip()
         parser = PseudocodeParser()
         graph = parser.parse(code)
@@ -180,12 +183,19 @@ class TestPseudocodeParser:
         graph_string = get_p3g_structure_string(graph)
 
         expected_string = textwrap.dedent("""
-            ### root ### (Symbols: ['A_val', 'M', 'N'])
+            ### root ### (Symbols: ['A_val', 'K', 'M', 'N'])
               Data Nodes (IDs): DATA[A(0)/10001], DATA[A(1)/10001]
               Assertions:
                 - (0 < N)
                 - (M = 10)
-              COMPUTE(S1): Reads=A(0)[0], Writes=A(1)[0]
+              LOOP(L1): iter=i in [0, K]
+                > Node Reads: A(0)[PysmtRange(0, K)]
+                > Node Writes: A(1)[PysmtRange(0, K)]
+              ### L1_body ### (Symbols: [])
+                Data Nodes (IDs): DATA[A(2)/10001], DATA[A(3)/10001]
+                Assertions:
+                  - (i < M)
+                COMPUTE(S1): Reads=A(2)[i], Writes=A(3)[i]
         """).strip()
 
         assert graph_string.strip() == expected_string
@@ -194,6 +204,60 @@ class TestPseudocodeParser:
         assertion_strs = [str(a) for a in graph.assertions]
         assert "(0 < N)" in assertion_strs
         assert "(M = 10)" in assertion_strs
+        # Additionally check assertion in nested graph
+        loop_node = None
+        for node in graph.nodes:
+            if hasattr(node, "name") and node.name == "L1":
+                loop_node = node
+                break
+        assert loop_node is not None, "L1 loop node not found in graph.nodes"
+        assert len(loop_node.nested_graph.assertions) == 1
+        assert "(i < M)" in [str(a) for a in loop_node.nested_graph.assertions]
+
+    def test_assertion_parsing_with_arithmetic(self):
+        code = textwrap.dedent("""
+            sym x, y, z
+            ! (and (< x (+ y 1)) (= z (* x y)))
+        """).strip()
+        parser = PseudocodeParser()
+        graph = parser.parse(code)
+
+        graph_string = get_p3g_structure_string(graph)
+
+        expected_string = textwrap.dedent("""
+            ### root ### (Symbols: ['x', 'y', 'z'])
+              Assertions:
+                - ((x < (y + 1)) & (z = (x * y)))
+        """).strip()
+
+        assert graph_string.strip() == expected_string
+        assert len(graph.assertions) == 1
+        assertion_strs = [str(a) for a in graph.assertions]
+        assert "((x < (y + 1)) & (z = (x * y)))" in assertion_strs
+
+    def test_assertion_parsing_with_forall(self):
+        code = textwrap.dedent("""
+            sym N, M
+            ! (forall ((x Int)) (=> (and (<= 0 x) (< x N)) (< x M)))
+        """).strip()
+        parser = PseudocodeParser()
+        graph = parser.parse(code)
+
+        graph_string = get_p3g_structure_string(graph)
+
+        expected_string = textwrap.dedent("""
+            ### root ### (Symbols: ['M', 'N'])
+              Assertions:
+                - (forall x . (((0 <= x) & (x < N)) -> (x < M)))
+        """).strip()
+
+        normalized_actual = _normalize_graph_string(graph_string).strip()
+        normalized_expected = _normalize_graph_string(expected_string).strip()
+
+        assert normalized_actual == normalized_expected
+        assert len(graph.assertions) == 1
+        assertion_strs = [str(a) for a in graph.assertions]
+        assert "(forall x . (((0 <= x) & (x < N)) -> (x < M)))" in assertion_strs
 
     def test_comment_parsing(self):
         code = textwrap.dedent("""
@@ -207,7 +271,7 @@ class TestPseudocodeParser:
             This is a block comment
             It spans multiple lines
             ;
-            ! (N > 0) ; assertion with inline comment
+            ! (> N 0) ; assertion with inline comment
             (A[0] => A[0]) S1| op(init) ; operation
             ; another comment line
         """).strip()

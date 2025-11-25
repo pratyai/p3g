@@ -1,0 +1,27 @@
+sym N
+var k
+decl A, B, IDX
+out A
+
+;
+; Assertion for unique IDX content:
+; The current pseudocode parser now supports SMT-LIB style assertions,
+; including universal quantifiers.
+;
+! (forall ((k1 Int) (k2 Int)) (=> (and (<= 0 k1) (< k1 N) (<= 0 k2) (< k2 N) (not (= k1 k2))) (not (= (select IDX_val k1) (select IDX_val k2)))))
+
+(A[0:N], B[0:N], IDX[0:N] => A[0:N]) L1 | for k = 1 to N:
+    (A[IDX[k]], B[k], IDX[k] => A[IDX[k]]) T1_scatter | op(comp)
+
+;
+; This example demonstrates a loop with an indirect write (scatter) operation.
+; The write access to array `A` is determined by the `IDX` array (`A[IDX[k]]`).
+; This pattern is prone to dependencies due to aliasing if `IDX` values are not unique
+; or overlap in a specific way.
+;
+; Expected SMT Result: UNSAT (if the unique IDX assertion is applied)
+; Reason: With the added assertion that `IDX` has unique content, it explicitly
+; states that `IDX[k1]` is never equal to `IDX[k2]` for `k1 != k2`. This prevents
+; any write-write or write-read aliasing that would typically cause a dependency
+; in a scatter operation. Therefore, no data dependency should be found.
+;

@@ -1,6 +1,7 @@
 import uuid
 from collections import defaultdict
 
+from plum import dispatch  # Added plum import
 from pysmt.shortcuts import (
     substitute,
     Ite,
@@ -13,9 +14,6 @@ from pysmt.shortcuts import (
     Or,
 )
 from pysmt.typing import INT
-
-from plum import dispatch  # Added plum import
-
 
 from p3g.graph import Loop, Map, Reduce, Graph, Structure, Branch, Data
 from p3g.subsets import (
