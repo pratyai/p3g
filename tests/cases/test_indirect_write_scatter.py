@@ -2,12 +2,12 @@ import pytest
 
 from p3g.smt import (
     exists_data_exists_bounds_forall_iter_isdep,
-    exists_data_forall_bounds_forall_iter_isdep,
     exists_data_exists_bounds_forall_iter_isindep,
     exists_data_forall_bounds_forall_iter_isindep,
     forall_data_forall_bounds_forall_iter_isindep,
     exists_data_exists_bounds_exists_iter_isdep,
 )
+from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import build_indirect_write_scatter_graph
 from tests.utils import TimeoutError
@@ -49,7 +49,7 @@ class TestIndirectWriteScatter:
         """
         run_test_case(
             build_indirect_write_scatter_graph,
-            exists_data_forall_bounds_forall_iter_isdep,
+            exists_data_forall_bounds_forall_iters_chained,
             "indirect_write_scatter_dofs_forall_bounds",
             True,
         )

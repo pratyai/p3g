@@ -1,5 +1,4 @@
 import io
-import os
 from multiprocessing import Process, Queue
 
 from pysmt.exceptions import SolverReturnedUnknownResultError

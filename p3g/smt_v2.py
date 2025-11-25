@@ -11,12 +11,10 @@ from __future__ import annotations
 
 import io
 import itertools
-import uuid
 from collections import namedtuple
 
 from pysmt.shortcuts import (
     Symbol,
-    INT,
     Equals,
     And,
     Or,
@@ -24,8 +22,6 @@ from pysmt.shortcuts import (
     Int,
     GE,
     LE,
-    LT,
-    Not,
     Exists,
     ForAll,
     Implies,
@@ -35,14 +31,15 @@ from pysmt.shortcuts import (
     FALSE,
 )
 from pysmt.smtlib.printers import SmtPrinter
-from pysmt.typing import ArrayType
+from pysmt.typing import INT
 
-from p3g.graph import Graph, Loop, Data, Compute, Branch, PysmtFormula
+from p3g.graph import Graph, Loop, Data, Compute, Branch
 from p3g.subsets import (
-    PysmtSymbol,
     _create_set_intersection_formula,
-    _get_free_variables_recursive,
     substitute_subset,
+    PysmtFormula,
+    _get_free_variables_recursive,
+    PysmtSymbol,
 )
 
 ComputeItem = namedtuple("ComputeItem", ["path_cond", "compute_node", "loops"])

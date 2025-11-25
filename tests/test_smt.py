@@ -15,12 +15,12 @@ from p3g.graph import Loop
 from p3g.parser import PseudocodeParser
 from p3g.smt import (
     exists_data_exists_bounds_forall_iter_isdep,
-    exists_data_forall_bounds_forall_iter_isdep,
     exists_data_exists_bounds_forall_iter_isindep,
     exists_data_forall_bounds_forall_iter_isindep,
     forall_data_forall_bounds_forall_iter_isindep,
     exists_data_exists_bounds_exists_iter_isdep,
 )
+from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
 
 
 class SmtQueryInspector(IdentityDagWalker):
@@ -278,7 +278,7 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
             (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
               (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
             """,
-            generator_function=exists_data_forall_bounds_forall_iter_isdep,
+            generator_function=exists_data_forall_bounds_forall_iters_chained,
         )
 
         # Check for declarations
@@ -346,7 +346,7 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
             (A[M:N], B[M:N] => B[M:N]) loop1 | for i = M to N:
               (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
             """,
-            generator_function=exists_data_forall_bounds_forall_iter_isdep,
+            generator_function=exists_data_forall_bounds_forall_iters_chained,
         )
 
         # Check for declarations

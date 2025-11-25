@@ -13,12 +13,13 @@ from p3g.graph import Loop
 from p3g.parser import PseudocodeParser
 from p3g.smt import (
     exists_data_exists_bounds_forall_iter_isdep,
-    exists_data_forall_bounds_forall_iter_isdep,
     exists_data_exists_bounds_exists_iter_isdep,
     exists_data_exists_bounds_forall_iter_isindep,
     exists_data_forall_bounds_forall_iter_isindep,
     forall_data_forall_bounds_forall_iter_isindep,
 )
+from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
+
 
 from tests.utils import solve_smt_string
 
@@ -132,7 +133,7 @@ def main():
             loop_node, verbose=False
         )
     elif query_type == "D-FS/B":
-        smt_query = exists_data_forall_bounds_forall_iter_isdep(
+        smt_query = exists_data_forall_bounds_forall_iters_chained(
             loop_node, verbose=False
         )
     elif query_type == "D-NFI":

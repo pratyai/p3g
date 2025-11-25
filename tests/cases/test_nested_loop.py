@@ -2,12 +2,12 @@ from pysmt.shortcuts import Symbol, INT, GT, Int
 
 from p3g.smt import (
     exists_data_exists_bounds_forall_iter_isdep,
-    exists_data_forall_bounds_forall_iter_isdep,
     exists_data_exists_bounds_forall_iter_isindep,
     exists_data_forall_bounds_forall_iter_isindep,
     forall_data_forall_bounds_forall_iter_isindep,
     exists_data_exists_bounds_exists_iter_isdep,
 )
+from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
 from tests.cases.case_runner import run_test_case
 from tests.cases.graph_definitions import (
     build_nested_loop_outer_dofs_graph,
@@ -80,7 +80,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            exists_data_forall_bounds_forall_iter_isdep,
+            exists_data_forall_bounds_forall_iters_chained,
             "nested_loop_outer_dofs_inner_forall_bounds",
             False,
             loop_node_index=2,
@@ -88,7 +88,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_outer_dofs_graph,
-            exists_data_forall_bounds_forall_iter_isdep,
+            exists_data_forall_bounds_forall_iters_chained,
             "nested_loop_outer_dofs_outer_forall_bounds",
             True,
             loop_node_index=1,
@@ -103,7 +103,7 @@ class TestNestedLoop:
         """
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            exists_data_forall_bounds_forall_iter_isdep,
+            exists_data_forall_bounds_forall_iters_chained,
             "nested_loop_inner_dofs_inner_forall_bounds",
             True,
             loop_node_index=2,
@@ -111,7 +111,7 @@ class TestNestedLoop:
         )
         run_test_case(
             build_nested_loop_inner_dofs_graph,
-            exists_data_forall_bounds_forall_iter_isdep,
+            exists_data_forall_bounds_forall_iters_chained,
             "nested_loop_inner_dofs_outer_forall_bounds",
             False,
             loop_node_index=1,
