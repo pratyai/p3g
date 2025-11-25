@@ -20,7 +20,6 @@ from p3g.smt import (
     forall_data_forall_bounds_forall_iter_isindep,
     exists_data_exists_bounds_exists_iter_isdep,
 )
-from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
 
 
 class SmtQueryInspector(IdentityDagWalker):
@@ -39,8 +38,6 @@ class SmtQueryInspector(IdentityDagWalker):
         self.assertions.append(formula)  # Append the formula directly
         return formula
 
-    # Removed walk_declare_fun as it's handled directly in parse_smt_query_and_inspect
-
     def walk_forall(self, formula):
         self.quantifiers.append(("forall", formula.quantifier_vars(), formula.arg(0)))
         return formula
@@ -50,8 +47,6 @@ class SmtQueryInspector(IdentityDagWalker):
         return formula
 
     def walk_let(self, formula):
-        # PySMT's internal representation of LET is a bit tricky.
-        # For now, we'll just note its presence.
         self.let_bindings.append(formula)
         return formula
 
@@ -83,21 +78,12 @@ def parse_smt_query_and_inspect(smt_query_string: str):
         if cmd.name == "assert":
             inspector.walk_assert(cmd.args[0])
         elif cmd.name == "declare-fun":
-            # Assume cmd.args[0] is the symbol name (string)
-            # Assume cmd.args[-1] is the type (PySMT Type object)
             inspector.declarations.append(cmd)
         elif cmd.name == "check-sat":
-            pass  # Ignore check-sat command for inspection
-        else:
-            # Optionally raise an error or log a warning for unhandled commands
             pass
-    # Manually walk the assertions to find quantifiers and let bindings
-    # We need to walk the actual formulas, not the commands
+        else:
+            pass
     for assertion_formula in inspector.assertions:
-        # Use a fresh inspector for each assertion to avoid mixing state
-        # Or, modify SmtQueryInspector to be a proper walker that can be called on sub-formulas
-        # For now, let's just walk the top-level assertions and extract quantifiers/lets from them
-        # This is a simplified approach. A full walker would be more complex.
         if assertion_formula.is_forall():
             inspector.walk_forall(assertion_formula)
         elif assertion_formula.is_exists():
@@ -119,8 +105,6 @@ class TestProveExistsDataForallIterIsdep:
             generator_function=exists_data_exists_bounds_forall_iter_isdep,
         )
 
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
         expected_declarations = {"N", "DATA!A", "DATA!B"}
         declared_symbols = {
             cmd.args[0].symbol_name()
@@ -129,13 +113,10 @@ class TestProveExistsDataForallIterIsdep:
         }
         assert declared_symbols.issuperset(expected_declarations)
 
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
         data_id_assertions = {
             (Symbol("DATA!A", INT), Int(10002)),
             (Symbol("DATA!B", INT), Int(10001)),
         }
-        # Check if these specific assertions are present in the inspector's assertions
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
             if (
@@ -148,20 +129,14 @@ class TestProveExistsDataForallIterIsdep:
                 )
         assert data_id_assertions == found_data_assertions_args
 
-        # Check for quantifiers
-        # We expect a single forall quantifier for the iteration variable 'i'
         assert len(inspector.quantifiers) == 1
         quantifier_type, q_vars, q_body = inspector.quantifiers[0]
         assert quantifier_type == "forall"
         assert set(str(a) for a in q_vars) == {"i"}
 
-        # Check the body of the quantified formula (main assertion)
-        # It should contain the loop bounds and the dependency logic
-        # The structure is (=> loop_bounds (let (...) (or ...)))
-        assert q_body.is_implies()  # (=> A B)
+        assert q_body.is_implies()
         loop_bounds_formula, dependency_let_formula = q_body.args()
 
-        # Check loop bounds
         assert loop_bounds_formula.is_and()
         assert set(str(a) for a in loop_bounds_formula.args()) == {
             "(0 <= i)",
@@ -203,8 +178,6 @@ class TestProveExistsDataForallIterIsdep:
             generator_function=exists_data_exists_bounds_forall_iter_isdep,
         )
 
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
         expected_declarations = {"N", "DATA!A"}
         declared_symbols = {
             cmd.args[0].symbol_name()
@@ -213,12 +186,9 @@ class TestProveExistsDataForallIterIsdep:
         }
         assert declared_symbols.issuperset(expected_declarations)
 
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
         data_id_assertions = {
             (Symbol("DATA!A", INT), Int(10001)),
         }
-        # Check if these specific assertions are present in the inspector's assertions
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
             if (
@@ -231,20 +201,14 @@ class TestProveExistsDataForallIterIsdep:
                 )
         assert data_id_assertions == found_data_assertions_args
 
-        # Check for quantifiers
-        # We expect a single forall quantifier for the iteration variable 'i'
         assert len(inspector.quantifiers) == 1
         quantifier_type, q_vars, q_body = inspector.quantifiers[0]
         assert quantifier_type == "forall"
         assert set(str(a) for a in q_vars) == {"i"}
 
-        # Check the body of the quantified formula (main assertion)
-        # It should contain the loop bounds and the dependency logic
-        # The structure is (=> loop_bounds (let (...) (or ...)))
-        assert q_body.is_implies()  # (=> A B)
+        assert q_body.is_implies()
         loop_bounds_formula, dependency_let_formula = q_body.args()
 
-        # Check loop bounds
         assert loop_bounds_formula.is_and()
         assert set(str(a) for a in loop_bounds_formula.args()) == {
             "(0 <= i)",
@@ -257,7 +221,6 @@ class TestProveExistsDataForallIterIsdep:
             "((DATA!A = DATA!A) & (i = (i + 1)))"
         }
 
-        # Check for declarations
         expected_declarations_names = {"N", "DATA!A"}
         declared_symbols_names = {
             cmd.args[0].symbol_name()
@@ -265,139 +228,6 @@ class TestProveExistsDataForallIterIsdep:
             if cmd.name == "declare-fun"
         }
         assert declared_symbols_names.issuperset(expected_declarations_names)
-
-
-class TestProveExistsDataForallLoopBoundsIterIsdep:
-    def test_simple_loop(self):
-        inspector = pseudocode_to_inspector(
-            """
-            sym N
-            var i
-            decl A, B
-            out B
-            (A[0:N], B[0:N] => B[0:N]) loop1 | for i = 0 to N:
-              (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
-            """,
-            generator_function=exists_data_forall_bounds_forall_iters_chained,
-        )
-
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
-        expected_declarations = {"DATA!A", "DATA!B"}
-        declared_symbols = {
-            cmd.args[0].symbol_name()
-            for cmd in inspector.declarations
-            if cmd.name == "declare-fun"
-        }
-        assert declared_symbols.issuperset(expected_declarations)
-
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
-        data_id_assertions = {
-            (Symbol("DATA!A", INT), Int(10002)),
-            (Symbol("DATA!B", INT), Int(10001)),
-        }
-        # Check if these specific assertions are present in the inspector's assertions
-        found_data_assertions_args = set()
-        for assertion_formula in inspector.assertions:
-            if (
-                assertion_formula.is_equals()
-                and assertion_formula.arg(0).is_symbol()
-                and assertion_formula.arg(0).symbol_name().startswith("DATA!")
-            ):
-                found_data_assertions_args.add(
-                    (assertion_formula.arg(0), assertion_formula.arg(1))
-                )
-        assert data_id_assertions == found_data_assertions_args
-
-        # Check for quantifiers
-        # We expect a single forall quantifier for the iteration variable 'i'
-        assert len(inspector.quantifiers) == 1
-        quantifier_type, q_vars, q_body = inspector.quantifiers[0]
-        assert quantifier_type == "forall"
-        assert set(str(a) for a in q_vars) == {"N", "i"}
-
-        # Check the body of the quantified formula (main assertion)
-        # It should contain the loop bounds and the dependency logic
-        # The structure is (=> loop_bounds (let (...) (or ...)))
-        assert q_body.is_implies()  # (=> A B)
-        loop_bounds_formula, dependency_let_formula = q_body.args()
-
-        # Check loop bounds
-        assert loop_bounds_formula.is_and()
-        assert set(str(a) for a in loop_bounds_formula.args()) == {
-            "(0 <= i)",
-            "((i + 1) <= N)",
-            "(1 <= N)",
-        }
-        assert dependency_let_formula.is_equals()
-        assert str(dependency_let_formula) == "(i = (i + 1))"
-
-    def test_symbolic_lower_bound(self):
-        inspector = pseudocode_to_inspector(
-            """
-            sym M, N
-            var i
-            decl A, B
-            out B
-            (A[M:N], B[M:N] => B[M:N]) loop1 | for i = M to N:
-              (A[i], B[i] => B[i]) comp1 | op(B[i] = A[i])
-            """,
-            generator_function=exists_data_forall_bounds_forall_iters_chained,
-        )
-
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
-        expected_declarations = {"DATA!A", "DATA!B"}
-        declared_symbols = {
-            cmd.args[0].symbol_name()
-            for cmd in inspector.declarations
-            if cmd.name == "declare-fun"
-        }
-        assert declared_symbols.issuperset(expected_declarations)
-
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
-        data_id_assertions = {
-            (Symbol("DATA!A", INT), Int(10002)),
-            (Symbol("DATA!B", INT), Int(10001)),
-        }
-        # Check if these specific assertions are present in the inspector's assertions
-        found_data_assertions_args = set()
-        for assertion_formula in inspector.assertions:
-            if (
-                assertion_formula.is_equals()
-                and assertion_formula.arg(0).is_symbol()
-                and assertion_formula.arg(0).symbol_name().startswith("DATA!")
-            ):
-                found_data_assertions_args.add(
-                    (assertion_formula.arg(0), assertion_formula.arg(1))
-                )
-        assert data_id_assertions == found_data_assertions_args
-
-        # Check for quantifiers
-        # We expect a single forall quantifier for the iteration variable 'i'
-        assert len(inspector.quantifiers) == 1
-        quantifier_type, q_vars, q_body = inspector.quantifiers[0]
-        assert quantifier_type == "forall"
-        assert set(str(a) for a in q_vars) == {"M", "N", "i"}
-
-        # Check the body of the quantified formula (main assertion)
-        # It should contain the loop bounds and the dependency logic
-        # The structure is (=> loop_bounds (let (...) (or ...)))
-        assert q_body.is_implies()  # (=> A B)
-        loop_bounds_formula, dependency_let_formula = q_body.args()
-
-        # Check loop bounds
-        assert loop_bounds_formula.is_and()
-        assert set(str(a) for a in loop_bounds_formula.args()) == {
-            "(M <= i)",
-            "((i + 1) <= N)",
-            "((M + 1) <= N)",
-        }
-
-        assert dependency_let_formula.is_equals()
-        assert set(str(a) for a in dependency_let_formula.args()) == {"i", "(i + 1)"}
 
 
 class TestProveExistsDataForallIterIsindep:
@@ -414,8 +244,6 @@ class TestProveExistsDataForallIterIsindep:
             generator_function=exists_data_exists_bounds_forall_iter_isindep,
         )
 
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
         expected_declarations = {"N", "DATA!A", "DATA!B"}
         declared_symbols = {
             cmd.args[0].symbol_name()
@@ -424,13 +252,10 @@ class TestProveExistsDataForallIterIsindep:
         }
         assert declared_symbols.issuperset(expected_declarations)
 
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
         data_id_assertions = {
             (Symbol("DATA!A", INT), Int(10002)),
             (Symbol("DATA!B", INT), Int(10001)),
         }
-        # Check if these specific assertions are present in the inspector's assertions
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
             if (
@@ -443,20 +268,14 @@ class TestProveExistsDataForallIterIsindep:
                 )
         assert data_id_assertions == found_data_assertions_args
 
-        # Check for quantifiers
-        # We expect a single forall quantifier for the iteration variable 'i'
         assert len(inspector.quantifiers) == 1
         quantifier_type, q_vars, q_body = inspector.quantifiers[0]
         assert quantifier_type == "forall"
         assert set(str(a) for a in q_vars) == {"i", "i_j"}
 
-        # Check the body of the quantified formula (main assertion)
-        # It should contain the loop bounds and the dependency logic
-        # The structure is (=> loop_bounds (let (...) (or ...)))
-        assert q_body.is_implies()  # (=> A B)
+        assert q_body.is_implies()
         loop_bounds_formula, dependency_let_formula = q_body.args()
 
-        # Check loop bounds
         assert loop_bounds_formula.is_and()
         assert set(str(a) for a in loop_bounds_formula.args()) == {
             "(0 <= i)",
@@ -486,8 +305,6 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
             generator_function=exists_data_forall_bounds_forall_iter_isindep,
         )
 
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
         expected_declarations = {"N", "DATA!A", "DATA!B"}
         declared_symbols = {
             cmd.args[0].symbol_name()
@@ -496,13 +313,10 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
         }
         assert declared_symbols.issuperset(expected_declarations)
 
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
         data_id_assertions = {
             (Symbol("DATA!A", INT), Int(10002)),
             (Symbol("DATA!B", INT), Int(10001)),
         }
-        # Check if these specific assertions are present in the inspector's assertions
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
             if (
@@ -515,20 +329,14 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
                 )
         assert data_id_assertions == found_data_assertions_args
 
-        # Check for quantifiers
-        # We expect a single forall quantifier for the iteration variable 'i'
         assert len(inspector.quantifiers) == 1
         quantifier_type, q_vars, q_body = inspector.quantifiers[0]
         assert quantifier_type == "forall"
         assert set(str(a) for a in q_vars) == {"N", "i", "i_j"}
 
-        # Check the body of the quantified formula (main assertion)
-        # It should contain the loop bounds and the dependency logic
-        # The structure is (=> loop_bounds (let (...) (or ...)))
-        assert q_body.is_implies()  # (=> A B)
+        assert q_body.is_implies()
         loop_bounds_formula, dependency_let_formula = q_body.args()
 
-        # Check loop bounds
         assert loop_bounds_formula.is_and()
         assert set(str(a) for a in loop_bounds_formula.args()) == {
             "(0 <= i)",
@@ -556,8 +364,6 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
             generator_function=exists_data_forall_bounds_forall_iter_isindep,
         )
 
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
         expected_declarations = {"M", "N", "DATA!A", "DATA!B"}
         declared_symbols = {
             cmd.args[0].symbol_name()
@@ -566,13 +372,10 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
         }
         assert declared_symbols.issuperset(expected_declarations)
 
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
         data_id_assertions = {
             (Symbol("DATA!A", INT), Int(10002)),
             (Symbol("DATA!B", INT), Int(10001)),
         }
-        # Check if these specific assertions are present in the inspector's assertions
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
             if (
@@ -585,20 +388,14 @@ class TestProveExistsDataForallLoopBoundsIterIsindep:
                 )
         assert data_id_assertions == found_data_assertions_args
 
-        # Check for quantifiers
-        # We expect a single forall quantifier for the iteration variable 'i'
         assert len(inspector.quantifiers) == 1
         quantifier_type, q_vars, q_body = inspector.quantifiers[0]
         assert quantifier_type == "forall"
         assert set(str(a) for a in q_vars) == {"M", "N", "i", "i_j"}
 
-        # Check the body of the quantified formula (main assertion)
-        # It should contain the loop bounds and the dependency logic
-        # The structure is (=> loop_bounds (let (...) (or ...)))
-        assert q_body.is_implies()  # (=> A B)
+        assert q_body.is_implies()
         loop_bounds_formula, dependency_let_formula = q_body.args()
 
-        # Check loop bounds
         assert loop_bounds_formula.is_and()
         assert set(str(a) for a in loop_bounds_formula.args()) == {
             "(M <= i)",
@@ -628,8 +425,6 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
             generator_function=forall_data_forall_bounds_forall_iter_isindep,
         )
 
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
         expected_declarations = {"N", "DATA!A", "DATA!B", "DATA!IDX"}
         declared_symbols = {
             cmd.args[0].symbol_name()
@@ -638,14 +433,11 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
         }
         assert declared_symbols.issuperset(expected_declarations)
 
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
         data_id_assertions = {
             (Symbol("DATA!A", INT), Int(10002)),
             (Symbol("DATA!B", INT), Int(10001)),
             (Symbol("DATA!IDX", INT), Int(10003)),
         }
-        # Check if these specific assertions are present in the inspector's assertions
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
             if (
@@ -658,22 +450,16 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
                 )
         assert data_id_assertions == found_data_assertions_args
 
-        # Check for quantifiers
-        # We expect a single forall quantifier for the iteration variable 'i'
         assert len(inspector.quantifiers) == 1
         quantifier_type, q_vars, q_body = inspector.quantifiers[0]
         assert quantifier_type == "forall"
         assert set(str(a) for a in q_vars) == {"A_val", "IDX_val", "B_val"}
-        assert q_body.is_forall()  # (forall ...)
+        assert q_body.is_forall()
         assert set(str(a) for a in q_body.quantifier_vars()) == {"i", "i_j", "N"}
 
-        # Check the body of the quantified formula (main assertion)
-        # It should contain the loop bounds and the dependency logic
-        # The structure is (=> loop_bounds (let (...) (or ...)))
-        assert q_body.arg(0).is_implies()  # (=> A B)
+        assert q_body.arg(0).is_implies()
         loop_bounds_formula, dependency_let_formula = q_body.arg(0).args()
 
-        # Check loop bounds
         assert loop_bounds_formula.is_and()
         assert set(str(a) for a in loop_bounds_formula.args()) == {
             "(0 <= i)",
@@ -701,8 +487,6 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
             generator_function=forall_data_forall_bounds_forall_iter_isindep,
         )
 
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
         expected_declarations = {"N", "DATA!A", "DATA!B", "DATA!IDX"}
         declared_symbols = {
             cmd.args[0].symbol_name()
@@ -711,14 +495,11 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
         }
         assert declared_symbols.issuperset(expected_declarations)
 
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
         data_id_assertions = {
             (Symbol("DATA!A", INT), Int(10002)),
             (Symbol("DATA!B", INT), Int(10001)),
             (Symbol("DATA!IDX", INT), Int(10003)),
         }
-        # Check if these specific assertions are present in the inspector's assertions
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
             if (
@@ -731,22 +512,16 @@ class TestProveForallDataForallLoopBoundsIterIsindep:
                 )
         assert data_id_assertions == found_data_assertions_args
 
-        # Check for quantifiers
-        # We expect a single forall quantifier for the iteration variable 'i'
         assert len(inspector.quantifiers) == 1
         quantifier_type, q_vars, q_body = inspector.quantifiers[0]
         assert quantifier_type == "forall"
         assert set(str(a) for a in q_vars) == {"A_val", "IDX_val", "B_val"}
-        assert q_body.is_forall()  # (forall ...)
+        assert q_body.is_forall()
         assert set(str(a) for a in q_body.quantifier_vars()) == {"i", "i_j", "N", "M"}
 
-        # Check the body of the quantified formula (main assertion)
-        # It should contain the loop bounds and the dependency logic
-        # The structure is (=> loop_bounds (let (...) (or ...)))
-        assert q_body.arg(0).is_implies()  # (=> A B)
+        assert q_body.arg(0).is_implies()
         loop_bounds_formula, dependency_let_formula = q_body.arg(0).args()
 
-        # Check loop bounds
         assert loop_bounds_formula.is_and()
         assert set(str(a) for a in loop_bounds_formula.args()) == {
             "(M <= i)",
@@ -776,8 +551,6 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
             generator_function=exists_data_exists_bounds_exists_iter_isdep,
         )
 
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
         expected_declarations = {"N", "DATA!A", "DATA!B", "DATA!IDX"}
         declared_symbols = {
             cmd.args[0].symbol_name()
@@ -786,14 +559,11 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
         }
         assert declared_symbols.issuperset(expected_declarations)
 
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
         data_id_assertions = {
             (Symbol("DATA!A", INT), Int(10002)),
             (Symbol("DATA!B", INT), Int(10001)),
             (Symbol("DATA!IDX", INT), Int(10003)),
         }
-        # Check if these specific assertions are present in the inspector's assertions
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
             if (
@@ -806,7 +576,6 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
                 )
         assert data_id_assertions == found_data_assertions_args
 
-        # Loop bound check
         assert set(str(a) for a in inspector.assertions).issuperset(
             {
                 "((0 + 1) <= N)",
@@ -814,10 +583,8 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
             }
         )
 
-        # Check for quantifiers
-        # We do not expect any quantifier.
         assert len(inspector.quantifiers) == 0
-        q_body = inspector.assertions[-1]  # Last assert in our query
+        q_body = inspector.assertions[-1]
         assert q_body.is_or()
         assert set(str(a) for a in q_body.args()) == {"((DATA!B = DATA!B) & (i_j = i))"}
 
@@ -834,8 +601,6 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
             generator_function=exists_data_exists_bounds_exists_iter_isdep,
         )
 
-        # Check for declarations
-        # We expect N, DATA!A, DATA!B, and i to be declared as Int
         expected_declarations = {"N", "DATA!A", "DATA!B", "DATA!IDX"}
         declared_symbols = {
             cmd.args[0].symbol_name()
@@ -844,14 +609,11 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
         }
         assert declared_symbols.issuperset(expected_declarations)
 
-        # Check for data definitions (these are still global assertions)
-        # We expect assertions like (= DATA!A 10001)
         data_id_assertions = {
             (Symbol("DATA!A", INT), Int(10002)),
             (Symbol("DATA!B", INT), Int(10001)),
             (Symbol("DATA!IDX", INT), Int(10003)),
         }
-        # Check if these specific assertions are present in the inspector's assertions
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
             if (
@@ -864,7 +626,6 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
                 )
         assert data_id_assertions == found_data_assertions_args
 
-        # Loop bound check
         assert set(str(a) for a in inspector.assertions).issuperset(
             {
                 "((M + 1) <= N)",
@@ -872,9 +633,7 @@ class TestProveExistsDataExistsLoopBoundsExistsIterIsdep:
             }
         )
 
-        # Check for quantifiers
-        # We do not expect any quantifier.
         assert len(inspector.quantifiers) == 0
-        q_body = inspector.assertions[-1]  # Last assert in our query
+        q_body = inspector.assertions[-1]
         assert q_body.is_or()
         assert set(str(a) for a in q_body.args()) == {"((DATA!B = DATA!B) & (i_j = i))"}

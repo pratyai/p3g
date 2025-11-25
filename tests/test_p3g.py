@@ -9,9 +9,6 @@ from pysmt.shortcuts import (
     Plus,
     Int,
     simplify,
-    ArrayType,
-    Minus,
-    Times,
     reset_env,
     get_env,
 )
@@ -22,9 +19,7 @@ from p3g.graph import (
     Compute,
     GraphBuilder,
     create_path_model_fn,
-    Data,
 )
-from p3g.inference import InferenceEngine
 
 
 @pytest.fixture(autouse=True)

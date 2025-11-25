@@ -36,7 +36,6 @@ from p3g.graph import (
     PysmtCoordSet,
     PysmtAccessSubset,
 )
-from p3g.inference import InferenceEngine
 
 Token = collections.namedtuple("Token", ["type", "value", "line", "column"])
 
@@ -85,11 +84,7 @@ class PseudocodeParser:
         self._parse_block()
         self.builder.finish()
 
-        # After initial parsing, run the inference engine
-        inference_engine = InferenceEngine(self.builder)
-        inference_engine.infer_all_accesses()
-
-        return self.builder.root_graph
+        return self.builder.finish()
 
     # --- Tokenizer ---
 

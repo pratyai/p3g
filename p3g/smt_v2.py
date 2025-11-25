@@ -30,6 +30,7 @@ from pysmt.shortcuts import (
     TRUE,
     FALSE,
     simplify,
+    Not,
 )
 from pysmt.smtlib.printers import SmtPrinter
 from pysmt.typing import INT
@@ -149,11 +150,21 @@ class SmtQueryBuilder:
         simplified_main_formula = simplify(main_formula)
 
         # Step 2: Collect all free variables for the declaration header
-        self._collect_all_free_variables(simplified_main_formula)
+        # To avoid statefulness issues, we use a local set for this build.
+        local_existential_vars = self._existential_vars.copy()
+
+        def collect_free_vars_local(formula: PysmtFormula):
+            if formula is None:
+                return
+            for sym in get_free_variables(formula):
+                if sym not in self._universal_vars:
+                    local_existential_vars.add(sym)
+
+        collect_free_vars_local(simplified_main_formula)
         simplified_toplevel_assertions = []
         for assertion in self._toplevel_assertions:
             simplified_assertion = simplify(assertion)
-            self._collect_all_free_variables(simplified_assertion)
+            collect_free_vars_local(simplified_assertion)
             simplified_toplevel_assertions.append(simplified_assertion)
 
         # Step 3: Pretty-print all assertions
@@ -166,7 +177,7 @@ class SmtQueryBuilder:
         )
 
         # Step 4: Build declarations for all collected free (existential) variables
-        final_existentials = self._existential_vars - self._universal_vars
+        final_existentials = local_existential_vars - self._universal_vars
 
         def get_decl_str(s: PysmtSymbol) -> str:
             t = s.get_type()
@@ -185,6 +196,76 @@ class SmtQueryBuilder:
         all_assertions_parts.append(main_assertion_str)
 
         all_assertions = "\n".join(all_assertions_parts)
+
+        return "\n".join(header) + f"\n\n{all_assertions}\n\n(check-sat)"
+
+    def build_negated_query(self) -> str:
+        """
+        Assembles a quantifier-free query to check for the existence of a counterexample
+        to the main universally-quantified property. It checks for the satisfiability
+        of `Antecedent AND NOT(Consequent)`.
+        """
+        # Step 1: Skolemize inner-loop quantifiers in consequent clauses
+        # This is still needed to make the consequent quantifier-free before negation.
+        skolemized_consequents = []
+        for clause in self._consequent_clauses:
+            if clause.is_exists():
+                substitutions = {}
+                for var in clause.quantifier_vars():
+                    skolem_var = Symbol(f"{var.symbol_name()}_skolem", var.get_type())
+                    substitutions[var] = skolem_var
+                skolemized_clause = substitute(clause.arg(0), substitutions)
+                skolemized_consequents.append(skolemized_clause)
+            else:
+                skolemized_consequents.append(clause)
+
+        # Step 2: Build the main formula object for the quantifier-free check
+        antecedent = (
+            And(self._antecedent_clauses) if self._antecedent_clauses else TRUE()
+        )
+        consequent = Or(skolemized_consequents) if skolemized_consequents else FALSE()
+
+        main_formula = And(antecedent, Not(consequent))
+        simplified_main_formula = simplify(main_formula)
+
+        # Step 3: Collect all free variables for the declaration header.
+        # All universal variables from the original query are now existential (free).
+        local_existential_vars = self._existential_vars.copy().union(
+            self._universal_vars
+        )
+
+        def collect_free_vars_local(formula: PysmtFormula):
+            if formula is None:
+                return
+            for sym in get_free_variables(formula):
+                local_existential_vars.add(sym)
+
+        collect_free_vars_local(simplified_main_formula)
+        all_assertions_to_check = [simplified_main_formula]
+        for assertion in self._toplevel_assertions:
+            simplified_assertion = simplify(assertion)
+            collect_free_vars_local(simplified_assertion)
+            all_assertions_to_check.append(simplified_assertion)
+
+        # Step 4: Pretty-print all assertions
+        assertion_strs = [
+            f"(assert {self._pretty_print(a, 0)})" for a in all_assertions_to_check
+        ]
+
+        # Step 5: Build declarations for all free variables
+        final_existentials = local_existential_vars
+
+        def get_decl_str(s: PysmtSymbol) -> str:
+            t = s.get_type()
+            if t.is_int_type():
+                return f"(declare-fun {s.symbol_name()} () Int)"
+            if t.is_array_type():
+                return f"(declare-fun {s.symbol_name()} () (Array {t.index_type} {t.elem_type}))"
+            return f"(declare-fun {s.symbol_name()} () {t})"
+
+        header = sorted([get_decl_str(d) for d in final_existentials], key=str)
+
+        all_assertions = "\n".join(assertion_strs)
 
         return "\n".join(header) + f"\n\n{all_assertions}\n\n(check-sat)"
 
@@ -315,11 +396,15 @@ def exists_data_forall_bounds_forall_iters_chained(
     loop_node: Loop,
     extra_assertions: list[PysmtFormula] | None = None,
     verbose: bool = True,
+    build_negated: bool = False,
 ) -> str:
     """
     Generates an SMT query to prove that for a loop, there EXISTS a data
     configuration such that FORALL bounds and FORALL adjacent iterations, a
     dependency exists.
+
+    If build_negated is True, a quantifier-free query is generated to check
+    for the existence of a counterexample.
     """
     builder = SmtQueryBuilder()
 
@@ -393,9 +478,14 @@ def exists_data_forall_bounds_forall_iters_chained(
     )
 
     # 5. Assemble and return the final query
-    smt_query = builder.build_query()
-    if verbose:
-        print(f"--- SMT v2 Query (Chained) ---\n{smt_query}")
+    if build_negated:
+        smt_query = builder.build_negated_query()
+        if verbose:
+            print(f"--- SMT v2 Query (Negated) ---\n{smt_query}")
+    else:
+        smt_query = builder.build_query()
+        if verbose:
+            print(f"--- SMT v2 Query (Chained) ---\n{smt_query}")
 
     return smt_query
 

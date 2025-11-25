@@ -19,8 +19,7 @@ from p3g.smt import (
     forall_data_forall_bounds_forall_iter_isindep,
 )
 from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
-
-
+from pysmt.exceptions import SolverReturnedUnknownResultError
 from tests.utils import solve_smt_string
 
 
@@ -134,7 +133,7 @@ def main():
         )
     elif query_type == "D-FS/B":
         smt_query = exists_data_forall_bounds_forall_iters_chained(
-            loop_node, verbose=False
+            loop_node, verbose=False, build_negated=False
         )
     elif query_type == "D-NFI":
         smt_query = exists_data_exists_bounds_exists_iter_isdep(
@@ -163,7 +162,43 @@ def main():
 
     print(f"SMT-LIB query generated and saved to {args.output}")
 
-    solve_smt_string(smt_query)
+    try:
+        solve_smt_string(
+            smt_query
+        )  # This prints the result and returns bool, or raises.
+    except SolverReturnedUnknownResultError:
+        # This fallback logic only applies to D-FS/B, other query types are not expected
+        # to use this fallback.
+        # We re-generate the negated query here.
+        if query_type == "D-FS/B":
+            print("\nRegular query returned UNKNOWN. Trying negated query...")
+            negated_query = exists_data_forall_bounds_forall_iters_chained(
+                loop_node, verbose=False, build_negated=True
+            )
+            negated_output_path = args.output.replace(".smt2", "_negated.smt2")
+            with open(negated_output_path, "w") as f:
+                f.write(negated_query)
+            print(f"Negated SMT-LIB query generated and saved to {negated_output_path}")
+
+            try:
+                negated_is_sat = solve_smt_string(negated_query)
+                print("\n---")
+                print(f"Regular query result: UNKNOWN")
+                print(f"Negated query result: {'SAT' if negated_is_sat else 'UNSAT'}")
+                if negated_is_sat:
+                    print(f"Interpreted result from negated query: UNSAT")
+                else:
+                    print(f"Interpreted result from negated query: SAT")
+                print("---")
+
+            except SolverReturnedUnknownResultError:
+                print("\nNegated query also returned UNKNOWN. Final result is UNKNOWN.")
+            except Exception as e:
+                print(f"\nAn error occurred while solving the negated query: {e}")
+        else:
+            # If a non D-FS/B query returned unknown, re-raise it or print
+            print(f"\nQuery type {query_type} returned UNKNOWN. No negated fallback.")
+            raise  # Re-raise the original exception if no specific fallback
 
 
 if __name__ == "__main__":
