@@ -22,7 +22,7 @@ This document outlines the syntax for the `.pcode` pseudocode language used to d
     -   [Single Element](#single-element)
     -   [Range](#range)
     -   [Multi-dimensional](#multi-dimensional)
-    -   [Inferred Access (`?`)](#inferred-access-)
+
 6.  [Expressions](#expressions)
 7.  [Full Examples](#full-examples)
     -   [Example 1: Sequential Loop](#example-1-sequential-loop)
@@ -302,11 +302,7 @@ Combining patterns for multi-dimensional arrays, separated by commas.
 - `C[i, j]`
 - `C[i, 0:N]`
 
-### Inferred Access (`?`)
-Using a question mark `?` indicates that the exact access pattern is unknown and should be inferred by an analysis engine. This is useful for complex access patterns that are hard to express statically.
-- `A[?]`
 
----
 
 ## Expressions
 
@@ -353,8 +349,8 @@ Two sequential operations where the second (`S2`) explicitly depends on the data
 decl A, B, C
 out C
 
-(A[?]) => (B[?]) S1| op(step1)
+(A[0:N]) => (B[0:N]) S1| op(step1)
 
-(B[?]) => (C[?]) (S1).S2| op(step2)
+(B[0:N]) => (C[0:N]) (S1).S2| op(step2)
 ```
 - `S2` reads the version of `B` that was written by `S1`.

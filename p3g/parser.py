@@ -128,7 +128,6 @@ class PseudocodeParser:
             ("TIMES", r"\*"),
             ("COMMA", r","),
             ("DOT", r"\."),
-            ("QUESTION_MARK", r"\?"),
             ("BANG", r"!"),
             # Generic identifier (must come after all keywords and multi-char tokens)
             ("ID", r"[A-Za-z_]\w*"),
@@ -835,12 +834,8 @@ class PseudocodeParser:
             f"Unsupported or malformed factor starting with {self._peek()}"
         )
 
-    def _parse_access_item(self) -> tuple[PysmtFormula | PysmtRange | None, list]:
+    def _parse_access_item(self) -> tuple[PysmtFormula | PysmtRange, list]:
         """Parses a single item in an access list, which can be an expression, a range, or '?' for inference."""
-        if self._peek().type == "QUESTION_MARK":
-            self._consume("QUESTION_MARK")
-            return None, []  # Return None for the subset, no reads from '?'
-
         start_formula, start_reads = self._parse_expression()
         if self._peek().type == "COLON":
             # This is a range
