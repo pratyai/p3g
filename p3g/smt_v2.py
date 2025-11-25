@@ -29,6 +29,7 @@ from pysmt.shortcuts import (
     substitute,
     TRUE,
     FALSE,
+    simplify,
 )
 from pysmt.smtlib.printers import SmtPrinter
 from pysmt.typing import INT
@@ -69,10 +70,8 @@ class SmtQueryBuilder:
         """Serializes a pysmt formula with custom pretty-printing for major connectives."""
         indent = "  " * indent_level
 
-        if formula is None or formula.is_true():
+        if formula is None:
             return f"{indent}true"
-        if formula.is_false():
-            return f"{indent}false"
 
         # Special formatting for quantifiers
         if formula.is_quantifier():
@@ -94,19 +93,19 @@ class SmtQueryBuilder:
             right_str = self._pretty_print(formula.arg(1), indent_level + 1)
             return f"{indent}(=>\n{left_str}\n{right_str}\n{indent})"
 
-        # Special formatting for And/Or
+        # Special formatting for And/Or to indent arguments
         if formula.is_and() or formula.is_or():
             op_str = "and" if formula.is_and() else "or"
             args = formula.args()
-            if not args:
-                return f"{indent}{'true' if op_str == 'and' else 'false'}"
-            if len(args) == 1:
-                return self._pretty_print(args[0], indent_level)
 
-            args_strs = [self._pretty_print(arg, indent_level + 1) for arg in args]
-            return f"{indent}({op_str}\n{'\n'.join(args_strs)}\n{indent})"
+            # Delegate empty or single-argument And/Or to default printer after simplification
+            # or handle multiple arguments with custom indentation
+            if len(args) > 1:
+                args_strs = [self._pretty_print(arg, indent_level + 1) for arg in args]
+                return f"{indent}({op_str}\n{'\n'.join(args_strs)}\n{indent})"
 
         # Default pysmt serialization for atomic formulas and other operators
+        # This will also handle empty or single-argument And/Or after simplification
         self._string_io.seek(0)
         self._string_io.truncate(0)
         self._printer.printer(formula)
@@ -147,17 +146,24 @@ class SmtQueryBuilder:
         )
 
         main_formula = ForAll(sorted_universals, Implies(antecedent, consequent))
+        simplified_main_formula = simplify(main_formula)
 
         # Step 2: Collect all free variables for the declaration header
-        self._collect_all_free_variables(main_formula)
+        self._collect_all_free_variables(simplified_main_formula)
+        simplified_toplevel_assertions = []
         for assertion in self._toplevel_assertions:
-            self._collect_all_free_variables(assertion)
+            simplified_assertion = simplify(assertion)
+            self._collect_all_free_variables(simplified_assertion)
+            simplified_toplevel_assertions.append(simplified_assertion)
 
         # Step 3: Pretty-print all assertions
         toplevel_assertion_strs = [
-            f"(assert {self._pretty_print(a, 0)})" for a in self._toplevel_assertions
+            f"(assert {self._pretty_print(a, 0)})"
+            for a in simplified_toplevel_assertions
         ]
-        main_assertion_str = f"(assert {self._pretty_print(main_formula, 0)})"
+        main_assertion_str = (
+            f"(assert {self._pretty_print(simplified_main_formula, 0)})"
+        )
 
         # Step 4: Build declarations for all collected free (existential) variables
         final_existentials = self._existential_vars - self._universal_vars
@@ -269,11 +275,21 @@ def _populate_builder_with_dependencies(
             {k: k + Int(1)},
         )
 
-        conflict = Or(
+        # Conflict Formula
+        conflict_args = [
             _create_set_intersection_formula(W1, R2, id_to_val_symbol_map),
             _create_set_intersection_formula(W1, W2, id_to_val_symbol_map),
             _create_set_intersection_formula(R1, W2, id_to_val_symbol_map),
-        )
+        ]
+        # Filter out FALSE() literals
+        filtered_conflict_args = [arg for arg in conflict_args if not arg.is_false()]
+
+        if not filtered_conflict_args:
+            conflict = FALSE()  # If all parts are FALSE, then the OR is FALSE
+        elif len(filtered_conflict_args) == 1:
+            conflict = filtered_conflict_args[0]
+        else:
+            conflict = Or(filtered_conflict_args)
 
         # Collect all conjuncts for the pair clause and filter out TRUE literals
         all_conjuncts = [pc1_sub, pc2_sub, *bounds, conflict]
