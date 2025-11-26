@@ -110,8 +110,8 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         assert declared_symbols.issuperset(expected_declarations)
 
         data_id_assertions = {
-            (Symbol("DATA!A", INT), Int(10002)),
-            (Symbol("DATA!B", INT), Int(10001)),
+            (Symbol("DATA!A", INT), Int(10001)),
+            (Symbol("DATA!B", INT), Int(10002)),
         }
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:
@@ -164,8 +164,8 @@ class TestProveExistsDataForallLoopBoundsIterIsdep:
         assert declared_symbols.issuperset(expected_declarations)
 
         data_id_assertions = {
-            (Symbol("DATA!A", INT), Int(10002)),
-            (Symbol("DATA!B", INT), Int(10001)),
+            (Symbol("DATA!A", INT), Int(10001)),
+            (Symbol("DATA!B", INT), Int(10002)),
         }
         found_data_assertions_args = set()
         for assertion_formula in inspector.assertions:

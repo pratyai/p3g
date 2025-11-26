@@ -1,4 +1,3 @@
-# p3g/smt_v2.py
 """
 Revised SMT query generation for P3G.
 

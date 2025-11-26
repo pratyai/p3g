@@ -281,8 +281,8 @@ class TestPseudocodeParser:
         graph_string = get_p3g_structure_string(graph)
 
         expected_string = textwrap.dedent("""
-            ### root ### (Symbols: ['A_val', 'M', 'N'])
-              Data Nodes (IDs): DATA[A(0)/10001], DATA[A(1)/10001]
+            ### root ### (Symbols: ['A_val', 'B_val', 'M', 'N'])
+              Data Nodes (IDs): DATA[A(0)/10001], DATA[A(1)/10001], DATA[B(0)/10002]
               Assertions:
                 - (0 < N)
               COMPUTE(S1): Reads=A(0)[0], Writes=A(1)[0]

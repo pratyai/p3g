@@ -35,9 +35,6 @@ from p3g.subsets import (
 )
 
 
-# --- SMT String Generation (unchanged) ---
-
-
 class _StringSmtBuilder:
     """
     Helper class to build an SMT-LIB string query.
@@ -385,7 +382,6 @@ def exists_data_exists_bounds_forall_iter_isdep(
             defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
         )
 
-    # NEW BLOCK: Add human-provided assertions
     if extra_assertions:
         builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
         for idx, assertion in enumerate(extra_assertions):
@@ -529,6 +525,11 @@ def exists_data_exists_bounds_exists_iter_isdep(
         for idx, assertion in enumerate(extra_assertions):
             builder.add_assertion(assertion, f"Human Assertion #{idx}")
 
+    if loop_node.builder.root_graph.assertions:
+        builder.assertions.append("\n; --- Graph-Provided Assertions ---")
+        for idx, assertion in enumerate(loop_node.builder.root_graph.assertions):
+            builder.add_assertion(assertion, f"Graph Assertion #{idx}")
+
     builder.assertions.append("\n; --- Loop Bounds ---")
     loop_start, loop_end = loop_node.start, loop_node.end
 
@@ -598,7 +599,7 @@ def exists_data_exists_bounds_forall_iter_isindep(
       that *does* have a dependency.
     """
     k = loop_node.loop_var  # Use the loop's internal iteration variable
-    j = Symbol(f"{loop_node.loop_var.symbol_name()}_j", INT)  # New iteration variable j
+    j = Symbol(f"{loop_node.loop_var.symbol_name()}_j", INT)
 
     universal_quantifier_vars = [f"({k.symbol_name()} {k.get_type()})"]
     universal_quantifier_vars.append(f"({j.symbol_name()} {j.get_type()})")  # Add j
@@ -626,7 +627,6 @@ def exists_data_exists_bounds_forall_iter_isindep(
 
     existential_quantifier_vars = list(id_to_symbol_map.values())
 
-    # NEW BLOCK: Add human-provided assertions
     if extra_assertions:
         builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
         for idx, assertion in enumerate(extra_assertions):
@@ -642,7 +642,7 @@ def exists_data_exists_bounds_forall_iter_isindep(
     # )
 
     builder.assertions.append("\n; --- Dependency Logic Definitions ---")
-    # New loop bounds for j and k
+
     j_lower_bound = GE(j, loop_start)
     j_upper_bound = LT(j, k)  # j < k
     k_lower_bound = GE(k, loop_start)
@@ -722,7 +722,7 @@ def exists_data_forall_bounds_forall_iter_isindep(
       that *does* have a dependency.
     """
     k = loop_node.loop_var  # Use the loop's internal iteration variable
-    j = Symbol(f"{loop_node.loop_var.symbol_name()}_j", INT)  # New iteration variable j
+    j = Symbol(f"{loop_node.loop_var.symbol_name()}_j", INT)
 
     # Identify symbolic loop bound variables
     symbolic_loop_bounds = set()
@@ -760,7 +760,6 @@ def exists_data_forall_bounds_forall_iter_isindep(
             defn, f"Define DATA!{node.graph._array_id_to_name[node.array_id]}"
         )
 
-    # NEW BLOCK: Add human-provided assertions
     if extra_assertions:
         builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
         for idx, assertion in enumerate(extra_assertions):
@@ -770,7 +769,7 @@ def exists_data_forall_bounds_forall_iter_isindep(
     loop_start, loop_end = loop_node.start, loop_node.end
 
     builder.assertions.append("\n; --- Dependency Logic Definitions ---")
-    # New loop bounds for j and k
+
     j_lower_bound = GE(j, loop_start)
     j_upper_bound = LT(j, k)  # j < k
     k_lower_bound = GE(k, loop_start)
@@ -862,7 +861,7 @@ def forall_data_forall_bounds_forall_iter_isindep(
         A string containing the SMT-LIB query.
     """
     k = loop_node.loop_var  # Use the loop's internal iteration variable
-    j = Symbol(f"{loop_node.loop_var.symbol_name()}_j", INT)  # New iteration variable j
+    j = Symbol(f"{loop_node.loop_var.symbol_name()}_j", INT)
 
     # Identify symbolic loop bound variables
     symbolic_loop_bounds = set()
@@ -892,7 +891,7 @@ def forall_data_forall_bounds_forall_iter_isindep(
         loop_node.builder.root_graph, all_data_nodes
     )  # Collect from the entire graph
 
-    builder.assertions.append("; --- Data Definitions ---")
+    builder.assertions.append("\n; --- Data Definitions ---")
     # Add DATA! symbols as constants (array IDs)
     for node in all_data_nodes:  # Iterate over all collected Data nodes
         sym = Symbol(f"DATA!{node.graph._array_id_to_name[node.array_id]}", INT)
@@ -912,9 +911,11 @@ def forall_data_forall_bounds_forall_iter_isindep(
             f"({val_sym.symbol_name()} (Array {val_sym.get_type().index_type} {val_sym.get_type().elem_type}))"
         )
 
-    # existential_quantifier_vars = list(id_to_symbol_map.values()) # REMOVE/COMMENT OUT
+    if loop_node.builder.root_graph.assertions:
+        builder.assertions.append("\n; --- Graph-Provided Assertions ---")
+        for idx, assertion in enumerate(loop_node.builder.root_graph.assertions):
+            builder.add_assertion(assertion, f"Graph Assertion #{idx}")
 
-    # NEW BLOCK: Add human-provided assertions
     if extra_assertions:
         builder.assertions.append("\n; --- Human-Provided Bounds/Assertions ---")
         for idx, assertion in enumerate(extra_assertions):
@@ -924,7 +925,7 @@ def forall_data_forall_bounds_forall_iter_isindep(
     loop_start, loop_end = loop_node.start, loop_node.end
 
     builder.assertions.append("\n; --- Dependency Logic Definitions ---")
-    # New loop bounds for j and k
+
     j_lower_bound = GE(j, loop_start)
     j_upper_bound = LT(j, k)  # j < k
     k_lower_bound = GE(k, loop_start)
@@ -954,7 +955,6 @@ def forall_data_forall_bounds_forall_iter_isindep(
     )
 ))"""
 
-    # NEW: Wrap the inner forall with another forall for data variables
     final_assertion_str = f"""(forall ({" ".join(forall_data_quantifier_vars)})
     {inner_forall_str}
 )"""

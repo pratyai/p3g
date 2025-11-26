@@ -1,5 +1,3 @@
-# p3g/parser.py
-
 from __future__ import annotations
 
 import collections
@@ -69,6 +67,11 @@ class PseudocodeParser:
         self.pos = 0
         self._preprocess_declarations()  # Call the new preprocessing method
         self.pos = 0  # Reset pos for the main parsing pass
+
+        # Ensure stable array_id assignment for all declared arrays by pre-populating _data_id_map
+        # based on sorted array names.
+        for array_name in sorted(list(self._declared_arrays)):
+            self.builder._get_data_id(array_name)
 
         # Populate the initial array state for globally declared arrays
         for array_name in self._declared_arrays:
