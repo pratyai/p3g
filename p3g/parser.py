@@ -477,7 +477,7 @@ class PseudocodeParser:
             if hierarchical_reads is not None:
                 for node, _ in hierarchical_reads:
                     # The 'node' here is already the correct Data object for the version
-                    scope_inputs[node.label] = node
+                    scope_inputs[node.name] = node
 
             self._current_scope_inputs_stack.append(scope_inputs)
 
@@ -529,7 +529,7 @@ class PseudocodeParser:
             # Augment/override with arrays explicitly passed in the hierarchical_reads of the if statement itself
             if hierarchical_reads is not None:
                 for node, _ in hierarchical_reads:
-                    scope_inputs[node.label] = node
+                    scope_inputs[node.name] = node
 
             self._current_scope_inputs_stack.append(scope_inputs)
 
@@ -558,7 +558,7 @@ class PseudocodeParser:
                 # Augment/override with arrays explicitly passed in the hierarchical_reads of the if statement itself
                 if hierarchical_reads is not None:
                     for node, _ in hierarchical_reads:
-                        scope_inputs[node.label] = node
+                        scope_inputs[node.name] = node
 
                 self._current_scope_inputs_stack.append(scope_inputs)
 

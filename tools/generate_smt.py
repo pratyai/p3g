@@ -9,7 +9,6 @@ sys.path.insert(0, project_root)
 import argparse
 import pathlib
 
-from p3g.graph import Loop
 from p3g.parser import PseudocodeParser
 from p3g.smt import (
     exists_data_exists_bounds_forall_iter_isdep,
@@ -21,6 +20,27 @@ from p3g.smt import (
 from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
 from pysmt.exceptions import SolverReturnedUnknownResultError
 from tests.utils import solve_smt_string
+from p3g.graph import Branch, Map, Loop, Graph
+
+
+def find_all_loop_nodes(graph: Graph) -> list[Loop]:
+    """
+    Recursively finds all Loop nodes within a graph and its nested structures.
+    """
+    found_loops = []
+    for node in graph.nodes:
+        if isinstance(node, Loop):
+            found_loops.append(node)
+            # Recursively search in the nested graph of this Loop
+            found_loops.extend(find_all_loop_nodes(node.nested_graph))
+        elif isinstance(node, Map):
+            # Recursively search in the nested graph of this Map
+            found_loops.extend(find_all_loop_nodes(node.nested_graph))
+        elif isinstance(node, Branch):
+            # Recursively search in all branch paths of this Branch
+            for _, nested_graph in node.branches:
+                found_loops.extend(find_all_loop_nodes(nested_graph))
+    return found_loops
 
 
 def main():
@@ -47,6 +67,14 @@ def main():
 - I-FI: Does there exist a data configuration and a loop bound for which all iteration pairs are independent?
 - I-FI/B: Does there exist a data configuration for which all iteration pairs are independent, for all loop bounds?
 - I-FI/DB: For all data configurations and all loop bounds, are all iteration pairs independent?""",
+    )
+    parser.add_argument(
+        "-l",
+        "--loop-index",
+        default="?",
+        help="""Specify the 0-based index of the loop to analyze, or '?' to interactively select from a list of loops found in the pseudocode.
+The interactive selection will display a summary of each loop (variable and bounds).
+Defaults to '?'.""",
     )
     args = parser.parse_args()
 
@@ -114,16 +142,57 @@ def main():
     parser = PseudocodeParser()
     root_graph = parser.parse(pseudocode)
 
-    # Find the top-level loop node in the graph
-    loop_node = None
-    for node in root_graph.nodes:
-        if isinstance(node, Loop):
-            loop_node = node
-            break
+    # Collect all loop nodes in the graph hierarchy
+    loop_nodes = find_all_loop_nodes(root_graph)
 
-    if loop_node is None:
-        print("Error: Input pseudocode must define a top-level loop.")
-        exit(1)
+    # Implement loop selection logic
+    selected_loop_node = None
+    if args.loop_index == "?":
+        import questionary
+
+        if len(loop_nodes) == 1:
+            selected_loop_node = loop_nodes[0]
+            print("Only one loop found. Automatically selected it.")
+        else:
+            choices = []
+            for i, loop in enumerate(loop_nodes):
+                # Assuming Loop object has properties like .iterator_var, .lower_bound, .upper_bound
+                # Adjust this formatting if Loop object has different attributes
+                summary = (
+                    f"Loop {i}: var={loop.loop_var}, bounds=[{loop.start}, {loop.end}]"
+                )
+                choices.append(summary)
+
+            selected_description = questionary.select(
+                "Select the loop to analyze:",
+                choices=choices,
+            ).ask()
+
+            if selected_description is None:
+                print("No loop selected. Exiting.")
+                sys.exit(1)
+
+            # Extract the index from the selected description (e.g., "Loop 0: ...")
+            selected_index = int(selected_description.split(":")[0].split(" ")[1])
+            selected_loop_node = loop_nodes[selected_index]
+    else:
+        try:
+            loop_idx = int(args.loop_index)
+            if 0 <= loop_idx < len(loop_nodes):
+                selected_loop_node = loop_nodes[loop_idx]
+            else:
+                print(
+                    f"Error: Loop index {loop_idx} is out of bounds. Found {len(loop_nodes)} loops."
+                )
+                sys.exit(1)
+        except ValueError:
+            print(
+                f"Error: Invalid loop index '{args.loop_index}'. Must be a number or '?'."
+            )
+            sys.exit(1)
+
+    # Assign the selected loop node to loop_node for subsequent use
+    loop_node = selected_loop_node
 
     # Generate SMT query based on selected type
     smt_query = ""
