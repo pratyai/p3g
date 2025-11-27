@@ -240,7 +240,7 @@ Represents a conditional branch.
 else:
     <indented_else_block>
 ```
-- `<condition>`: A boolean expression, supporting comparison operators (`=`, `>`, `<`, `>=`, `<=`), logical operators (`and`, `or`, `not`), and parentheses for grouping. The `=` operator signifies equality comparison in this context.
+- `<condition>`: A boolean expression. It supports comparison operators (`=`, `>`, `<`, `>=`, `<=`), logical operators (`and`, `or`, `not`), boolean literals (`true`, `false`), unary minus (`-`), and parentheses for grouping. The `=` operator signifies equality comparison in this context.
 
 **Example:**
 ```pcode
@@ -307,11 +307,13 @@ Combining patterns for multi-dimensional arrays, separated by commas.
 
 ## Expressions
 
-Expressions can be used in loop bounds, access indices, and `if` conditions. They support:
-- **Literals**: `1`, `42`
-- **Variables**: Loop variables (`i`) or globally defined symbols (`N`).
-- **Arithmetic**: `+`, `-`, `*`.
-- **Array Reads**: `A[i]`, `B[i-1]` (only for reading a value within a condition or another expression, not for defining the statement's primary access annotation).
+Expressions can be used in loop bounds, access indices, and `if` conditions. **Note: Expressions do not currently support operator precedence; they are evaluated from left to right.** They support:
+-   **Literals**: Numbers (`1`, `42`), Booleans (`true`, `false`).
+-   **Variables**: Loop variables (`i`) or globally defined symbols (`N`).
+-   **Arithmetic**: Unary minus (`-`), binary operators (`+`, `-`, `*`, `/`, `//`).
+-   **Array Reads**: `A[i]`, `B[i-1]` (only for reading a value within a condition or another expression, not for defining the statement's primary access annotation).
+-   **Logical**: `and`, `or`, `not` (within `if` conditions).
+-   **Comparison**: `=`, `>`, `<`, `>=`, `<=` (within `if` conditions).
 
 ---
 

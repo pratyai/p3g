@@ -299,7 +299,7 @@ class TestPseudocodeParser:
         code = textwrap.dedent("""
             sym X, Y, Z, W, A, B, i
             decl C
-            (C[0] => C[0]) B | if ((X > Y and not Z = W) or A < B):
+            (C[0] => C[0]) B | if ((X > Y) and not (Z = W)) or (A < B):
                 (C[i] => C[i]) comp | op(C[i] = X)
         """).strip()
         parser = PseudocodeParser()
@@ -311,6 +311,26 @@ class TestPseudocodeParser:
             # For now, just checking for successful parsing
         except Exception as e:
             pytest.fail(f"Parsing failed with exception: {e}")
+
+    def test_keyword_as_symbol_clash(self):
+        code = textwrap.dedent("""
+            sym N, decl
+            decl A
+            (A[0] => A[0]) S1| op(init)
+        """).strip()
+        parser = PseudocodeParser()
+        with pytest.raises(ValueError, match="Expected ID, got DECL at line 1"):
+            parser.parse(code)
+
+    def test_non_keyword_as_symbol(self):
+        code = textwrap.dedent("""
+            sym N, decl_i
+            decl A
+            (A[0] => A[0]) S1| op(init)
+        """).strip()
+        parser = PseudocodeParser()
+        graph = parser.parse(code)
+        assert "decl_i" in [str(s) for s in graph.symbols]
 
 
 class TestGraphDefinitionsParsing:
@@ -389,7 +409,7 @@ class TestGraphDefinitionsParsing:
             decl A, B
             out A
             (A[0:N-1], A[1:N], B[1:N], B[13] => A[1:N]) L1 | for k = 1 to N:
-                (A[k-1], A[k], B[k], B[13] => A[k]) B1 | if B[k] - B[13] > 0:
+                (A[k-1], A[k], B[k], B[13] => A[k]) B1 | if (B[k] - B[13]) > 0:
                     (A[k-1], A[k] => A[k]) T1_seq | op(comp)
         """).strip()
         parser = PseudocodeParser()
@@ -466,9 +486,9 @@ class TestGraphDefinitionsParsing:
             decl A, B
             out A
             (A[0:N], A[2:N], B[2:N] => A[2:N]) L1 | for k = 2 to N:
-                (A[k-10], A[k], B[k] => A[k]) B1 | if k - 10 > 0:
+                (A[k-10], A[k], B[k] => A[k]) B1 | if (k - 10) > 0:
                     (A[k-10], A[k], B[k] => A[k]) T1_gt | op(comp)
-                (A[0], A[k], B[k] => A[k]) .B2 | if k - 10 <= 0:
+                (A[0], A[k], B[k] => A[k]) .B2 | if (k - 10) <= 0:
                     (A[0], A[k], B[k] => A[k]) T2_le | op(comp)
         """).strip()
         parser = PseudocodeParser()
@@ -566,9 +586,9 @@ class TestGraphDefinitionsParsing:
             decl A, B
             out A
             (A[0:N], A[2:N], B[2:N] => A[2:N]) L1 | for k = 2 to N:
-                (A[k-w], A[k], B[k] => A[k]) B1 | if k - w > 0:
+                (A[k-w], A[k], B[k] => A[k]) B1 | if (k - w) > 0:
                     (A[k-w], A[k], B[k] => A[k]) T1_gt | op(comp)
-                (A[0], A[k], B[k] => A[k]) .B2 | if k - w <= 0:
+                (A[0], A[k], B[k] => A[k]) .B2 | if (k - w) <= 0:
                     (A[0], A[k], B[k] => A[k]) T2_le | op(comp)
         """).strip()
         parser = PseudocodeParser()

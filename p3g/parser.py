@@ -25,6 +25,7 @@ from pysmt.shortcuts import (
     Div,
     Symbol,
     get_env,
+    Bool,
 )
 
 from p3g.graph import (
@@ -107,27 +108,29 @@ class PseudocodeParser:
 
     # --- Tokenizer ---
 
-    def _tokenize(self, code: str) -> list[Token]:
-        """Converts code string into a stream of tokens, handling comments."""
-        token_specification = [
+    def token_specification(self) -> list[tuple[str, str]]:
+        return [
             # SMT-LIB specific keywords and types (must come before other keywords and ID)
-            ("FORALL", r"forall"),
-            ("EXISTS", r"exists"),
-            ("AND", r"and"),
-            ("OR", r"or"),
-            ("NOT", r"not"),
-            ("SELECT", r"select"),
-            ("INT_TYPE", r"Int"),
+            ("FORALL", r"\bforall\b"),
+            ("EXISTS", r"\bexists\b"),
+            ("AND", r"\band\b"),
+            ("OR", r"\bor\b"),
+            ("NOT", r"\bnot\b"),
+            ("SELECT", r"\bselect\b"),
+            ("INT_TYPE", r"\bInt\b"),
+            # Boolean literals (must come before ID)
+            ("TRUE_LITERAL", r"\btrue\b"),
+            ("FALSE_LITERAL", r"\bfalse\b"),
             # Keywords (must come before ID)
-            ("DECL", r"decl"),
-            ("SYM", r"sym"),
-            ("VAR", r"var"),
-            ("OUT", r"out"),
-            ("FOR", r"for"),
-            ("TO", r"to"),
-            ("IF", r"if"),
-            ("ELSE", r"else"),
-            ("OP", r"op"),
+            ("DECL", r"\bdecl\b"),
+            ("SYM", r"\bsym\b"),
+            ("VAR", r"\bvar\b"),
+            ("OUT", r"\bout\b"),
+            ("FOR", r"\bfor\b"),
+            ("TO", r"\bto\b"),
+            ("IF", r"\bif\b"),
+            ("ELSE", r"\belse\b"),
+            ("OP", r"\bop\b"),
             # Multi-character operators (must come before single-char ops and ID)
             ("GE", r">="),
             ("LE", r"<="),
@@ -158,7 +161,31 @@ class PseudocodeParser:
             ("SKIP", r"[ \t]+"),
             ("MISMATCH", r"."),
         ]
-        tok_regex = "|".join("(?P<%s>%s)" % pair for pair in token_specification)
+
+    def infix_operators(self) -> dict:
+        """
+        Returns a dictionary mapping recognized infix operator token types to their
+        corresponding Pysmt function objects.
+        """
+        return {
+            "PLUS": Plus,
+            "MINUS": Minus,
+            "TIMES": Times,
+            "DIVIDE": Div,
+            "IDIV": Div,
+            "MOD": lambda x, y: x % y,  # Z3/PySMT does not have explicit Mod operator.
+            "GT": GT,
+            "LT": LT,
+            "GE": GE,
+            "LE": LE,
+            "EQ": Equals,
+            "AND": And,
+            "OR": Or,
+        }
+
+    def _tokenize(self, code: str) -> list[Token]:
+        """Converts code string into a stream of tokens, handling comments."""
+        tok_regex = "|".join("(?P<%s>%s)" % pair for pair in self.token_specification())
         line_num = 0
         indent_stack = [0]
         tokens = []
@@ -217,9 +244,8 @@ class PseudocodeParser:
                 if kind == "MISMATCH":
                     raise RuntimeError(f"{value!r} unexpected on line {line_num}")
                 tokens.append(Token(kind, value, line_num, column))
-            tokens.append(
-                Token("NEWLINE", "\n", line_num, len(original_line))
-            )  # Use original_line length for NEWLINE
+            # Use original_line length for NEWLINE
+            tokens.append(Token("NEWLINE", "\n", line_num, len(original_line)))
 
         while len(indent_stack) > 1:
             indent_stack.pop()
@@ -507,13 +533,8 @@ class PseudocodeParser:
     ) -> tuple[list, list]:
         """Parses an if-else statement: if condition: ... else: ..."""
         self._consume("IF")
-        has_paren = self._peek().type == "LPAREN"
-        if has_paren:
-            self._consume("LPAREN")
         # Predicates in if statements are infix conditions
-        predicate, condition_reads = self._parse_boolean_expression()
-        if has_paren:
-            self._consume("RPAREN")
+        predicate, condition_reads = self._parse_infix_expression()
         self._consume("COLON")
         self._consume("NEWLINE")
         self._consume("INDENT")
@@ -655,66 +676,57 @@ class PseudocodeParser:
         self._consume("NEWLINE")
         return [], []
 
-    def _parse_boolean_expression(self) -> tuple[PysmtFormula, list]:
-        """
-        Parses a boolean expression, allowing for OR operations.
-        Calls _parse_boolean_term for its operands.
-        """
-        formula, reads = self._parse_boolean_term()
-        while self._peek().type == "OR":
-            self._consume("OR")
-            rhs_formula, rhs_reads = self._parse_boolean_term()
-            formula = Or(formula, rhs_formula)
-            reads.extend(rhs_reads)
-        return formula, reads
-
-    def _parse_boolean_term(self) -> tuple[PysmtFormula, list]:
-        """
-        Parses a boolean term, allowing for AND operations.
-        Calls _parse_boolean_factor for its operands.
-        """
-        formula, reads = self._parse_boolean_factor()
-        while self._peek().type == "AND":
-            self._consume("AND")
-            rhs_formula, rhs_reads = self._parse_boolean_factor()
-            formula = And(formula, rhs_formula)
-            reads.extend(rhs_reads)
-        return formula, reads
-
-    def _parse_boolean_factor(self) -> tuple[PysmtFormula, list]:
-        """
-        Parses a boolean factor, handling NOT, parenthesized expressions,
-        or atomic comparisons.
-        """
-        if self._peek().type == "NOT":
-            self._consume("NOT")
-            formula, reads = (
-                self._parse_boolean_factor()
-            )  # Recurse for the factor being negated
-            return Not(formula), reads
-        elif self._peek().type == "LPAREN":
-            # Parenthesized sub-condition
+    def _parse_infix_expression_part(self) -> tuple[PysmtFormula, list]:
+        token_type = self._peek().type
+        if token_type == "LPAREN":
             self._consume("LPAREN")
-            formula, reads = (
-                self._parse_boolean_expression()
-            )  # Recurse for the full boolean expression inside parentheses
+            formula, reads = self._parse_infix_expression()
             self._consume("RPAREN")
-            return formula, reads
+        elif token_type == "ID":
+            if self._peek(1).type == "LBRACKET":
+                formula, reads = self._parse_array_access_expression()
+            else:
+                name = self._consume("ID").value
+                formula, reads = self._get_symbol(name), []
+        elif token_type == "NUMBER":
+            formula = Int(int(self._consume("NUMBER").value))
+            reads = []
+        elif token_type == "TRUE_LITERAL":
+            self._consume("TRUE_LITERAL")
+            formula = Bool(True)
+            reads = []
+        elif token_type == "FALSE_LITERAL":
+            self._consume("FALSE_LITERAL")
+            formula = Bool(False)
+            reads = []
+        elif token_type == "MINUS":  # Unary minus
+            self._consume("MINUS")
+            sub_formula, sub_reads = self._parse_infix_expression_part()
+            formula = Minus(Int(0), sub_formula)
+            reads = sub_reads
+        elif token_type == "NOT":  # Handle NOT operator
+            self._consume("NOT")
+            sub_formula, sub_reads = self._parse_infix_expression_part()
+            formula = Not(sub_formula)
+            reads = sub_reads
         else:
-            # Atomic condition: expr OP expr
-            # This is where the old _parse_infix_condition logic comes in
-            return self._parse_infix_condition()
+            raise ValueError(
+                f"Unsupported or malformed infix expression part starting with {self._peek()} at line {self._peek().line}, column {self._peek().column}"
+            )
+        return formula, reads
 
-    def _parse_infix_condition(self) -> tuple[PysmtFormula, list]:
+    def _parse_infix_expression(self) -> tuple[PysmtFormula, list]:
         """Parses an infix condition: expr > expr. Used for 'if' statements."""
-        lhs_formula, lhs_reads = self._parse_expression()
+        lhs_formula, lhs_reads = self._parse_infix_expression_part()
+        infix_ops_map = self.infix_operators()
+        if self._peek().type not in infix_ops_map:
+            return lhs_formula, lhs_reads
 
-        op_token = self._consume(["GT", "LT", "GE", "LE", "EQ"])
+        op_token = self._consume(list(infix_ops_map.keys()))
+        rhs_formula, rhs_reads = self._parse_infix_expression_part()
 
-        rhs_formula, rhs_reads = self._parse_expression()
-
-        op_map = {"GT": GT, "LT": LT, "GE": GE, "LE": LE, "EQ": Equals}
-        predicate = op_map[op_token.type](lhs_formula, rhs_formula)
+        op_function = infix_ops_map[op_token.type]
+        predicate = op_function(lhs_formula, rhs_formula)
 
         return predicate, lhs_reads + rhs_reads
 
@@ -902,6 +914,12 @@ class PseudocodeParser:
         """Parses a factor: number | symbol | access | (expression)"""
         if self._peek().type == "NUMBER":
             return Int(int(self._consume("NUMBER").value)), []
+        if self._peek().type == "TRUE_LITERAL":
+            self._consume("TRUE_LITERAL")
+            return Bool(True), []
+        if self._peek().type == "FALSE_LITERAL":
+            self._consume("FALSE_LITERAL")
+            return Bool(False), []
         if self._peek().type == "ID":
             if self._peek(1).type == "LBRACKET":
                 return self._parse_array_access_expression()
@@ -1017,6 +1035,12 @@ class PseudocodeParser:
         if name in self.known_symbols:
             return self.known_symbols[name]
 
+        # Check if it's a declared array itself (e.g., 'zcovptot')
+        if name in self._declared_arrays:
+            sym_type = ArrayType(INT, INT)
+            self.known_symbols[name] = self.builder.add_symbol(name, sym_type)
+            return self.known_symbols[name]
+
         # Check if it's a declared array's internal SMT array symbol (e.g., A_val)
         if name.endswith("_val"):
             base_name = name.split("_val")[0]
@@ -1047,10 +1071,9 @@ class PseudocodeParser:
                 current_pos = self.pos
                 self.pos = temp_pos
                 self._consume("DECL")
-                name = self._consume("ID").value
-                self._declared_arrays.add(name)
-                while self._peek().type == "COMMA":
-                    self._consume("COMMA")
+                while self._peek().type != "NEWLINE":
+                    if self._peek().type == "COMMA":
+                        self._consume("COMMA")
                     name = self._consume("ID").value
                     self._declared_arrays.add(name)
                 self._consume("NEWLINE")
@@ -1061,11 +1084,9 @@ class PseudocodeParser:
                 current_pos = self.pos
                 self.pos = temp_pos
                 self._consume("SYM")
-                name = self._consume("ID").value
-                self._declared_symbols.add(name)
-                self._get_symbol(name)  # Pre-create the symbol
-                while self._peek().type == "COMMA":
-                    self._consume("COMMA")
+                while self._peek().type != "NEWLINE":
+                    if self._peek().type == "COMMA":
+                        self._consume("COMMA")
                     name = self._consume("ID").value
                     self._declared_symbols.add(name)
                     self._get_symbol(name)  # Pre-create the symbol
@@ -1077,10 +1098,9 @@ class PseudocodeParser:
                 current_pos = self.pos
                 self.pos = temp_pos
                 self._consume("VAR")
-                name = self._consume("ID").value
-                self._declared_loop_vars.add(name)
-                while self._peek().type == "COMMA":
-                    self._consume("COMMA")
+                while self._peek().type != "NEWLINE":
+                    if self._peek().type == "COMMA":
+                        self._consume("COMMA")
                     name = self._consume("ID").value
                     self._declared_loop_vars.add(name)
                 self._consume("NEWLINE")
