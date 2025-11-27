@@ -295,6 +295,23 @@ class TestPseudocodeParser:
         assert len(graph.assertions) == 1
         assert "(0 < N)" in [str(a) for a in graph.assertions]
 
+    def test_complex_branch_condition_parsing(self):
+        code = textwrap.dedent("""
+            sym X, Y, Z, W, A, B, i
+            decl C
+            (C[0] => C[0]) B | if ((X > Y and not Z = W) or A < B):
+                (C[i] => C[i]) comp | op(C[i] = X)
+        """).strip()
+        parser = PseudocodeParser()
+        try:
+            graph = parser.parse(code)
+            # Assert that the graph was parsed without exceptions
+            assert graph is not None
+            # Further assertions can be added here to check the structure if needed
+            # For now, just checking for successful parsing
+        except Exception as e:
+            pytest.fail(f"Parsing failed with exception: {e}")
+
 
 class TestGraphDefinitionsParsing:
     """

@@ -507,7 +507,7 @@ class PseudocodeParser:
         if has_paren:
             self._consume("LPAREN")
         # Predicates in if statements are infix conditions
-        predicate, condition_reads = self._parse_infix_condition()
+        predicate, condition_reads = self._parse_boolean_expression()
         if has_paren:
             self._consume("RPAREN")
         self._consume("COLON")
@@ -650,6 +650,56 @@ class PseudocodeParser:
 
         self._consume("NEWLINE")
         return [], []
+
+    def _parse_boolean_expression(self) -> tuple[PysmtFormula, list]:
+        """
+        Parses a boolean expression, allowing for OR operations.
+        Calls _parse_boolean_term for its operands.
+        """
+        formula, reads = self._parse_boolean_term()
+        while self._peek().type == "OR":
+            self._consume("OR")
+            rhs_formula, rhs_reads = self._parse_boolean_term()
+            formula = Or(formula, rhs_formula)
+            reads.extend(rhs_reads)
+        return formula, reads
+
+    def _parse_boolean_term(self) -> tuple[PysmtFormula, list]:
+        """
+        Parses a boolean term, allowing for AND operations.
+        Calls _parse_boolean_factor for its operands.
+        """
+        formula, reads = self._parse_boolean_factor()
+        while self._peek().type == "AND":
+            self._consume("AND")
+            rhs_formula, rhs_reads = self._parse_boolean_factor()
+            formula = And(formula, rhs_formula)
+            reads.extend(rhs_reads)
+        return formula, reads
+
+    def _parse_boolean_factor(self) -> tuple[PysmtFormula, list]:
+        """
+        Parses a boolean factor, handling NOT, parenthesized expressions,
+        or atomic comparisons.
+        """
+        if self._peek().type == "NOT":
+            self._consume("NOT")
+            formula, reads = (
+                self._parse_boolean_factor()
+            )  # Recurse for the factor being negated
+            return Not(formula), reads
+        elif self._peek().type == "LPAREN":
+            # Parenthesized sub-condition
+            self._consume("LPAREN")
+            formula, reads = (
+                self._parse_boolean_expression()
+            )  # Recurse for the full boolean expression inside parentheses
+            self._consume("RPAREN")
+            return formula, reads
+        else:
+            # Atomic condition: expr OP expr
+            # This is where the old _parse_infix_condition logic comes in
+            return self._parse_infix_condition()
 
     def _parse_infix_condition(self) -> tuple[PysmtFormula, list]:
         """Parses an infix condition: expr > expr. Used for 'if' statements."""

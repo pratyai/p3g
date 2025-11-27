@@ -72,7 +72,7 @@ sym N, M
 ```
 
 #### Loop Variable Declarations (`var`)
-All variables that will be used as iterators in `for` loops must be declared using the `var` keyword.
+All variables that will be used *exclusively* as iterators in `for` loops must be declared using the `var` keyword. Variables used as general symbolic constants (e.g., indices outside of a loop's direct iteration) should be declared with `sym`.
 
 **Syntax:**
 ```
@@ -160,15 +160,17 @@ Let's break this down:
 
 ### 1. Access Annotations
 
--   `(<reads>)`: A comma-separated list of arrays and their accessed subsets that the statement reads from.
--   `=>`: An arrow separating the read set from the write set.
--   `(<writes>)`: A comma-separated list of arrays and their subsets that the statement writes to.
+The access annotation specifies the data read and written by a statement within a single parenthesized list, separated by an arrow (`=>`).
+
+-   `<reads_list>`: A comma-separated list of arrays and their accessed subsets that the statement reads from.
+-   `=>`: An arrow separating the read list from the write list.
+-   `<writes_list>`: A comma-separated list of arrays and their accessed subsets that the statement writes to.
 
 **Example:**
 ```pcode
-(A[i-1], B[i]) => (A[i])
+(A[i-1], B[i] => A[i])
 ```
-This annotation declares that the statement reads from `A[i-1]` and `B[i]` to produce a new value for `A[i]`.
+This annotation declares that the statement reads from `A[i-1]` and `B[i]`, and writes to `A[i]`.
 
 ### 2. Dataflow Specification
 
@@ -238,14 +240,13 @@ Represents a conditional branch.
 else:
     <indented_else_block>
 ```
-- `<condition>`: A boolean expression, e.g., `B[i] > 0`.
-- The `else` block is optional.
+- `<condition>`: A boolean expression, supporting comparison operators (`=`, `>`, `<`, `>=`, `<=`), logical operators (`and`, `or`, `not`), and parentheses for grouping. The `=` operator signifies equality comparison in this context.
 
 **Example:**
 ```pcode
 decl A, B
 
-(A[0:N-1], B[1:N]) => (A[1:N]) B1| if B[i] > 0:
+(A[0:N-1], B[1:N]) => (A[1:N]) B1| if B[i] > 0 and not (A[i] = B[i]):
     (A[i-1]) => (A[i]) S2| op(copy)
 ```
 
