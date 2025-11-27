@@ -22,7 +22,9 @@ from pysmt.shortcuts import (
     Or,
     Implies,
     Times,
+    Div,
     Symbol,
+    get_env,
 )
 
 from p3g.graph import (
@@ -65,7 +67,7 @@ class PseudocodeParser:
         """
         self.tokens = self._tokenize(code)
         self.pos = 0
-        self._preprocess_declarations()  # Call the new preprocessing method
+        self._preprocess_declarations()
         self.pos = 0  # Reset pos for the main parsing pass
 
         # Ensure stable array_id assignment for all declared arrays by pre-populating _data_id_map
@@ -143,6 +145,9 @@ class PseudocodeParser:
             ("PLUS", r"\+"),
             ("MINUS", r"-"),
             ("TIMES", r"\*"),
+            ("IDIV", r"//"),
+            ("MOD", r"%"),
+            ("DIVIDE", r"/"),
             ("COMMA", r","),
             ("DOT", r"\."),
             ("BANG", r"!"),
@@ -157,7 +162,7 @@ class PseudocodeParser:
         line_num = 0
         indent_stack = [0]
         tokens = []
-        in_block_comment = False  # New flag for block comments
+        in_block_comment = False
 
         lines = code.strip().split("\n")
         for line in lines:
@@ -275,7 +280,6 @@ class PseudocodeParser:
             self._consume("LPAREN")
             # Consume comma delimited list of prior statements.
             while self._peek().type != "RPAREN":
-                # Bug fix: append value, not token. Also fix comma consumption.
                 follow_statements.append(self._consume("ID").value)
                 if self._peek().type == "COMMA":
                     self._consume("COMMA")
@@ -880,12 +884,18 @@ class PseudocodeParser:
     def _parse_term(self) -> tuple[PysmtFormula, list]:
         """Parses a term: factor (TIMES factor)*"""
         formula, reads = self._parse_factor()
-        while self._peek().type in ["TIMES"]:
+        while self._peek().type in ["TIMES", "DIVIDE", "IDIV", "MOD"]:
             op = self._consume().type
             rhs_formula, rhs_reads = self._parse_factor()
             reads.extend(rhs_reads)
             if op == "TIMES":
-                formula = formula * rhs_formula
+                formula = Times(formula, rhs_formula)
+            elif op == "DIVIDE":
+                formula = Div(formula, rhs_formula)
+            elif op == "IDIV":
+                formula = Div(formula, rhs_formula)
+            elif op == "MOD":
+                formula = get_env().formula_manager.Mod(formula, rhs_formula)
         return formula, reads
 
     def _parse_factor(self) -> tuple[PysmtFormula, list]:

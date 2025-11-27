@@ -3,6 +3,7 @@ import pathlib
 import sys
 
 import dace
+import numpy as np
 from dace.properties import CodeBlock
 from dace.sdfg import SDFG, InterstateEdge
 from dace.sdfg.state import ConditionalBlock, ControlFlowRegion
@@ -15,6 +16,8 @@ sys.path.insert(0, project_root)
 # Define symbols
 N = dace.symbol("N", dace.int32)
 M = dace.symbol("M", dace.int32)
+R_stockham = dace.symbol("R_stockham", dace.int32)  # Radix R
+K_stockham = dace.symbol("K_stockham", dace.int32)  # Stages K
 
 
 def generate_simple_loop_sdfg(name: str = "simple_loop") -> SDFG:
@@ -196,9 +199,9 @@ def generate_nested_sdfg_example(name: str = "nested_sdfg") -> SDFG:
     """
     # Define the nested SDFG
     nested_sdfg = SDFG("nested_add")
-    nested_sdfg.add_array("in1", [1], dace.float32)  # Removed transient=True
-    nested_sdfg.add_array("in2", [1], dace.float32)  # Removed transient=True
-    nested_sdfg.add_array("res", [1], dace.float32)  # Removed transient=True
+    nested_sdfg.add_array("in1", [1], dace.float32)
+    nested_sdfg.add_array("in2", [1], dace.float32)
+    nested_sdfg.add_array("res", [1], dace.float32)
 
     nested_state = nested_sdfg.add_state("nested_state", is_start_block=True)
     read_in1 = nested_state.add_read("in1")

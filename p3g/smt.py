@@ -89,7 +89,7 @@ class _StringSmtBuilder:
             header.append(self._get_decl_str(decl))
 
         body = "\n".join(self.assertions)
-        footer = "\n\n(check-sat)\n"  # Removed (get-model)
+        footer = "\n\n(check-sat)\n"
 
         return "\n".join(header) + "\n" + body + footer
 
@@ -634,12 +634,6 @@ def exists_data_exists_bounds_forall_iter_isindep(
 
     builder.assertions.append("\n; --- Loop Bounds ---")
     loop_start, loop_end = loop_node.start, loop_node.end
-
-    # The loop runs at least two iterations for j < k to be possible
-    # builder.add_assertion( # Removed: part of loop_bound_formula now
-    #     GE(loop_end, Plus(loop_start, Int(1))),
-    #     "Loop runs at least two iterations for j < k",
-    # )
 
     builder.assertions.append("\n; --- Dependency Logic Definitions ---")
 

@@ -1,6 +1,7 @@
 import textwrap
+
 from .transpiler import PCodeTranspiler
-from .types import assertion, sym, var, decl, out, Symbol, Array
+from .types import Symbol, Array
 
 # Global stubs for validity
 N = Symbol("N")

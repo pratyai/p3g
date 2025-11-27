@@ -1,6 +1,6 @@
-from .decorator import pcode
-from .types import sym, var, decl, op, Array, Symbol
 from p3g.parser import PseudocodeParser
+from .decorator import pcode
+from .types import Array, Symbol
 
 
 def test_pcode_decorator_complex():

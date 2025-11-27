@@ -1,6 +1,7 @@
 import ast
 import inspect
 import textwrap
+
 from .analysis import get_accesses
 
 
@@ -82,7 +83,18 @@ class PCodeTranspiler(ast.NodeVisitor):
         writes_str = self._raw_access_list(writes)
 
         # Description is the code itself
-        desc = ast.unparse(node)
+        if (
+            isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id in ["Symbol", "Array"]
+            and node.value.args
+            and isinstance(node.value.args[0], ast.Constant)
+        ):
+            target_str = ast.unparse(node.targets[0])
+            symbol_name = node.value.args[0].value
+            desc = f"{target_str} = {symbol_name}"
+        else:
+            desc = ast.unparse(node)
 
         self._add_line(f"({reads_str} => {writes_str}) | op({desc})")
 
@@ -101,7 +113,19 @@ class PCodeTranspiler(ast.NodeVisitor):
 
         reads_str = self._raw_access_list(reads)
         writes_str = self._raw_access_list(writes)
-        desc = ast.unparse(node)
+        # Description is the code itself
+        if (
+            isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id in ["Symbol", "Array"]
+            and node.value.args
+            and isinstance(node.value.args[0], ast.Constant)
+        ):
+            target_str = ast.unparse(node.target)
+            symbol_name = node.value.args[0].value
+            desc = f"{target_str} = {symbol_name}"  # AugAssign is different, needs specific handling
+        else:
+            desc = ast.unparse(node)
         self._add_line(f"({reads_str} => {writes_str}) | op({desc})")
 
     def visit_For(self, node):
@@ -331,11 +355,11 @@ class PCodeTranspiler(ast.NodeVisitor):
             values_smt = [self._convert_py_expr_to_smt(v) for v in expr_node.values]
             return f"({op_str} {' '.join(values_smt)})"
 
-        elif isinstance(expr_node, ast.UnaryOp) and isinstance(expr_node.op, ast.Not):
-            operand_smt = self._convert_py_expr_to_smt(expr_node.operand)
-            return f"(not {operand_smt})"
-
-        elif isinstance(expr_node, (ast.Name, ast.Constant)):
+        elif isinstance(expr_node, ast.Constant):
+            if isinstance(expr_node.value, str):
+                return expr_node.value  # Return raw string, no quotes
+            return ast.unparse(expr_node)
+        elif isinstance(expr_node, ast.Name):
             return ast.unparse(expr_node)
 
         elif isinstance(expr_node, ast.BinOp):
@@ -426,7 +450,11 @@ class PCodeTranspiler(ast.NodeVisitor):
                 return f"not ({operand})"
             return f"not {operand}"
 
-        elif isinstance(expr_node, (ast.Name, ast.Constant)):
+        elif isinstance(expr_node, ast.Constant):
+            if isinstance(expr_node.value, str):
+                return expr_node.value  # Return raw string, no quotes
+            return ast.unparse(expr_node)
+        elif isinstance(expr_node, ast.Name):
             return ast.unparse(expr_node)
 
         elif isinstance(expr_node, ast.BinOp):

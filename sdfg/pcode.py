@@ -845,7 +845,7 @@ class SDFGToPseudocodeConverter:
         # 1. Declarations (decl, sym, var) should be collected first
         # This is a two-pass approach: first traverse to collect vars, then print.
         # So we collect vars during the main traversal and print them here.
-        self._collect_all_declarations_and_outputs()  # New helper to collect everything first
+        self._collect_all_declarations_and_outputs()
 
         # Now, print them
         self._print_declarations()
