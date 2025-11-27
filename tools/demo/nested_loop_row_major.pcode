@@ -2,16 +2,18 @@ sym N, M
 var i, j
 decl A, B
 out A
-(A[1:N*M], B[1:N*M] => A[1:N*M]) L_outer | for i = 1 to N:
-  (A[i*M+1 : i*M+M], A[(i-1)*M+1 : (i-1)*M+M], B[i*M+1 : i*M+M] => A[i*M+1 : i*M+M]) L_inner | for j = 1 to M:
-    (A[(i-1)*M+j], A[i*M+j], B[i*M+j] => A[i*M+j]) T_comp | op(comp)
+! (> M 10)
+(A[0], B[0] => A[0]) L_outer | for i = 0 to (N-1):
+  (A[0], B[0] => A[0]) L_inner | for j = 1 to (M-1):
+    (A[i*M+j], A[i*M+(j-1)], B[j*N+i] => A[i*M+j]) T_comp | op(comp)
+; A[i*M+j]= A[i*M+(j-1)] + B[j*N+i]
 
 ;
 ; This example demonstrates a nested loop with row-major access patterns.
 ; The inner loop updates elements of `A` based on elements from the same row `i`
 ; and the *previous* row `i-1` (e.g., `A[(i-1)*M+j]`).
 ;
-; Expected SMT Result: SAT
+; Expected SMT Result: UNSAT
 ; Reason: The access `A[(i-1)*M+j]` within the outer loop's iteration `i` reads
 ; data that was potentially written in the outer loop's iteration `i-1`.
 ; This constitutes a true data dependency across outer loop iterations.

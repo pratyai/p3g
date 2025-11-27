@@ -2,10 +2,10 @@ sym N
 var i
 decl A, IDX
 out A
-(A[0:N], IDX[0:N], A[1:N] => A[1:N]) L1 | for i = 1 to N:
-    (IDX[i], IDX[i-1], A[IDX[i] * IDX[i-1]], A[i] => A[i]) B1 | if IDX[i] * IDX[i-1] > i:
+(A[0], IDX[0] => A[0]) L1 | for i = 1 to N:
+    (IDX[0], A[0] => A[0]) B1 | if (IDX[i] * IDX[i-1]) > i:
         (IDX[i], IDX[i-1], A[IDX[i] * IDX[i-1]], A[i] => A[i]) C1 | op(A[i] = A[IDX[i] * IDX[i-1]] + 1)
-    (IDX[i], IDX[i-1], A[i] => A[i]) .B2 | if IDX[i] * IDX[i-1] <= i:
+    (IDX[0], A[0] => A[0]) .B2 | if (IDX[i] * IDX[i-1]) <= i:
         (A[i] => A[i]) C1 | op(A[i] = 0)
 
 ;

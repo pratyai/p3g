@@ -2,10 +2,10 @@ sym N
 var i
 decl A, B
 out A
-(A[11*11-10:N*N-10], A[0], B[0:N], A[0:N*N] => A[0:N*N]) L1 | for i = 0 to N:
-    (A[i*i - 10], B[i], A[i*i] => A[i*i]) B1 | if i*i > 10:
+(A[0], B[0] => A[0]) L1 | for i = 0 to N:
+    (A[0], B[0] => A[0]) B1 | if (i*i) > 10:
         (A[i*i - 10], B[i], A[i*i] => A[i*i]) C1 | op(A[i*i] = A[i*i - 10] + B[i])
-    (A[0], B[i], A[i*i] => A[i*i]) .B2 | if i*i <= 10:
+    (A[0], B[0] => A[0]) .B2 | if (i*i) <= 10:
         (A[0], B[i], A[i*i] => A[i*i]) C2 | op(A[i*i] = A[0] + B[i])
 
 ;

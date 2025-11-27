@@ -10,7 +10,7 @@ out A
 ; The relationship between SQRT_N_FLOOR and N is formally constrained by the
 ; assertion above, allowing the SMT solver to reason about its properties.
 
-(A[0:N], B[0:N] => A[0:N]) L1 | for i = 0 to SQRT_N_FLOOR:
+(A[0], B[0] => A[0]) L1 | for i = 0 to SQRT_N_FLOOR:
     (A[i], B[i] => A[i]) T1 | op(A[i] = A[i] + B[i])
 
 ; Expected SMT Result: UNSAT

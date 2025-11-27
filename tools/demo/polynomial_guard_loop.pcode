@@ -5,10 +5,10 @@ out A
 
 ; This loop iterates up to N, but operations are conditionally executed
 ; based on a polynomial condition (i*i <= N).
-(A[0:N] => A[0:N]) L1 | for i = 0 to N:
-    (A[i-1], A[i] => A[i]) B1 | if i * i <= N:
+(A[0] => A[0]) L1 | for i = 0 to N:
+    (A[0] => A[0]) B1 | if (i * i) <= N:
         (A[i-1], A[i] => A[i]) T1 | op(A[i] = A[i-1] + 1)
-    (=>).B2 | if i * i > N:
+    (=>).B2 | if (i * i) > N:
         (=>) T2_skip | op(skip)
 
 ; Expected SMT Result: SAT

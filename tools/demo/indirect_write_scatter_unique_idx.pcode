@@ -8,9 +8,9 @@ out A
 ; The current pseudocode parser now supports SMT-LIB style assertions,
 ; including universal quantifiers.
 ;
-! (forall ((k1 Int) (k2 Int)) (=> (and (<= 0 k1) (< k1 N) (<= 0 k2) (< k2 N) (not (= k1 k2))) (not (= (select IDX_val k1) (select IDX_val k2)))))
+! (forall ((k1 Int) (k2 Int)) (=> (and (<= 0 k1) (< k1 k2)) (not (= (select IDX_val k1) (select IDX_val k2)))))
 
-(A[0:N], B[0:N], IDX[0:N] => A[0:N]) L1 | for k = 1 to N:
+(A[0], B[0], IDX[0] => A[0]) L1 | for k = 1 to N:
     (A[IDX[k]], B[k], IDX[k] => A[IDX[k]]) T1_scatter | op(comp)
 
 ;

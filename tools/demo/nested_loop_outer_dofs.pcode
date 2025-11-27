@@ -2,8 +2,8 @@ sym N, M
 var i, j
 decl A, B
 out A
-(A[1:N, 1:M], B[1:N, 1:M] => A[1:N, 1:M]) L_outer | for i = 1 to N:
-  (A[i, 1:M], A[i-1, 1:M], B[i, 1:M] => A[i, 1:M]) L_inner | for j = 1 to M:
+(A[0], B[0] => A[0]) L_outer | for i = 1 to N:
+  (A[0], B[0] => A[0]) L_inner | for j = 1 to M:
     (A[i-1, j], A[i, j], B[i, j] => A[i, j]) T_comp | op(comp)
 
 ;

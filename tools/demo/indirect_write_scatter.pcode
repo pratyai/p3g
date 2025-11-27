@@ -2,7 +2,7 @@ sym N
 var k
 decl A, B, IDX
 out A
-(A[0:N], B[0:N], IDX[0:N] => A[0:N]) L1 | for k = 1 to N:
+(A[0], B[0], IDX[0] => A[0]) L1 | for k = 1 to N:
     (A[IDX[k]], B[k], IDX[k] => A[IDX[k]]) T1_scatter | op(comp)
 
 ;

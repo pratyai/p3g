@@ -1,0 +1,45 @@
+sym H
+var k, s, j
+decl A, POW2, EXP2PI
+out A
+; Z3 cannot solve otherwise :(
+! (<= H 32)
+! (= (select POW2_val 0) 1)
+! (= (select POW2_val 1) 2)
+! (= (select POW2_val 2) 4)
+! (= (select POW2_val 3) 8)
+! (= (select POW2_val 4) 16)
+! (= (select POW2_val 5) 32)
+! (= (select POW2_val 6) 64)
+! (= (select POW2_val 7) 128)
+! (= (select POW2_val 8) 256)
+! (= (select POW2_val 9) 512)
+! (= (select POW2_val 10) 1024)
+! (= (select POW2_val 11) 2048)
+! (= (select POW2_val 12) 4096)
+! (= (select POW2_val 13) 8192)
+! (= (select POW2_val 14) 16384)
+! (= (select POW2_val 15) 32768)
+! (= (select POW2_val 16) 65536)
+! (= (select POW2_val 17) 131072)
+! (= (select POW2_val 18) 262144)
+! (= (select POW2_val 19) 524288)
+! (= (select POW2_val 20) 1048576)
+! (= (select POW2_val 21) 2097152)
+! (= (select POW2_val 22) 4194304)
+! (= (select POW2_val 23) 8388608)
+! (= (select POW2_val 24) 16777216)
+! (= (select POW2_val 25) 33554432)
+! (= (select POW2_val 26) 67108864)
+! (= (select POW2_val 27) 134217728)
+! (= (select POW2_val 28) 268435456)
+! (= (select POW2_val 29) 536870912)
+! (= (select POW2_val 30) 1073741824)
+! (= (select POW2_val 31) 2147483648)
+(A[0], POW2[0] => A[0]) L_s | for s = 1 to H:
+    (A[0], POW2[0] => A[0]) L_k | for k = 0 to (POW2[H]-1)//POW2[s]:
+        (A[0], POW2[0] => A[0]) L_j | for j = 0 to (POW2[s-1]-1):
+            (POW2[s-1], EXP2PI[j, s], A[k*POW2[s] + j + POW2[s-1]] =>) C_1 | op(t = A[k*POW2[s] + j + POW2[s-1]] * EXP2PI[j, s])
+            (POW2[s], A[k*POW2[s] + j] =>) C_2 | op(u = A[k*POW2[s] + j])
+            (POW2[s], A[k*POW2[s] + j] => A[k*POW2[s] + j]) C_3 | op(A[k*POW2[s] + j] = u + t)
+            (POW2[s], POW2[s-1], A[k*POW2[s] + j + POW2[s-1]] => A[k*POW2[s] + j + POW2[s-1]]) C_4 | op(A[k*POW2[s] + j + POW2[s-1]] = u - t)

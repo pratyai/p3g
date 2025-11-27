@@ -291,104 +291,71 @@ def _flatten_graph_to_compute_items(
     return items
 
 
-def _populate_builder_with_dependencies(
-    builder: SmtQueryBuilder,
+def _find_conflict_elements(
     loop_body_graph: Graph,
     k: PysmtSymbol,
     id_to_val_symbol_map: dict[int, PysmtSymbol],
-):
+) -> list[
+    tuple[set[PysmtSymbol], list[PysmtFormula], list[PysmtFormula], list[PysmtFormula]]
+]:
     """
     Finds all dependency clauses and adds them to the builder's consequent.
     """
+    conflict_elements = []
     items = _flatten_graph_to_compute_items(loop_body_graph)
-    if not items:
-        return
 
     # For each pair of compute items, generate a dependency clause
-    for item1, item2 in itertools.product(items, repeat=2):
-        pc1, comp1, loops1 = item1
-        pc2, comp2, loops2 = item2
-
+    for (pc1, comp1, loops1), (pc2, comp2, loops2) in itertools.product(
+        items, repeat=2
+    ):
         existential_vars = set()
-        subst1, subst2 = {}, {}
+        subst = [{}, {}]
+
+        # Create existential vars for inner loops (at outer iter k and k+1)
         bounds = []
-
-        # Create existential vars for inner loops of item1 (at outer iter k)
-        for loop in loops1:
-            var = loop.loop_var
-            v0 = Symbol(f"{var.symbol_name()}_0", INT)
-            existential_vars.add(v0)
-            subst1[var] = v0
-            bounds.append(
-                And(
-                    GE(v0, substitute(loop.start, {k: k})),
-                    LE(v0, substitute(loop.end, {k: k})),
+        for offset, loops in [(0, loops1), (1, loops2)]:
+            for loop in loops:
+                var = loop.loop_var
+                v = Symbol(f"{var.symbol_name()}_{offset}", INT)
+                existential_vars.add(v)
+                subst[offset][var] = v
+                bounds.append(
+                    And(
+                        GE(v, substitute(loop.start, {k: k + Int(offset)})),
+                        LE(v, substitute(loop.end, {k: k + Int(offset)})),
+                    )
                 )
-            )
-
-        # Create existential vars for inner loops of item2 (at outer iter k+1)
-        for loop in loops2:
-            var = loop.loop_var
-            v1 = Symbol(f"{var.symbol_name()}_1", INT)
-            existential_vars.add(v1)
-            subst2[var] = v1
-            bounds.append(
-                And(
-                    GE(v1, substitute(loop.start, {k: k + Int(1)})),
-                    LE(v1, substitute(loop.end, {k: k + Int(1)})),
-                )
-            )
 
         # Path conditions with substitutions
-        pc1_sub = substitute(substitute(pc1, subst1), {k: k})
-        pc2_sub = substitute(substitute(pc2, subst2), {k: k + Int(1)})
+        path_conds = [
+            substitute(substitute(pc1, subst[0]), {k: k}),
+            substitute(substitute(pc2, subst[1]), {k: k + Int(1)}),
+        ]
 
         # Conflict Formula
-        W1 = substitute_subset(substitute_subset(comp1.get_write_set(), subst1), {k: k})
-        R1 = substitute_subset(substitute_subset(comp1.get_read_set(), subst1), {k: k})
+        W1 = substitute_subset(
+            substitute_subset(comp1.get_write_set(), subst[0]), {k: k}
+        )
+        R1 = substitute_subset(
+            substitute_subset(comp1.get_read_set(), subst[0]), {k: k}
+        )
         W2 = substitute_subset(
-            substitute_subset(comp2.get_write_set(), subst2),
+            substitute_subset(comp2.get_write_set(), subst[1]),
             {k: k + Int(1)},
         )
         R2 = substitute_subset(
-            substitute_subset(comp2.get_read_set(), subst2),
+            substitute_subset(comp2.get_read_set(), subst[1]),
             {k: k + Int(1)},
         )
-
-        # Conflict Formula
-        conflict_args = [
+        conflicts = [
             _create_set_intersection_formula(W1, R2, id_to_val_symbol_map),
             _create_set_intersection_formula(W1, W2, id_to_val_symbol_map),
             _create_set_intersection_formula(R1, W2, id_to_val_symbol_map),
         ]
-        # Filter out FALSE() literals
-        filtered_conflict_args = [arg for arg in conflict_args if not arg.is_false()]
 
-        if not filtered_conflict_args:
-            conflict = FALSE()  # If all parts are FALSE, then the OR is FALSE
-        elif len(filtered_conflict_args) == 1:
-            conflict = filtered_conflict_args[0]
-        else:
-            conflict = Or(filtered_conflict_args)
+        conflict_elements.append((existential_vars, path_conds, bounds, conflicts))
 
-        # Collect all conjuncts for the pair clause and filter out TRUE literals
-        all_conjuncts = [pc1_sub, pc2_sub, *bounds, conflict]
-        filtered_conjuncts = [c for c in all_conjuncts if not c.is_true()]
-
-        if not filtered_conjuncts:
-            pair_clause = TRUE()
-        else:
-            pair_clause = And(filtered_conjuncts)
-
-        if existential_vars:
-            clause = Exists(
-                sorted(list(existential_vars), key=lambda s: s.symbol_name()),
-                pair_clause,
-            )
-        else:
-            clause = pair_clause
-
-        builder.add_consequent_clause(clause)
+    return conflict_elements
 
 
 def exists_data_forall_bounds_forall_iters_chained(
@@ -472,9 +439,24 @@ def exists_data_forall_bounds_forall_iters_chained(
                 builder.add_toplevel_assertion(assertion)
 
     # 4. Populate the Consequent (RHS of =>) with dependency clauses
-    _populate_builder_with_dependencies(
-        builder, loop_node.nested_graph, k, id_to_location_symbol_map
-    )
+    # Collect all conjuncts for the pair clause and filter out TRUE literals
+    for existential_vars, path_conds, bounds, conflicts in _find_conflict_elements(
+        loop_node.nested_graph, k, id_to_location_symbol_map
+    ):
+        all_conjuncts = [*bounds, *path_conds, Or(*conflicts)]
+        if existential_vars:
+            clause = Exists(
+                sorted(list(existential_vars), key=lambda s: s.symbol_name()),
+                simplify(And(all_conjuncts)),
+            )
+        else:
+            clause = simplify(And(all_conjuncts))
+        builder.add_consequent_clause(clause)
+
+        # In the negated version, we don't want a witness outside the valid bound.
+        if build_negated:
+            for b in bounds:
+                builder.add_antecedent_clause(b)
 
     # 5. Assemble and return the final query
     if build_negated:
@@ -493,16 +475,11 @@ def _collect_all_assertions_recursive(graph: Graph, collected_assertions: list):
     """Recursively collects all assertion formulas from the graph hierarchy."""
     collected_assertions.extend(graph.assertions)
     for node in graph.nodes:
-        if isinstance(node, (Branch, Loop)):
-            if isinstance(node, Branch):
-                for _, nested_graph in node.branches:
-                    _collect_all_assertions_recursive(
-                        nested_graph, collected_assertions
-                    )
-            else:  # Loop
-                _collect_all_assertions_recursive(
-                    node.nested_graph, collected_assertions
-                )
+        if isinstance(node, Branch):
+            for _, nested_graph in node.branches:
+                _collect_all_assertions_recursive(nested_graph, collected_assertions)
+        elif isinstance(node, Loop):
+            _collect_all_assertions_recursive(node.nested_graph, collected_assertions)
 
 
 def _collect_all_data_nodes(graph: Graph, collected_data_nodes: set[Data]):
@@ -510,9 +487,8 @@ def _collect_all_data_nodes(graph: Graph, collected_data_nodes: set[Data]):
     for node in graph.nodes:
         if isinstance(node, Data):
             collected_data_nodes.add(node)
-        elif isinstance(node, (Branch, Loop)):
-            if isinstance(node, Branch):
-                for _, nested_graph in node.branches:
-                    _collect_all_data_nodes(nested_graph, collected_data_nodes)
-            else:  # Loop
-                _collect_all_data_nodes(node.nested_graph, collected_data_nodes)
+        elif isinstance(node, Branch):
+            for _, nested_graph in node.branches:
+                _collect_all_data_nodes(nested_graph, collected_data_nodes)
+        elif isinstance(node, Loop):
+            _collect_all_data_nodes(node.nested_graph, collected_data_nodes)
