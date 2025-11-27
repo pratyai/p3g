@@ -19,7 +19,7 @@ from p3g.smt import (
 )
 from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
 from pysmt.exceptions import SolverReturnedUnknownResultError
-from tests.utils import solve_smt_string
+from tests.utils import solve_smt_string, TimeoutError
 from p3g.graph import Branch, Map, Loop, Graph
 
 
@@ -196,13 +196,19 @@ Defaults to '?'.""",
 
     # Generate SMT query based on selected type
     smt_query = ""
+    negated_query = None  # Initialize negated_query for potential generation
+
     if query_type == "D-FS":
         smt_query = exists_data_exists_bounds_forall_iter_isdep(
             loop_node, verbose=False
         )
     elif query_type == "D-FS/B":
+        # Generate both main and negated query for D-FS/B
         smt_query = exists_data_forall_bounds_forall_iters_chained(
             loop_node, verbose=False, build_negated=False
+        )
+        negated_query = exists_data_forall_bounds_forall_iters_chained(
+            loop_node, verbose=False, build_negated=True
         )
     elif query_type == "D-NFI":
         smt_query = exists_data_exists_bounds_exists_iter_isdep(
@@ -228,72 +234,76 @@ Defaults to '?'.""",
     # Write SMT query to output file
     with open(args.output, "w") as f:
         f.write(smt_query)
-
     print(f"SMT-LIB query generated and saved to {args.output}")
 
+    if negated_query:
+        negated_output_path = args.output.replace(".smt2", "_negated.smt2")
+        with open(negated_output_path, "w") as f:
+            f.write(negated_query)
+        print(f"Negated SMT-LIB query generated and saved to {negated_output_path}")
+
+    # --- Solving and Reporting ---
+    print("\n--- Solving Primary Query ---")
+    main_result_str = "UNKNOWN"
     try:
         main_is_sat = solve_smt_string(smt_query)
-        # This part handles the case where the main query is UNSAT for D-FS/B
-        if query_type == "D-FS/B" and not main_is_sat:
-            print(
-                "\nRegular query returned UNSAT. Trying negated query to find a witness..."
-            )
-            negated_query = exists_data_forall_bounds_forall_iters_chained(
-                loop_node, verbose=False, build_negated=True
-            )
-            negated_output_path = args.output.replace(".smt2", "_negated.smt2")
-            with open(negated_output_path, "w") as f:
-                f.write(negated_query)
-            print(f"Negated SMT-LIB query generated and saved to {negated_output_path}")
-
-            try:
-                # solve_smt_string will print the model if SAT
-                negated_is_sat = solve_smt_string(negated_query)
-                print("\n---")
-                print(f"Regular query result: UNSAT")
-                print(
-                    f"Negated query result: {'SAT (witness found)' if negated_is_sat else 'UNSAT (no witness)'}"
-                )
-                print("---")
-            except SolverReturnedUnknownResultError:
-                print("\nNegated query returned UNKNOWN. Cannot provide a witness.")
-            except Exception as e:
-                print(
-                    f"\nAn error occurred while solving the negated query for witness: {e}"
-                )
-
+        main_result_str = "SAT" if main_is_sat else "UNSAT"
+        print(f"Primary Query Result: {main_result_str}")
     except SolverReturnedUnknownResultError:
-        # This existing fallback logic handles cases where the main query returns UNKNOWN
-        # We re-generate the negated query here.
-        if query_type == "D-FS/B":
-            print("\nRegular query returned UNKNOWN. Trying negated query...")
-            negated_query = exists_data_forall_bounds_forall_iters_chained(
-                loop_node, verbose=False, build_negated=True
+        print("Primary Query Result: UNKNOWN (Solver returned unknown)")
+    except TimeoutError:
+        print("Primary Query Result: UNKNOWN (Timeout)")
+    except Exception as e:
+        print(f"Primary Query Result: ERROR - {e}")
+
+    if negated_query:
+        print("\n--- Solving Negated Query ---")
+        negated_result_str = "UNKNOWN"
+        try:
+            negated_is_sat = solve_smt_string(negated_query)
+            negated_result_str = "SAT" if negated_is_sat else "UNSAT"
+            print(f"Negated Query Result: {negated_result_str}")
+        except SolverReturnedUnknownResultError:
+            print("Negated Query Result: UNKNOWN (Solver returned unknown)")
+        except TimeoutError:
+            print("Negated Query Result: UNKNOWN (Timeout)")
+        except Exception as e:
+            print(f"Negated Query Result: ERROR - {e}")
+
+        print("\n--- Interpretation ---")
+        if main_result_str == "SAT" and negated_result_str == "UNSAT":
+            print("Conclusion: The property (D-FS/B) holds. No counterexample found.")
+        elif main_result_str == "UNSAT" and negated_result_str == "SAT":
+            print(
+                "Conclusion: The property (D-FS/B) does NOT hold. A counterexample (witness) was found."
             )
-            negated_output_path = args.output.replace(".smt2", "_negated.smt2")
-            with open(negated_output_path, "w") as f:
-                f.write(negated_query)
-            print(f"Negated SMT-LIB query generated and saved to {negated_output_path}")
-
-            try:
-                negated_is_sat = solve_smt_string(negated_query)
-                print("\n---")
-                print(f"Regular query result: UNKNOWN")
-                print(f"Negated query result: {'SAT' if negated_is_sat else 'UNSAT'}")
-                if negated_is_sat:
-                    print(f"Interpreted result from negated query: UNSAT")
-                else:
-                    print(f"Interpreted result from negated query: SAT")
-                print("---")
-
-            except SolverReturnedUnknownResultError:
-                print("\nNegated query also returned UNKNOWN. Final result is UNKNOWN.")
-            except Exception as e:
-                print(f"\nAn error occurred while solving the negated query: {e}")
+        elif main_result_str == "UNKNOWN" and negated_result_str == "SAT":
+            print(
+                "Conclusion: Primary query UNKNOWN, but negated query SAT. Interpreting primary as UNSAT."
+            )
+            print(
+                "            The property (D-FS/B) does NOT hold. A counterexample (witness) was found."
+            )
+        elif main_result_str == "UNKNOWN" and negated_result_str == "UNSAT":
+            print(
+                "Conclusion: Primary query UNKNOWN, but negated query UNSAT. Interpreting primary as SAT."
+            )
+            print("            The property (D-FS/B) holds. No counterexample found.")
+        elif main_result_str == "UNKNOWN" or negated_result_str == "UNKNOWN":
+            print(
+                "Conclusion: At least one query returned UNKNOWN. Cannot provide a definitive interpretation."
+            )
         else:
-            # If a non D-FS/B query returned unknown, re-raise it or print
-            print(f"\nQuery type {query_type} returned UNKNOWN. No negated fallback.")
-            raise  # Re-raise the original exception if no specific fallback
+            print(
+                f"Conclusion: Results are inconclusive or indicate an issue with query generation/solver consistency."
+            )
+            print(
+                f"            Primary: {main_result_str}, Negated: {negated_result_str}"
+            )
+    elif main_result_str == "UNKNOWN":
+        print(
+            f"Conclusion: Only primary query was run, and it returned UNKNOWN. Cannot provide a definitive interpretation."
+        )
 
 
 if __name__ == "__main__":
