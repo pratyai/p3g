@@ -1,12 +1,13 @@
 import io
-from multiprocessing import Process, Queue
-from dataclasses import dataclass
-from typing import Optional
 import time
+from dataclasses import dataclass
+from multiprocessing import Process, Queue
+from typing import Optional
 
 from pysmt.exceptions import SolverReturnedUnknownResultError
 from pysmt.shortcuts import Solver
 from pysmt.smtlib.parser import SmtLibParser
+from pysmt.walkers import IdentityDagWalker
 from z3 import Z3Exception
 
 from p3g.graph import Graph, Compute, Branch, Loop, Map, Reduce, Data, WriteSet, ReadSet
@@ -24,6 +25,11 @@ class SmtResult:
     is_sat: bool
     time_elapsed: float
     model_str: Optional[str] = None
+    num_quantifiers: int = 0
+    num_atoms: int = 0
+    num_and: int = 0
+    num_or: int = 0
+    formula_size: int = 0
 
 
 # --- Solver Configuration ---
@@ -203,6 +209,53 @@ def print_p3g_structure(graph: Graph, indent=0):
 # --- End of Graph Printing Utility ---
 
 
+class MetricsWalker(IdentityDagWalker):
+    def __init__(self):
+        super().__init__()
+        self.num_quantifiers = 0
+        self.num_atoms = 0
+        self.num_and = 0
+        self.num_or = 0
+        self.formula_size = 0
+
+    def walk_forall(self, formula, args, **kwargs):
+        self.num_quantifiers += 1
+        self.formula_size += 1
+        return formula
+
+    def walk_exists(self, formula, args, **kwargs):
+        self.num_quantifiers += 1
+        self.formula_size += 1
+        return formula
+
+    def walk_and(self, formula, args, **kwargs):
+        self.num_and += 1
+        self.formula_size += 1
+        return formula
+
+    def walk_or(self, formula, args, **kwargs):
+        self.num_or += 1
+        self.formula_size += 1
+        return formula
+
+    def walk_symbol(self, formula, args, **kwargs):
+        self.num_atoms += 1
+        self.formula_size += 1
+        return formula
+
+    def walk_int_constant(self, formula, args, **kwargs):
+        self.formula_size += 1
+        return formula
+
+    def walk_real_constant(self, formula, args, **kwargs):
+        self.formula_size += 1
+        return formula
+
+    def walk_bool_constant(self, formula, args, **kwargs):
+        self.formula_size += 1
+        return formula
+
+
 def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
     """
     Internal function to solve the SMT query. Designed to be run in a separate process.
@@ -211,6 +264,15 @@ def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
     # 2. Parse the SMT-LIB string into pysmt formulas
     parser = SmtLibParser()
     script = parser.get_script(io.StringIO(smt_string))
+
+    # Metrics
+    num_quantifiers = 0
+    num_atoms = 0
+    num_and = 0
+    num_or = 0
+    formula_size = 0
+
+    walker = MetricsWalker()
 
     # 3. Run the solver using the pysmt API
     try:
@@ -222,13 +284,21 @@ def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
 
             for cmd in script.commands:
                 if cmd.name == "assert":
-                    s.add_assertion(cmd.args[0])
+                    formula = cmd.args[0]
+                    walker.walk(formula)  # Collect metrics
+                    s.add_assertion(formula)
                 elif cmd.name == "declare-fun":
                     pass
                 elif cmd.name == "check-sat":
                     break
                 else:
                     pass
+
+            num_quantifiers = walker.num_quantifiers
+            num_atoms = walker.num_atoms
+            num_and = walker.num_and
+            num_or = walker.num_or
+            formula_size = walker.formula_size
 
             result: bool = s.check_sat()
 
@@ -241,7 +311,17 @@ def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
                     model_str = (
                         f"Cannot print model (sometime it's library's fault): {e}"
                     )
-            result_queue.put((result, model_str))
+            result_queue.put(
+                (
+                    result,
+                    model_str,
+                    num_quantifiers,
+                    num_atoms,
+                    num_and,
+                    num_or,
+                    formula_size,
+                )
+            )
 
     except SolverReturnedUnknownResultError as e:
         result_queue.put((e,))
@@ -286,7 +366,16 @@ def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> SmtResult:
                 raise exc
         else:
             # Normal SAT/UNSAT result
-            result, model_str = result_tuple
+            (
+                result,
+                model_str,
+                num_quantifiers,
+                num_atoms,
+                num_and,
+                num_or,
+                formula_size,
+            ) = result_tuple
+
             if result:
                 print(f"Solver result: sat")
                 print("--- Model ---")
@@ -299,11 +388,26 @@ def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> SmtResult:
                 )
                 print("-------------")
                 return SmtResult(
-                    is_sat=True, time_elapsed=elapsed_time, model_str=model_str
+                    is_sat=True,
+                    time_elapsed=elapsed_time,
+                    model_str=model_str,
+                    num_quantifiers=num_quantifiers,
+                    num_atoms=num_atoms,
+                    num_and=num_and,
+                    num_or=num_or,
+                    formula_size=formula_size,
                 )
             else:
                 print(f"Solver result: unsat")
-                return SmtResult(is_sat=False, time_elapsed=elapsed_time)
+                return SmtResult(
+                    is_sat=False,
+                    time_elapsed=elapsed_time,
+                    num_quantifiers=num_quantifiers,
+                    num_atoms=num_atoms,
+                    num_and=num_and,
+                    num_or=num_or,
+                    formula_size=formula_size,
+                )
     else:
         # This case should ideally not be reached if the process finished without timeout
         # and put something in the queue.

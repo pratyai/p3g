@@ -246,11 +246,13 @@ Defaults to '?'.""",
     print("\n--- Solving Primary Query ---")
     main_result_str = "UNKNOWN"
     try:
-        main_result = solve_smt_string(smt_query)
+        main_result = solve_smt_string(smt_query, 120)
         main_is_sat = main_result.is_sat
         main_result_str = "SAT" if main_is_sat else "UNSAT"
         print(
-            f"Primary Query Result: {main_result_str} (Time: {main_result.time_elapsed:.4f}s)"
+            f"Primary Query Result: {main_result_str} (Time: {main_result.time_elapsed:.4f}s, "
+            f"Quantifiers: {main_result.num_quantifiers}, Atoms: {main_result.num_atoms}, "
+            f"And: {main_result.num_and}, Or: {main_result.num_or}, Size: {main_result.formula_size})"
         )
     except SolverReturnedUnknownResultError:
         print("Primary Query Result: UNKNOWN (Solver returned unknown)")
@@ -263,11 +265,13 @@ Defaults to '?'.""",
         print("\n--- Solving Negated Query ---")
         negated_result_str = "UNKNOWN"
         try:
-            negated_result = solve_smt_string(negated_query)
+            negated_result = solve_smt_string(negated_query, 120)
             negated_is_sat = negated_result.is_sat
             negated_result_str = "SAT" if negated_is_sat else "UNSAT"
             print(
-                f"Negated Query Result: {negated_result_str} (Time: {negated_result.time_elapsed:.4f}s)"
+                f"Negated Query Result: {negated_result_str} (Time: {negated_result.time_elapsed:.4f}s, "
+                f"Quantifiers: {negated_result.num_quantifiers}, Atoms: {negated_result.num_atoms}, "
+                f"And: {negated_result.num_and}, Or: {negated_result.num_or}, Size: {negated_result.formula_size})"
             )
         except SolverReturnedUnknownResultError:
             print("Negated Query Result: UNKNOWN (Solver returned unknown)")

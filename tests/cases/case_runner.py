@@ -57,5 +57,7 @@ def run_test_case(
         )
 
     print(
-        f"\nVerdict: PASSED. {test_name} is {'SAT' if expected_result else 'UNSAT'} as expected. (Time: {elapsed:.4f}s)"
+        f"\nVerdict: PASSED. {test_name} is {'SAT' if expected_result else 'UNSAT'} as expected. (Time: {elapsed:.4f}s, "
+        f"Quantifiers: {smt_result.num_quantifiers}, Atoms: {smt_result.num_atoms}, "
+        f"And: {smt_result.num_and}, Or: {smt_result.num_or}, Size: {smt_result.formula_size})"
     )
