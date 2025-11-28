@@ -45,7 +45,10 @@ def run_test_case(
         with open(filename, "w") as f:
             f.write(smt_query)
 
-    result = solve_smt_string(smt_query, timeout_seconds=timeout_seconds)
+    smt_result = solve_smt_string(smt_query, timeout_seconds=timeout_seconds)
+    result = smt_result.is_sat
+    elapsed = smt_result.time_elapsed
+
     if expected_result:
         assert result, f"Expected {test_name} to be SAT but SMT solver returned UNSAT."
     else:
@@ -54,5 +57,5 @@ def run_test_case(
         )
 
     print(
-        f"\nVerdict: PASSED. {test_name} is {'SAT' if expected_result else 'UNSAT'} as expected."
+        f"\nVerdict: PASSED. {test_name} is {'SAT' if expected_result else 'UNSAT'} as expected. (Time: {elapsed:.4f}s)"
     )

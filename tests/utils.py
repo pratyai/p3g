@@ -1,5 +1,8 @@
 import io
 from multiprocessing import Process, Queue
+from dataclasses import dataclass
+from typing import Optional
+import time
 
 from pysmt.exceptions import SolverReturnedUnknownResultError
 from pysmt.shortcuts import Solver
@@ -12,6 +15,15 @@ from p3g.graph import Graph, Compute, Branch, Loop, Map, Reduce, Data, WriteSet,
 # Custom Timeout Exception
 class TimeoutError(Exception):
     pass
+
+
+@dataclass
+class SmtResult:
+    """Result of an SMT solver execution."""
+
+    is_sat: bool
+    time_elapsed: float
+    model_str: Optional[str] = None
 
 
 # --- Solver Configuration ---
@@ -237,20 +249,23 @@ def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
         result_queue.put((e,))
 
 
-def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> bool:
+def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> SmtResult:
     """
     Saves the SMT query to a file and runs an in-memory pysmt solver
     (e.g., z3, cvc5) on the parsed string within a separate process with a timeout.
-    Returns True for 'sat', False for 'unsat'.
+    Returns SmtResult.
     Raises TimeoutError if the solver exceeds the timeout.
     Raises other Exceptions for 'unknown' or solver failures.
     """
+    start_time = time.time()
     result_queue = Queue()
     process = Process(
         target=_solve_smt_string_internal, args=(smt_string, result_queue)
     )
     process.start()
     process.join(timeout=timeout_seconds)
+    end_time = time.time()
+    elapsed_time = end_time - start_time
 
     if process.is_alive():
         process.terminate()
@@ -283,10 +298,12 @@ def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> bool:
                     "You can query specific symbols by name if needed."
                 )
                 print("-------------")
-                return True
+                return SmtResult(
+                    is_sat=True, time_elapsed=elapsed_time, model_str=model_str
+                )
             else:
                 print(f"Solver result: unsat")
-                return False
+                return SmtResult(is_sat=False, time_elapsed=elapsed_time)
     else:
         # This case should ideally not be reached if the process finished without timeout
         # and put something in the queue.

@@ -32,7 +32,7 @@ from pysmt.shortcuts import (
 )
 from pysmt.smtlib.printers import SmtPrinter
 from pysmt.typing import INT
-from pysmt.rewritings import NNFizer
+from pysmt.rewritings import NNFizer, PrenexNormalizer
 
 from p3g.graph import Graph, Loop, Data, Compute, Branch
 from p3g.subsets import (
@@ -146,7 +146,11 @@ class SmtQueryBuilder:
         )
 
         main_formula = ForAll(sorted_universals, Or(Not(antecedent), consequent))
-        simplified_main_formula = simplify(main_formula)
+        main_formula = simplify(main_formula)
+        # main_formula = NNFizer().convert(main_formula)
+        # main_formula = simplify(main_formula)
+        # main_formula = PrenexNormalizer().normalize(main_formula)
+        # main_formula = simplify(main_formula)
 
         # Step 2: Collect all free variables for the declaration header
         # To avoid statefulness issues, we use a local set for this build.
@@ -159,7 +163,7 @@ class SmtQueryBuilder:
                 if sym not in self._universal_vars:
                     local_existential_vars.add(sym)
 
-        collect_free_vars_local(simplified_main_formula)
+        collect_free_vars_local(main_formula)
         simplified_toplevel_assertions = []
         for assertion in self._toplevel_assertions:
             simplified_assertion = simplify(assertion)
@@ -171,9 +175,7 @@ class SmtQueryBuilder:
             f"(assert {self._pretty_print(a, 0)})"
             for a in simplified_toplevel_assertions
         ]
-        main_assertion_str = (
-            f"(assert {self._pretty_print(simplified_main_formula, 0)})"
-        )
+        main_assertion_str = f"(assert {self._pretty_print(main_formula, 0)})"
 
         # Step 4: Build declarations for all collected free (existential) variables
         final_existentials = local_existential_vars - self._universal_vars
