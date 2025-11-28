@@ -23,7 +23,6 @@ from pysmt.shortcuts import (
     LE,
     Exists,
     ForAll,
-    Implies,
     get_free_variables,
     substitute,
     TRUE,
@@ -145,7 +144,7 @@ class SmtQueryBuilder:
             list(self._universal_vars), key=lambda s: s.symbol_name()
         )
 
-        main_formula = ForAll(sorted_universals, Implies(antecedent, consequent))
+        main_formula = ForAll(sorted_universals, Or(Not(antecedent), consequent))
         simplified_main_formula = simplify(main_formula)
 
         # Step 2: Collect all free variables for the declaration header
@@ -211,7 +210,8 @@ class SmtQueryBuilder:
             if clause.is_exists():
                 substitutions = {}
                 for var in clause.quantifier_vars():
-                    skolem_var = Symbol(f"{var.symbol_name()}_skolem", var.get_type())
+                    # Keep the same name after skolemizing anyway.
+                    skolem_var = Symbol(f"{var.symbol_name()}", var.get_type())
                     substitutions[var] = skolem_var
                 skolemized_clause = substitute(clause.arg(0), substitutions)
                 skolemized_consequents.append(skolemized_clause)
