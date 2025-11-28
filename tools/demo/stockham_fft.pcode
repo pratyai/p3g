@@ -1,0 +1,61 @@
+sym K
+var s, l, r
+decl A, B, POW_2, TWIDDLES
+out B
+
+; Assume R=2 for this example (implicit radix-2 Stockham)
+; Define POW_2 values up to K=31
+! (= (select POW_2_val 0) 1)
+! (= (select POW_2_val 1) 2)
+! (= (select POW_2_val 2) 4)
+! (= (select POW_2_val 3) 8)
+! (= (select POW_2_val 4) 16)
+! (= (select POW_2_val 5) 32)
+! (= (select POW_2_val 6) 64)
+! (= (select POW_2_val 7) 128)
+! (= (select POW_2_val 8) 256)
+! (= (select POW_2_val 9) 512)
+! (= (select POW_2_val 10) 1024)
+! (= (select POW_2_val 11) 2048)
+! (= (select POW_2_val 12) 4096)
+! (= (select POW_2_val 13) 8192)
+! (= (select POW_2_val 14) 16384)
+! (= (select POW_2_val 15) 32768)
+! (= (select POW_2_val 16) 65536)
+! (= (select POW_2_val 17) 131072)
+! (= (select POW_2_val 18) 262144)
+! (= (select POW_2_val 19) 524288)
+! (= (select POW_2_val 20) 1048576)
+! (= (select POW_2_val 21) 2097152)
+! (= (select POW_2_val 22) 4194304)
+! (= (select POW_2_val 23) 8388608)
+! (= (select POW_2_val 24) 16777216)
+! (= (select POW_2_val 25) 33554432)
+! (= (select POW_2_val 26) 67108864)
+! (= (select POW_2_val 27) 134217728)
+! (= (select POW_2_val 28) 268435456)
+! (= (select POW_2_val 29) 536870912)
+! (= (select POW_2_val 30) 1073741824)
+! (= (select POW_2_val 31) 2147483648)
+! (<= K 31) ; K must be within bounds for POW_2
+
+; Main loop over stages
+(A[0], B[0], POW_2[0], TWIDDLES[0] => B[0]) L_stage | for s = 0 to K-1:
+    ; Loop over groups (l)
+    ; stride_out for this stage = 2^(s+1) = POW_2[s+1]
+    (A[0], B[0], POW_2[0], TWIDDLES[0] => B[0]) L_group | for l = 0 to POW_2[K - s - 1] - 1:
+        ; Loop over elements within a group (r) for radix-2 butterfly
+        ; stride_in for this stage = 2^s = POW_2[s]
+        (A[0], B[0], POW_2[0], TWIDDLES[0] => B[0]) L_element | for r = 0 to POW_2[s] - 1:
+            ; Core radix-2 butterfly operation broken down
+            ; t = A[l * POW_2[s+1] + r + POW_2[s]] * TWIDDLES[r * POW_2[K - s - 1]]
+            (A[l * POW_2[s+1] + r + POW_2[s]], TWIDDLES[r * POW_2[K - s - 1]] =>) C_t | op(t = A[l * POW_2[s+1] + r + POW_2[s]] * TWIDDLES[r * POW_2[K - s - 1]])
+
+            ; u = A[l * POW_2[s+1] + r]
+            (A[l * POW_2[s+1] + r] =>) C_u | op(u = A[l * POW_2[s+1] + r])
+
+            ; B[l * POW_2[s+1] + r] = u + t
+            (A[l * POW_2[s+1] + r], B[l * POW_2[s+1] + r] => B[l * POW_2[s+1] + r]) C_add | op(B[l * POW_2[s+1] + r] = u + t)
+
+            ; B[l * POW_2[s+1] + r + POW_2[s]] = u - t
+            (A[l * POW_2[s+1] + r], A[l * POW_2[s+1] + r + POW_2[s]], B[l * POW_2[s+1] + r + POW_2[s]] => B[l * POW_2[s+1] + r + POW_2[s]]) C_sub | op(B[l * POW_2[s+1] + r + POW_2[s]] = u - t)

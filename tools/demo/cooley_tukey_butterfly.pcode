@@ -3,7 +3,7 @@ var k, s, j
 decl A, POW2, EXP2PI
 out A
 ; Z3 cannot solve otherwise :(
-! (<= H 32)
+! (<= H 31)
 ! (= (select POW2_val 0) 1)
 ! (= (select POW2_val 1) 2)
 ! (= (select POW2_val 2) 4)

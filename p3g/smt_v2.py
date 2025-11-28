@@ -32,6 +32,7 @@ from pysmt.shortcuts import (
 )
 from pysmt.smtlib.printers import SmtPrinter
 from pysmt.typing import INT
+from pysmt.rewritings import NNFizer
 
 from p3g.graph import Graph, Loop, Data, Compute, Branch
 from p3g.subsets import (
@@ -200,59 +201,61 @@ class SmtQueryBuilder:
     def build_negated_query(self) -> str:
         """
         Assembles a quantifier-free query to check for the existence of a counterexample
-        to the main universally-quantified property. It checks for the satisfiability
-        of `Antecedent AND NOT(Consequent)`.
-        """
-        # Step 1: Skolemize inner-loop quantifiers in consequent clauses
-        # This is still needed to make the consequent quantifier-free before negation.
-        skolemized_consequents = []
-        for clause in self._consequent_clauses:
-            if clause.is_exists():
-                substitutions = {}
-                for var in clause.quantifier_vars():
-                    # Keep the same name after skolemizing anyway.
-                    skolem_var = Symbol(f"{var.symbol_name()}", var.get_type())
-                    substitutions[var] = skolem_var
-                skolemized_clause = substitute(clause.arg(0), substitutions)
-                skolemized_consequents.append(skolemized_clause)
-            else:
-                skolemized_consequents.append(clause)
+        to the main universally-quantified property.
 
-        # Step 2: Build the main formula object for the quantifier-free check
+        It constructs `NOT(FORALL ...)` which simplifies to `EXISTS (NOT (...))`.
+        This effectively asks the solver: "Does there exist a set of indices/parameters
+        where the loop bounds are valid (Antecedent is true) BUT no dependency exists
+        (Consequent is false)?"
+
+        The result is a quantifier-free formula (after skolemization/instantiation)
+        that is satisfiable if and only if the original property is invalid.
+        """
         antecedent = (
             And(self._antecedent_clauses) if self._antecedent_clauses else TRUE()
         )
-        consequent = Or(skolemized_consequents) if skolemized_consequents else FALSE()
-
-        main_formula = And(antecedent, Not(consequent))
-        simplified_main_formula = simplify(main_formula)
-
-        # Step 3: Collect all free variables for the declaration header.
-        # All universal variables from the original query are now existential (free).
-        local_existential_vars = self._existential_vars.copy().union(
-            self._universal_vars
+        consequent = (
+            Or(self._consequent_clauses) if self._consequent_clauses else FALSE()
         )
+
+        sorted_universals = sorted(
+            list(self._universal_vars), key=lambda s: s.symbol_name()
+        )
+
+        main_formula = Not(ForAll(sorted_universals, Or(Not(antecedent), consequent)))
+        main_formula = simplify(main_formula)
+        main_formula = NNFizer().convert(main_formula)
+        self._universal_vars.clear()
+        assert main_formula.is_exists()
+        (main_formula,) = main_formula.args()
+
+        # Step 2: Collect all free variables for the declaration header
+        # To avoid statefulness issues, we use a local set for this build.
+        local_existential_vars = self._existential_vars.copy()
 
         def collect_free_vars_local(formula: PysmtFormula):
             if formula is None:
                 return
             for sym in get_free_variables(formula):
-                local_existential_vars.add(sym)
+                if sym not in self._universal_vars:
+                    local_existential_vars.add(sym)
 
-        collect_free_vars_local(simplified_main_formula)
-        all_assertions_to_check = [simplified_main_formula]
+        collect_free_vars_local(main_formula)
+        simplified_toplevel_assertions = []
         for assertion in self._toplevel_assertions:
             simplified_assertion = simplify(assertion)
             collect_free_vars_local(simplified_assertion)
-            all_assertions_to_check.append(simplified_assertion)
+            simplified_toplevel_assertions.append(simplified_assertion)
 
-        # Step 4: Pretty-print all assertions
-        assertion_strs = [
-            f"(assert {self._pretty_print(a, 0)})" for a in all_assertions_to_check
+        # Step 3: Pretty-print all assertions
+        toplevel_assertion_strs = [
+            f"(assert {self._pretty_print(a, 0)})"
+            for a in simplified_toplevel_assertions
         ]
+        main_assertion_str = f"(assert {self._pretty_print(main_formula, 0)})"
 
-        # Step 5: Build declarations for all free variables
-        final_existentials = local_existential_vars
+        # Step 4: Build declarations for all collected free (existential) variables
+        final_existentials = local_existential_vars - self._universal_vars
 
         def get_decl_str(s: PysmtSymbol) -> str:
             t = s.get_type()
@@ -264,7 +267,13 @@ class SmtQueryBuilder:
 
         header = sorted([get_decl_str(d) for d in final_existentials], key=str)
 
-        all_assertions = "\n".join(assertion_strs)
+        all_assertions_parts = []
+        if toplevel_assertion_strs:
+            all_assertions_parts.append("\n".join(toplevel_assertion_strs))
+            all_assertions_parts.append("")  # Add the empty line here
+        all_assertions_parts.append(main_assertion_str)
+
+        all_assertions = "\n".join(all_assertions_parts)
 
         return "\n".join(header) + f"\n\n{all_assertions}\n\n(check-sat)"
 

@@ -1,7 +1,7 @@
 sym N
 var i
 decl A, B
-(A[1:(N-1)], A[2:N], B[2:N] => A[2:N]) L | for i = 2 to N:
+(A[0], B[0] => A[0]) L | for i = 2 to N:
   (A[i-1], A[i], B[i] => A[i]) comp | op(A[i] = A[i-1] + B[i])
 
 ;
