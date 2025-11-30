@@ -1,0 +1,45 @@
+sym N
+var k, i
+decl r, y, y_temp, alpha, beta
+out y
+
+; Initializations
+; alpha = -r[0]
+(r[0], alpha[0] => alpha[0]) S_init_alpha | op(init_alpha)
+; beta = 1.0
+(beta[0] => beta[0]) S_init_beta | op(init_beta)
+; y[0] = -r[0]
+(r[0], y[0] => y[0]) S_init_y | op(init_y)
+
+; Main loop k from 1 to N-1
+(r[0,0], y[0,0], y_temp[0,0], alpha[0], beta[0] => y[0,0], y_temp[0,0], alpha[0], beta[0]) L_k | for k = 1 to (N-1):
+    
+    ; beta *= 1.0 - alpha * alpha
+    (beta[0], alpha[0] => beta[0]) S_update_beta | op(update_beta)
+    
+    ; alpha = -(r[k] + dot(flip(r[:k]), y[:k])) / beta
+    ; Preparation of alpha calculation
+    (r[k], beta[0], alpha[0] => alpha[0]) S_alpha_prep | op(alpha_prep_rk_beta)
+    
+    ; Loop for dot product contribution to alpha
+    ; alpha += r[k-1-i] * y[i]
+    (r[0,0], y[0,0], alpha[0] => alpha[0]) L_dot | for i = 0 to (k-1):
+        (r[(k-1)-i], y[i], alpha[0] => alpha[0]) S_alpha_accum | op(alpha_accum_dot)
+        
+    ; Finalize alpha
+    (alpha[0], r[k], beta[0] => alpha[0]) S_alpha_finalize | op(alpha_finalize)
+
+
+    ; y[:k] += alpha * flip(y[:k])
+    ; Parallel update requires preserving old y values.
+    ; Copy y[:k] to y_temp[:k]
+    (y[0,0], y_temp[0,0] => y_temp[0,0]) L_copy_y | for i = 0 to (k-1):
+        (y[i], y_temp[i] => y_temp[i]) S_copy_y | op(copy_y_to_temp)
+
+    ; Update y using y_temp for the flipped values
+    ; y[i] += alpha * y_temp[k-1-i]
+    (y[0,0], y_temp[0,0], alpha[0] => y[0,0]) L_y_update | for i = 0 to (k-1):
+        (y[i], y_temp[(k-1)-i], alpha[0] => y[i]) S_y_update | op(y_update_flip)
+
+    ; y[k] = alpha
+    (alpha[0], y[k] => y[k]) S_y_k | op(set_y_k)

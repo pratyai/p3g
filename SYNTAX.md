@@ -59,7 +59,7 @@ decl A, B, C
 ```
 
 #### Symbolic Constant Declarations (`sym`)
-Symbolic constants, such as loop bounds or other parameters, must be declared using the `sym` keyword. These are treated as immutable inputs to the program.
+Symbolic constants, such as loop bounds or other parameters, must be declared using the `sym` keyword. These are treated as immutable inputs to the program. **Note: Symbols should not be included in the read/write access lists of statements.**
 
 **Syntax:**
 ```
@@ -306,7 +306,9 @@ Combining patterns for multi-dimensional arrays, separated by commas.
 - `C[i, j]`
 - `C[i, 0:N]`
 
-
+### Scalars
+Mutable scalar variables (variables that are updated within the program) should be declared as arrays (`decl`) and accessed using the 0-th index `[0]`. This allows the dependency analysis to track reads and writes to the scalar variable.
+- `scalar_var[0]`
 
 ## Expressions
 

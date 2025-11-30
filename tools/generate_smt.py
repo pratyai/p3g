@@ -76,13 +76,20 @@ def main():
 The interactive selection will display a summary of each loop (variable and bounds).
 Defaults to '?'.""",
     )
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        type=int,
+        default=30,
+        help="Solver timeout in seconds. Defaults to 30.",
+    )
     args = parser.parse_args()
 
     # Handle directory input
     if os.path.isdir(args.input):
         import questionary
 
-        pcode_files = list(pathlib.Path(args.input).rglob("*.pcode"))
+        pcode_files = list(pathlib.Path(args.input).glob("*.pcode"))
 
         if not pcode_files:
             print(f"Error: No .pcode files found in '{args.input}'.")
@@ -246,7 +253,7 @@ Defaults to '?'.""",
     print("\n--- Solving Primary Query ---")
     main_result_str = "UNKNOWN"
     try:
-        main_result = solve_smt_string(smt_query, 120)
+        main_result = solve_smt_string(smt_query, args.timeout)
         main_is_sat = main_result.is_sat
         main_result_str = "SAT" if main_is_sat else "UNSAT"
         print(
@@ -265,7 +272,7 @@ Defaults to '?'.""",
         print("\n--- Solving Negated Query ---")
         negated_result_str = "UNKNOWN"
         try:
-            negated_result = solve_smt_string(negated_query, 120)
+            negated_result = solve_smt_string(negated_query, args.timeout)
             negated_is_sat = negated_result.is_sat
             negated_result_str = "SAT" if negated_is_sat else "UNSAT"
             print(

@@ -244,8 +244,9 @@ class SmtQueryBuilder:
         main_formula = simplify(main_formula)
         main_formula = NNFizer().convert(main_formula)
         self._universal_vars.clear()
-        assert main_formula.is_exists()
-        (main_formula,) = main_formula.args()
+        assert main_formula.is_exists() or main_formula.is_false()
+        if main_formula.is_exists():
+            (main_formula,) = main_formula.args()
 
         # Step 2: Collect all free variables for the declaration header
         # To avoid statefulness issues, we use a local set for this build.
