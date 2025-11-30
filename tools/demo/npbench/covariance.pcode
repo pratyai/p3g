@@ -20,6 +20,7 @@ out cov
 ; cov = np.zeros((M, M))
 (cov[0:M-1, 0:M-1] => cov[0:M-1, 0:M-1]) S_cov_init | op(init_cov_zeros)
 
+; MAIN OUTER LOOP
 (data[0,0], cov[0,0], float_n[0] => cov[0,0]) L_cov_i | for i = 0 to M-1:
     ; cov[i, i:M] = data[:, i] @ data[:, i:M] / (float_n - 1)
     (data[0,0], cov[0,0], float_n[0] => cov[0,0]) L_cov_j | for j = i to M-1:

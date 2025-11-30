@@ -14,6 +14,7 @@ out res
 ; --- Part 2: histu ---
 (histu[0:npt-1] => histu[0:npt-1]) S4| op(init)
 
+; MAIN OUTER LOOP
 (radius[0], bin_edges_u[0], histu[0] => histu[0]) L2| for i = 0 to N-1:
     (radius[i], bin_edges_u[0:npt], bin_idx_u[i] => bin_idx_u[i]) S5| op(compute_bin)
     (histu[bin_idx_u[i]] => histu[bin_idx_u[i]]) (S5).S6| op(incr)

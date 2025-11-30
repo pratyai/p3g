@@ -4,6 +4,7 @@ decl alpha, A, B
 out B
 
 ; Nested loops for TRMM computation
+; MAIN OUTER LOOP
 (A[0,0], B[0,0] => B[0,0]) L_i | for i = 0 to M-1:
     (A[0,0], B[0,0] => B[0,0]) L_j | for j = 0 to N-1:
         ; B[i, j] += np.dot(A[i + 1:, i], B[i + 1:, j])

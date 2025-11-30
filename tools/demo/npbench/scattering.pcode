@@ -3,6 +3,7 @@ var k, E, q, w, i, j, a, b
 decl neigh_idx, dH, G, D, Sigma
 out Sigma
 
+; MAIN OUTER LOOP
 (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_k | for k = 0 to Nkz-1:
     (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_E | for E = 0 to NE-1:
         (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_q | for q = 0 to Nqz-1:

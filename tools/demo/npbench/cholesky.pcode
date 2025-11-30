@@ -6,7 +6,7 @@ out A
 ; Initial sqrt
 (A[0,0] => A[0,0]) S_init | op(sqrt_A00)
 
-; Main loop
+; MAIN OUTER LOOP
 (A[0,0] => A[0,0]) L_i | for i = 1 to N-1:
     (A[0,0] => A[0,0]) L_j | for j = 0 to i-1:
         ; A[i, j] -= np.dot(A[i, :j], A[j, :j])

@@ -7,6 +7,7 @@ out table
 (table[0:N-1, 0:N-1] => table[0:N-1, 0:N-1]) S_init_table | op(init_table_zeros)
 
 ; Outer loop for i (descending)
+; MAIN OUTER LOOP
 (table[0,0] => table[0,0]) L_i | for i = N-1 to 0:
     ; Inner loop for j (ascending)
     (table[0,0], seq[0] => table[0,0]) L_j | for j = i+1 to N-1:

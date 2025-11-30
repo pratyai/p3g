@@ -3,7 +3,7 @@ var n, q, y, x
 decl u, v, p, b, un, vn, pn
 out u, v, p
 
-; Main time loop
+; MAIN OUTER LOOP
 (u[0,0], v[0,0], p[0,0] => u[0,0], v[0,0], p[0,0]) L_time| for n = 0 to nt-1:
 
     ; un = u.copy()

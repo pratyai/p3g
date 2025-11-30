@@ -1,9 +1,9 @@
-sym N
+sym N, TSTEPS
 var t, j
-decl u, v, p, q, TSTEPS
+decl u, v, p, q
 out u
 
-; Main time loop
+; MAIN OUTER LOOP
 (u[0,0], v[0,0], p[0,0], q[0,0] => u[0,0], v[0,0], p[0,0], q[0,0]) L_time | for t = 1 to TSTEPS:
 
     ; --- Column sweep ---
@@ -21,21 +21,7 @@ out u
         ; p[1:N-1, j] = ... depends on p[..., j-1]
         (p[1:N-1, j-1], p[1:N-1, j] => p[1:N-1, j]) S_p_calc_col | op(p_calc_col)
 
-        ;
-        ; q[1:N-1, j] = ... depends on u[j, ...], q[..., j-1], p[..., j-1]
-        ; Note: Python code uses u[j, 0:N-2], u[j, 1:N-1], u[j, 2:N] which implies access across rows for a fixed j column sweep?
-        ; Wait, the python code:
-        ; q[1:N-1, j] = (-d * u[j, 0:N-2] + ... ) 
-        ; Let's trace indices carefully.
-        ; LHS: q[row, j] for row in 1..N-2
-        ; RHS terms: u[j, 0:N-2] -> this looks like accessing u at row j, cols 0..N-2.
-        ; But the LHS varies over rows 1..N-1.
-        ; If this is ADI, typically one sweep is over rows, one over cols.
-        ; The Python code `q[1:N-1, j]` implies broadcasting or a loop over rows implicitly?
-        ; `u[j, 0:N-2]` has shape (N-2,). `q[1:N-1, j]` has shape (N-2,).
-        ; So `u[j, :]` is being used to update `q[:, j]`. This seems like a transposition or mixed access.
-        ; Let's represent the dependencies accurately based on ranges.
-        ;
+        ; q[1:N-1, j] = ...
         (u[j, 0:N-2], u[j, 1:N-1], u[j, 2:N], q[1:N-1, j-1], p[1:N-1, j-1], q[1:N-1, j] => q[1:N-1, j]) S_q_calc_col | op(q_calc_col)
 
     ; v[N-1, 1:N-1] = 1.0
@@ -65,9 +51,6 @@ out u
         (p[1:N-1, j-1], p[1:N-1, j] => p[1:N-1, j]) S_p_calc_row | op(p_calc_row)
         
         ; q[1:N-1, j] = ...
-        ; q[1:N-1, j] = (-a * v[0:N-2, j] ... )
-        ; LHS: q[row, j]
-        ; RHS: v[0:N-2, j] -> v[row, j] (aligned)
         (v[0:N-2, j], v[1:N-1, j], v[2:N, j], q[1:N-1, j-1], p[1:N-1, j-1], q[1:N-1, j] => q[1:N-1, j]) S_q_calc_row | op(q_calc_row)
 
     ; u[1:N-1, N-1] = 1.0

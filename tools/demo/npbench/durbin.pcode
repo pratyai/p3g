@@ -11,7 +11,7 @@ out y
 ; y[0] = -r[0]
 (r[0], y[0] => y[0]) S_init_y | op(init_y)
 
-; Main loop k from 1 to N-1
+; MAIN OUTER LOOP
 (r[0,0], y[0,0], y_temp[0,0], alpha[0], beta[0] => y[0,0], y_temp[0,0], alpha[0], beta[0]) L_k | for k = 1 to (N-1):
     
     ; beta *= 1.0 - alpha * alpha

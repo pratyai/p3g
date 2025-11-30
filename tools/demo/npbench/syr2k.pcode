@@ -3,6 +3,7 @@ var i, j, k
 decl C, A, B
 out C
 
+; MAIN OUTER LOOP
 (C[0,0], A[0,0], B[0,0] => C[0,0]) L_i | for i = 0 to N-1:
     ; C[i, :i + 1] *= beta
     (C[i, 0:i] => C[i, 0:i]) L_j_beta | for j = 0 to i:

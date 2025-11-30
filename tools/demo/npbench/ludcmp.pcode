@@ -8,6 +8,7 @@ out x, y
 (y[0:N-1] => y[0:N-1]) S_init_y | op(init_y_zeros)
 
 ; Loop 1: LU decomposition
+; MAIN OUTER LOOP
 (A[0,0] => A[0,0]) L_i_decomp | for i = 0 to N-1:
     (A[0,0] => A[0,0]) L_j_lt_i | for j = 0 to i-1:
         ; A[i, j] -= A[i, :j] @ A[:j, j]

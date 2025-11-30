@@ -3,7 +3,7 @@ var t, i, j
 decl ex, ey, hz, _fict_
 out ex, ey, hz
 
-; Main time loop
+; MAIN OUTER LOOP
 (ex[0,0], ey[0,0], hz[0,0], _fict_[0] => ex[0,0], ey[0,0], hz[0,0]) L_time | for t = 0 to TMAX-1:
 
     ; ey[0, :] = _fict_[t]

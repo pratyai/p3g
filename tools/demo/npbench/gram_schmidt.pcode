@@ -7,12 +7,10 @@ out Q, R
 (Q[0,0] => Q[0,0]) S_init_Q | op(init_Q_zeros)
 (R[0,0] => R[0,0]) S_init_R | op(init_R_zeros)
 
-; Main loop
+; MAIN OUTER LOOP
 (A[0,0], Q[0,0], R[0,0] => Q[0,0], R[0,0]) L_k | for k = 0 to N-1:
 
     ; nrm = np.dot(A[:, k], A[:, k])
-    ; nrm is effectively a temporary used to compute R[k, k]
-    ; We model this as a read from A and a write to R (initially nrm^2)
     (A[0:M-1, k], R[k, k] => R[k, k]) S_nrm_calc | op(calc_nrm_store_R)
     
     ; R[k, k] = np.sqrt(nrm) -> effectively R[k,k] = sqrt(R[k,k])

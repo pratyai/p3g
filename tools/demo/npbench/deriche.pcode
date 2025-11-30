@@ -48,6 +48,7 @@ out imgOut
     (imgIn[i,1], imgIn[i,0], y1[i,0], y1[i,1], a1[0], a2[0], b1[0] => y1[i,1]) S_y1_col1 | op(y1_init_col1)
 
 ; Forward pass
+; MAIN OUTER LOOP
 (imgIn[0,0], y1[0,0], a1[0], a2[0], b1[0], b2[0] => y1[0,0]) L_y1_cols | for j = 2 to (H-1):
     (imgIn[0,0], y1[0,0] => y1[0,0]) L_y1_cols_i | for i = 0 to (W-1):
         (imgIn[i,j], imgIn[i,j-1], y1[i,j-1], y1[i,j-2], y1[i,j], a1[0], a2[0], b1[0], b2[0] => y1[i,j]) S_y1_cols | op(y1_forward_horizontal)
