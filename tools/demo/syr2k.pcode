@@ -1,0 +1,15 @@
+sym N, M, alpha, beta
+var i, j, k
+decl C, A, B
+out C
+
+(C[0,0], A[0,0], B[0,0] => C[0,0]) L_i | for i = 0 to N-1:
+    ; C[i, :i + 1] *= beta
+    (C[i, 0:i] => C[i, 0:i]) L_j_beta | for j = 0 to i:
+        (C[i, j] => C[i, j]) S_beta | op(scale_C_beta)
+
+    ; Inner loop over M
+    (C[0,0], A[0,0], B[0,0] => C[0,0]) L_k | for k = 0 to M-1:
+        ; C[i, :i + 1] += (A[:i + 1, k] * alpha * B[i, k] + B[:i + 1, k] * alpha * A[i, k])
+        (C[i, 0:i], A[0:i, k], B[i, k], B[0:i, k], A[i, k] => C[i, 0:i]) L_j_accum | for j = 0 to i:
+            (C[i, j], A[j, k], B[i, k], B[j, k], A[i, k] => C[i, j]) S_accum | op(accum_C)

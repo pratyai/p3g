@@ -1,0 +1,33 @@
+sym N
+var i0, i1, i2, i3, i4, i5, i6, i7, i8, i9
+decl A
+out A
+
+(A[0] => A[0]) L0 | for i0 = 1 to N:
+  (A[0] => A[0]) L1 | for i1 = 1 to N:
+    (A[i1], A[i0] => A[i1]) S_L1 | op(A[i1] = A[i1] + i0)
+    (A[0] => A[0]) L2 | for i2 = 1 to N:
+      (A[0] => A[0]) L3 | for i3 = 1 to N:
+        (A[0] => A[0]) B_L3 | if i3 > (N // 2):
+          (A[0] => A[0]) L4 | for i4 = 1 to N:
+            (A[0] => A[0]) L5 | for i5 = 1 to N:
+              (A[i5] => A[i5]) S_L5 | op(A[i5] = A[i5] * 2)
+              (A[0] => A[0]) L6 | for i6 = 1 to N:
+                (A[0] => A[0]) L7 | for i7 = 1 to N:
+                  (A[0] => A[0]) B_L7 | if i7 < i0:
+                    (A[0] => A[0]) L8 | for i8 = 1 to N:
+                      (A[0] => A[0]) L9 | for i9 = 1 to N:
+                        (A[0] => A[0]) B1 | if ((((i0 + i1) + (i2 + i3)) + ((i4 + i5) + (i6 + i7))) + (i8 + i9)) > (N * 5):
+                          (A[i9-1], A[i9] => A[i9]) S1 | op(A[i9] = A[i9-1] + 1)
+                        else:
+                          (A[i9-2], A[i9-1], A[i9] => A[i9]) S2 | op(A[i9] = A[i9] + A[i9-1] + A[i9-1] + 1)
+                  else:
+                    (A[i7] => A[i7]) S_L7_Else | op(A[i7] = 0)
+        else:
+          (A[i3] => A[i3]) S_L3_Else | op(A[i3] = 1)
+
+;
+; This example demonstrates a deeply nested loop (depth 10) with interleaved operations and branches.
+; It includes operations at levels 1 and 5, and branches at levels 3 and 7, in addition to the
+; deep inner logic. This tests the parser's handling of mixed control flow and nesting.
+;

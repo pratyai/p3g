@@ -1,0 +1,15 @@
+sym NA, NB, Nkz, NE, Nqz, Nw, Norb, N3D
+var k, E, q, w, i, j, a, b
+decl neigh_idx, dH, G, D, Sigma
+out Sigma
+
+(Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_k | for k = 0 to Nkz-1:
+    (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_E | for E = 0 to NE-1:
+        (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_q | for q = 0 to Nqz-1:
+            (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_w | for w = 0 to Nw-1:
+                (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_i | for i = 0 to N3D-1:
+                    (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_j | for j = 0 to N3D-1:
+                        (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_a | for a = 0 to NA-1:
+                            (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) L_b | for b = 0 to NB-1:
+                                (Sigma[0], G[0], dH[0], D[0], neigh_idx[0] => Sigma[0]) B_cond | if (E - w) >= 0:
+                                    (Sigma[k, E, a, 0:Norb-1, 0:Norb-1], G[k, E-w, neigh_idx[a, b], 0:Norb-1, 0:Norb-1], neigh_idx[a, b], dH[a, b, i, 0:Norb-1, 0:Norb-1], dH[a, b, j, 0:Norb-1, 0:Norb-1], D[q, w, a, b, i, j] => Sigma[k, E, a, 0:Norb-1, 0:Norb-1]) S_comp | op(Sigma incr G mul dH mul dH times D)

@@ -1,0 +1,81 @@
+sym N
+var t, j
+decl u, v, p, q, TSTEPS
+out u
+
+; Main time loop
+(u[0,0], v[0,0], p[0,0], q[0,0] => u[0,0], v[0,0], p[0,0], q[0,0]) L_time | for t = 1 to TSTEPS:
+
+    ; --- Column sweep ---
+    ; v[0, 1:N-1] = 1.0
+    (v[0, 1:N-1] => v[0, 1:N-1]) S_v_init_col | op(v_init_col)
+    
+    ; p[1:N-1, 0] = 0.0
+    (p[1:N-1, 0] => p[1:N-1, 0]) S_p_init_col | op(p_init_col)
+    
+    ; q[1:N-1, 0] = v[0, 1:N-1]
+    (v[0, 1:N-1], q[1:N-1, 0] => q[1:N-1, 0]) S_q_init_col | op(q_init_col)
+    
+    ; Forward substitution (Column)
+    (u[0,0], p[0,0], q[0,0] => p[0,0], q[0,0]) L_j_fwd_col | for j = 1 to N-2:
+        ; p[1:N-1, j] = ... depends on p[..., j-1]
+        (p[1:N-1, j-1], p[1:N-1, j] => p[1:N-1, j]) S_p_calc_col | op(p_calc_col)
+
+        ;
+        ; q[1:N-1, j] = ... depends on u[j, ...], q[..., j-1], p[..., j-1]
+        ; Note: Python code uses u[j, 0:N-2], u[j, 1:N-1], u[j, 2:N] which implies access across rows for a fixed j column sweep?
+        ; Wait, the python code:
+        ; q[1:N-1, j] = (-d * u[j, 0:N-2] + ... ) 
+        ; Let's trace indices carefully.
+        ; LHS: q[row, j] for row in 1..N-2
+        ; RHS terms: u[j, 0:N-2] -> this looks like accessing u at row j, cols 0..N-2.
+        ; But the LHS varies over rows 1..N-1.
+        ; If this is ADI, typically one sweep is over rows, one over cols.
+        ; The Python code `q[1:N-1, j]` implies broadcasting or a loop over rows implicitly?
+        ; `u[j, 0:N-2]` has shape (N-2,). `q[1:N-1, j]` has shape (N-2,).
+        ; So `u[j, :]` is being used to update `q[:, j]`. This seems like a transposition or mixed access.
+        ; Let's represent the dependencies accurately based on ranges.
+        ;
+        (u[j, 0:N-2], u[j, 1:N-1], u[j, 2:N], q[1:N-1, j-1], p[1:N-1, j-1], q[1:N-1, j] => q[1:N-1, j]) S_q_calc_col | op(q_calc_col)
+
+    ; v[N-1, 1:N-1] = 1.0
+    (v[N-1, 1:N-1] => v[N-1, 1:N-1]) S_v_end_col | op(v_end_col)
+    
+    ; Backward substitution (Column)
+    (v[0,0], p[0,0], q[0,0] => v[0,0]) L_j_bwd_col | for j = N-2 to 1:
+         ; v[j, 1:N-1] = p[1:N-1, j] * v[j+1, 1:N-1] + q[1:N-1, j]
+         ; LHS: v[j, row] for row in 1..N-2
+         ; RHS: p[row, j], v[j+1, row], q[row, j]
+         (p[1:N-1, j], v[j+1, 1:N-1], q[1:N-1, j], v[j, 1:N-1] => v[j, 1:N-1]) S_v_calc_col | op(v_calc_col)
+
+
+    ; --- Row sweep ---
+    ; u[1:N-1, 0] = 1.0
+    (u[1:N-1, 0] => u[1:N-1, 0]) S_u_init_row | op(u_init_row)
+    
+    ; p[1:N-1, 0] = 0.0
+    (p[1:N-1, 0] => p[1:N-1, 0]) S_p_init_row | op(p_init_row)
+    
+    ; q[1:N-1, 0] = u[1:N-1, 0]
+    (u[1:N-1, 0], q[1:N-1, 0] => q[1:N-1, 0]) S_q_init_row | op(q_init_row)
+
+    ; Forward substitution (Row)
+    (v[0,0], p[0,0], q[0,0] => p[0,0], q[0,0]) L_j_fwd_row | for j = 1 to N-2:
+        ; p[1:N-1, j] = ...
+        (p[1:N-1, j-1], p[1:N-1, j] => p[1:N-1, j]) S_p_calc_row | op(p_calc_row)
+        
+        ; q[1:N-1, j] = ...
+        ; q[1:N-1, j] = (-a * v[0:N-2, j] ... )
+        ; LHS: q[row, j]
+        ; RHS: v[0:N-2, j] -> v[row, j] (aligned)
+        (v[0:N-2, j], v[1:N-1, j], v[2:N, j], q[1:N-1, j-1], p[1:N-1, j-1], q[1:N-1, j] => q[1:N-1, j]) S_q_calc_row | op(q_calc_row)
+
+    ; u[1:N-1, N-1] = 1.0
+    (u[1:N-1, N-1] => u[1:N-1, N-1]) S_u_end_row | op(u_end_row)
+    
+    ; Backward substitution (Row)
+    (u[0,0], p[0,0], q[0,0] => u[0,0]) L_j_bwd_row | for j = N-2 to 1:
+        ; u[1:N-1, j] = p[1:N-1, j] * u[1:N-1, j+1] + q[1:N-1, j]
+        ; LHS: u[row, j]
+        ; RHS: p[row, j], u[row, j+1], q[row, j]
+        (p[1:N-1, j], u[1:N-1, j+1], q[1:N-1, j], u[1:N-1, j] => u[1:N-1, j]) S_u_calc_row | op(u_calc_row)

@@ -1,0 +1,26 @@
+sym TMAX, NX, NY
+var t, i, j
+decl ex, ey, hz, _fict_
+out ex, ey, hz
+
+; Main time loop
+(ex[0,0], ey[0,0], hz[0,0], _fict_[0] => ex[0,0], ey[0,0], hz[0,0]) L_time | for t = 0 to TMAX-1:
+
+    ; ey[0, :] = _fict_[t]
+    (_fict_[t], ey[0, 0:NY-1] => ey[0, 0:NY-1]) L_ey_bc | for j = 0 to NY-1:
+        (_fict_[t], ey[0, j] => ey[0, j]) S_ey_bc | op(ey_bc_update)
+
+    ; ey[1:, :] -= 0.5 * (hz[1:, :] - hz[:-1, :])
+    (ey[0,0], hz[0,0] => ey[0,0]) L_ey_update_i | for i = 1 to NX-1:
+        (ey[0,0], hz[0,0] => ey[0,0]) L_ey_update_j | for j = 0 to NY-1:
+            (ey[i, j], hz[i, j], hz[i-1, j] => ey[i, j]) S_ey_update | op(ey_update)
+
+    ; ex[:, 1:] -= 0.5 * (hz[:, 1:] - hz[:, :-1])
+    (ex[0,0], hz[0,0] => ex[0,0]) L_ex_update_i | for i = 0 to NX-1:
+        (ex[0,0], hz[0,0] => ex[0,0]) L_ex_update_j | for j = 1 to NY-1:
+            (ex[i, j], hz[i, j], hz[i, j-1] => ex[i, j]) S_ex_update | op(ex_update)
+
+    ; hz[:-1, :-1] -= 0.7 * (ex[:-1, 1:] - ex[:-1, :-1] + ey[1:, :-1] - ey[:-1, :-1])
+    (hz[0,0], ex[0,0], ey[0,0] => hz[0,0]) L_hz_update_i | for i = 0 to NX-2:
+        (hz[0,0], ex[0,0], ey[0,0] => hz[0,0]) L_hz_update_j | for j = 0 to NY-2:
+            (hz[i, j], ex[i, j+1], ex[i, j], ey[i+1, j], ey[i, j] => hz[i, j]) S_hz_update | op(hz_update)

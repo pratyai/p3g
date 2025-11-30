@@ -1,0 +1,31 @@
+sym M, N
+var i, j, k
+decl data, mean, cov, float_n
+out cov
+
+; 1. Calculate mean
+; mean = np.mean(data, axis=0) -> mean[j] for j in 0..M-1
+(mean[0:M-1] => mean[0:M-1]) S_mean_init | op(init_mean)
+(data[0,0], mean[0] => mean[0]) L_mean_j | for j = 0 to M-1:
+    (data[0:N-1, j], mean[j] => mean[j]) S_mean_accum | op(mean_accum)
+    (mean[j] => mean[j]) S_mean_div | op(mean_div)
+
+; 2. Center data
+; data -= mean
+(data[0,0], mean[0] => data[0,0]) L_center_i | for i = 0 to N-1:
+    (data[0,0], mean[0] => data[0,0]) L_center_j | for j = 0 to M-1:
+        (data[i,j], mean[j] => data[i,j]) S_sub_mean | op(data_sub_mean)
+
+; 3. Calculate covariance
+; cov = np.zeros((M, M))
+(cov[0:M-1, 0:M-1] => cov[0:M-1, 0:M-1]) S_cov_init | op(init_cov_zeros)
+
+(data[0,0], cov[0,0], float_n[0] => cov[0,0]) L_cov_i | for i = 0 to M-1:
+    ; cov[i, i:M] = data[:, i] @ data[:, i:M] / (float_n - 1)
+    (data[0,0], cov[0,0], float_n[0] => cov[0,0]) L_cov_j | for j = i to M-1:
+        ; Dot product: sum(data[k, i] * data[k, j] for k in 0..N-1)
+        (data[0:N-1, i], data[0:N-1, j], float_n[0], cov[i,j] => cov[i,j]) S_cov_calc | op(calc_covariance)
+        
+        ; Symmetry
+        ; cov[i:M, i] = cov[i, i:M] -> cov[j, i] = cov[i, j]
+        (cov[i,j], cov[j,i] => cov[j,i]) S_cov_sym | op(set_symmetric)

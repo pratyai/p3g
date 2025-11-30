@@ -1,0 +1,88 @@
+sym nx, ny, nt, nit
+var n, q, y, x
+decl u, v, p, b, un, vn, pn
+out u, v, p
+
+; Main time loop
+(u[0,0], v[0,0], p[0,0] => u[0,0], v[0,0], p[0,0]) L_time| for n = 0 to nt-1:
+
+    ; un = u.copy()
+    (u[0,0], un[0,0] => un[0,0]) L_copy_u| for y = 0 to ny-1:
+        (u[0,0], un[0,0] => un[0,0]) L_copy_u_inner| for x = 0 to nx-1:
+            (u[y, x], un[y, x] => un[y, x]) S_copy_u| op(copy)
+
+    ; vn = v.copy()
+    (v[0,0], vn[0,0] => vn[0,0]) L_copy_v| for y = 0 to ny-1:
+        (v[0,0], vn[0,0] => vn[0,0]) L_copy_v_inner| for x = 0 to nx-1:
+            (v[y, x], vn[y, x] => vn[y, x]) S_copy_v| op(copy)
+
+    ; build_up_b
+    (u[0,0], v[0,0], b[0,0] => b[0,0]) L_build_b| for y = 1 to ny-2:
+        (u[0,0], v[0,0], b[0,0] => b[0,0]) L_build_b_inner| for x = 1 to nx-2:
+            (u[y, x+1], u[y, x-1], u[y+1, x], u[y-1, x], v[y, x+1], v[y, x-1], v[y+1, x], v[y-1, x], b[y, x] => b[y, x]) S_calc_b| op(build_b)
+
+    ; pressure_poisson
+    (p[0,0], b[0,0], pn[0,0] => p[0,0], pn[0,0]) L_poisson| for q = 0 to nit-1:
+        ; pn = p.copy()
+        (p[0,0], pn[0,0] => pn[0,0]) L_copy_p| for y = 0 to ny-1:
+            (p[0,0], pn[0,0] => pn[0,0]) L_copy_p_inner| for x = 0 to nx-1:
+                (p[y, x], pn[y, x] => pn[y, x]) S_copy_p| op(copy)
+        
+        ; p update
+        (pn[0,0], b[0,0], p[0,0] => p[0,0]) L_update_p| for y = 1 to ny-2:
+            (pn[0,0], b[0,0], p[0,0] => p[0,0]) L_update_p_inner| for x = 1 to nx-2:
+                (pn[y, x+1], pn[y, x-1], pn[y+1, x], pn[y-1, x], b[y, x], p[y, x] => p[y, x]) S_calc_p| op(poisson_step)
+
+        ; BCs
+        ; p[:, -1] = p[:, -2]
+        (p[0,0] => p[0,0]) L_bc_p_right| for y = 0 to ny-1:
+            (p[y, nx-2], p[y, nx-1] => p[y, nx-1]) S_bc_p_right| op(bc_copy)
+
+        ; p[0, :] = p[1, :]
+        (p[0,0] => p[0,0]) L_bc_p_bottom| for x = 0 to nx-1:
+            (p[1, x], p[0, x] => p[0, x]) S_bc_p_bottom| op(bc_copy)
+            
+        ; p[:, 0] = p[:, 1]
+        (p[0,0] => p[0,0]) L_bc_p_left| for y = 0 to ny-1:
+            (p[y, 1], p[y, 0] => p[y, 0]) S_bc_p_left| op(bc_copy)
+            
+        ; p[-1, :] = 0
+        (p[0,0] => p[0,0]) L_bc_p_top| for x = 0 to nx-1:
+            (p[ny-1, x] => p[ny-1, x]) S_bc_p_top| op(bc_zero)
+
+    ; Update u
+    (un[0,0], vn[0,0], p[0,0], u[0,0] => u[0,0]) L_update_u| for y = 1 to ny-2:
+        (un[0,0], vn[0,0], p[0,0], u[0,0] => u[0,0]) L_update_u_inner| for x = 1 to nx-2:
+             (un[y, x], un[y, x+1], un[y, x-1], un[y+1, x], un[y-1, x], vn[y, x], p[y, x+1], p[y, x-1], u[y, x] => u[y, x]) S_calc_u| op(update_u)
+
+    ; Update v
+    (un[0,0], vn[0,0], p[0,0], v[0,0] => v[0,0]) L_update_v| for y = 1 to ny-2:
+        (un[0,0], vn[0,0], p[0,0], v[0,0] => v[0,0]) L_update_v_inner| for x = 1 to nx-2:
+             (vn[y, x], vn[y, x+1], vn[y, x-1], vn[y+1, x], vn[y-1, x], un[y, x], p[y+1, x], p[y-1, x], v[y, x] => v[y, x]) S_calc_v| op(update_v)
+
+    ; Velocity BCs
+    ; u[0, :] = 0
+    (u[0,0] => u[0,0]) L_bc_u_bot| for x = 0 to nx-1:
+        (u[0, x] => u[0, x]) S_bc_u_bot| op(zero)
+    ; u[:, 0] = 0
+    (u[0,0] => u[0,0]) L_bc_u_left| for y = 0 to ny-1:
+        (u[y, 0] => u[y, 0]) S_bc_u_left| op(zero)
+    ; u[:, -1] = 0
+    (u[0,0] => u[0,0]) L_bc_u_right| for y = 0 to ny-1:
+        (u[y, nx-1] => u[y, nx-1]) S_bc_u_right| op(zero)
+    ; u[-1, :] = 1
+    (u[0,0] => u[0,0]) L_bc_u_top| for x = 0 to nx-1:
+        (u[ny-1, x] => u[ny-1, x]) S_bc_u_top| op(one)
+
+    ; v[0, :] = 0
+    (v[0,0] => v[0,0]) L_bc_v_bot| for x = 0 to nx-1:
+        (v[0, x] => v[0, x]) S_bc_v_bot| op(zero)
+    ; v[-1, :] = 0
+    (v[0,0] => v[0,0]) L_bc_v_top| for x = 0 to nx-1:
+        (v[ny-1, x] => v[ny-1, x]) S_bc_v_top| op(zero)
+    ; v[:, 0] = 0
+    (v[0,0] => v[0,0]) L_bc_v_left| for y = 0 to ny-1:
+        (v[y, 0] => v[y, 0]) S_bc_v_left| op(zero)
+    ; v[:, -1] = 0
+    (v[0,0] => v[0,0]) L_bc_v_right| for y = 0 to ny-1:
+        (v[y, nx-1] => v[y, nx-1]) S_bc_v_right| op(zero)

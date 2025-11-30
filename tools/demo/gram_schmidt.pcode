@@ -1,0 +1,32 @@
+sym M, N, S
+var k, j, m
+decl A, Q, R
+out Q, R
+
+; Initializations
+(Q[0,0] => Q[0,0]) S_init_Q | op(init_Q_zeros)
+(R[0,0] => R[0,0]) S_init_R | op(init_R_zeros)
+
+; Main loop
+(A[0,0], Q[0,0], R[0,0] => Q[0,0], R[0,0]) L_k | for k = 0 to N-1:
+
+    ; nrm = np.dot(A[:, k], A[:, k])
+    ; nrm is effectively a temporary used to compute R[k, k]
+    ; We model this as a read from A and a write to R (initially nrm^2)
+    (A[0:M-1, k], R[k, k] => R[k, k]) S_nrm_calc | op(calc_nrm_store_R)
+    
+    ; R[k, k] = np.sqrt(nrm) -> effectively R[k,k] = sqrt(R[k,k])
+    (R[k,k] => R[k,k]) S_Rkk_sqrt | op(Rkk_sqrt_nrm)
+    
+    ; Q[:, k] = A[:, k] / R[k, k]
+    (A[0,0], R[0,0], Q[0,0] => Q[0,0]) L_Q_update_m | for m = 0 to M-1:
+        (A[m,k], R[k,k], Q[m,k] => Q[m,k]) S_Q_update | op(Q_div)
+
+    ; Inner loop for j
+    (A[0,0], Q[0,0], R[0,0] => A[0,0], R[0,0]) L_j | for j = k+1 to N-1:
+        ; R[k, j] = np.dot(Q[:, k], A[:, j])
+        (Q[0:M-1,k], A[0:M-1,j], R[k,j] => R[k,j]) S_Rkj_dot | op(Rkj_dot_product)
+        
+        ; A[:, j] -= Q[:, k] * R[k, j]
+        (A[0,0], Q[0,0], R[0,0] => A[0,0]) L_A_update_m | for m = 0 to M-1:
+            (A[m,j], Q[m,k], R[k,j] => A[m,j]) S_A_update | op(A_sub_mul)

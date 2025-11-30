@@ -1,0 +1,9 @@
+sym N
+var i
+decl L, x, b
+out x
+
+; Loop for solving triangular system
+(x[0], L[0,0], b[0] => x[0]) L_i | for i = 0 to N-1:
+    ; x[i] = (b[i] - L[i, :i] @ x[:i]) / L[i, i]
+    (b[i], L[i,0:i-1], x[0:i-1], L[i,i], x[i] => x[i]) S_solve | op(solve_triangular_system)

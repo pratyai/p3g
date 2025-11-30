@@ -1,0 +1,38 @@
+decl data, radius, bin_edges_u, histu, bin_edges_w, histw, res, amin_u, amax_u, bin_idx_u, amin_w, amax_w, bin_idx_w
+sym N, npt
+var i, k
+out res
+
+; --- Part 1: bin_edges_u ---
+(radius[0:N-1], amin_u[0], amax_u[0] => amin_u[0], amax_u[0]) S1| op(minmax)
+
+(amin_u[0], amax_u[0], bin_edges_u[0] => bin_edges_u[0]) L1| for k = 0 to npt-1:
+    (amin_u[0], amax_u[0], bin_edges_u[k] => bin_edges_u[k]) S2| op(calc_edge)
+
+(amax_u[0], bin_edges_u[npt] => bin_edges_u[npt]) S3| op(last_edge)
+
+; --- Part 2: histu ---
+(histu[0:npt-1] => histu[0:npt-1]) S4| op(init)
+
+(radius[0], bin_edges_u[0], histu[0] => histu[0]) L2| for i = 0 to N-1:
+    (radius[i], bin_edges_u[0:npt], bin_idx_u[i] => bin_idx_u[i]) S5| op(compute_bin)
+    (histu[bin_idx_u[i]] => histu[bin_idx_u[i]]) (S5).S6| op(incr)
+
+; --- Part 3: bin_edges_w ---
+(radius[0:N-1], amin_w[0], amax_w[0] => amin_w[0], amax_w[0]) S7| op(minmax)
+
+(amin_w[0], amax_w[0], bin_edges_w[0] => bin_edges_w[0]) L3| for k = 0 to npt-1:
+    (amin_w[0], amax_w[0], bin_edges_w[k] => bin_edges_w[k]) S8| op(calc_edge)
+
+(amax_w[0], bin_edges_w[npt] => bin_edges_w[npt]) S9| op(last_edge)
+
+; --- Part 4: histw ---
+(histw[0:npt-1] => histw[0:npt-1]) S10| op(init)
+
+(radius[0], bin_edges_w[0], data[0], histw[0] => histw[0]) L4| for i = 0 to N-1:
+    (radius[i], bin_edges_w[0:npt], bin_idx_w[i] => bin_idx_w[i]) S11| op(compute_bin)
+    (histw[bin_idx_w[i]], data[i] => histw[bin_idx_w[i]]) (S11).S12| op(accumulate)
+
+; --- Part 5: Division ---
+(histw[0], histu[0], res[0] => res[0]) L5| for k = 0 to npt-1:
+    (histw[k], histu[k], res[k] => res[k]) S13| op(div)
