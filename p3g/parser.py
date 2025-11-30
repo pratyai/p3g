@@ -26,6 +26,7 @@ from pysmt.shortcuts import (
     Symbol,
     get_env,
     Bool,
+    Pow,
 )
 
 from p3g.graph import (
@@ -151,6 +152,7 @@ class PseudocodeParser:
             ("IDIV", r"//"),
             ("MOD", r"%"),
             ("DIVIDE", r"/"),
+            ("POWER", r"\^"),
             ("COMMA", r","),
             ("DOT", r"\."),
             ("BANG", r"!"),
@@ -174,6 +176,7 @@ class PseudocodeParser:
             "DIVIDE": Div,
             "IDIV": Div,
             "MOD": lambda x, y: x % y,  # Z3/PySMT does not have explicit Mod operator.
+            "POWER": Pow,
             "GT": GT,
             "LT": LT,
             "GE": GE,
@@ -755,7 +758,10 @@ class PseudocodeParser:
                 "PLUS",
                 "MINUS",
                 "TIMES",
+                "DIVIDE",
+                "IDIV",
                 "SELECT",
+                "POWER",
             ]:
                 formula, reads = self._parse_prefix_logical_or_comparison_operator()
             elif operator_token_type == "LPAREN":
@@ -833,6 +839,9 @@ class PseudocodeParser:
                 "PLUS",
                 "MINUS",
                 "TIMES",
+                "DIVIDE",
+                "IDIV",
+                "POWER",
                 "SELECT",
             ]
         ).type
@@ -866,6 +875,16 @@ class PseudocodeParser:
             if len(args) != 2:
                 raise ValueError("Times operator expects exactly two arguments.")
             return Times(*args), all_reads
+        elif op_token_type == "POWER":
+            if len(args) != 2:
+                raise ValueError("Power operator expects exactly two arguments.")
+            return Pow(*args), all_reads
+        elif op_token_type == "DIVIDE" or op_token_type == "IDIV":
+            if len(args) != 2:
+                raise ValueError(
+                    f"{op_token_type} operator expects exactly two arguments."
+                )
+            return Div(*args), all_reads
         elif op_token_type == "SELECT":
             if len(args) != 2:
                 raise ValueError(
@@ -894,9 +913,9 @@ class PseudocodeParser:
         return formula, reads
 
     def _parse_term(self) -> tuple[PysmtFormula, list]:
-        """Parses a term: factor (TIMES factor)*"""
+        """Parses a term: factor (TIMES|DIVIDE|IDIV|MOD|POWER factor)*"""
         formula, reads = self._parse_factor()
-        while self._peek().type in ["TIMES", "DIVIDE", "IDIV", "MOD"]:
+        while self._peek().type in ["TIMES", "DIVIDE", "IDIV", "MOD", "POWER"]:
             op = self._consume().type
             rhs_formula, rhs_reads = self._parse_factor()
             reads.extend(rhs_reads)
@@ -908,6 +927,8 @@ class PseudocodeParser:
                 formula = Div(formula, rhs_formula)
             elif op == "MOD":
                 formula = get_env().formula_manager.Mod(formula, rhs_formula)
+            elif op == "POWER":
+                formula = Pow(formula, rhs_formula)
         return formula, reads
 
     def _parse_factor(self) -> tuple[PysmtFormula, list]:
@@ -1017,16 +1038,36 @@ class PseudocodeParser:
         coord = indices[0] if len(indices) == 1 else PysmtCoordSet(*indices)
         reads.insert(0, (data_node, coord))
 
-        # For formula generation, only single-dim access is supported for now
-        if len(indices) > 1:
-            raise NotImplementedError(
-                "Multi-dim access in expressions not supported for formula generation."
-            )
-
         array_sym = self._get_symbol(f"{name}_val")
-        formula = Select(array_sym, indices[0])
+
+        # For formula generation, only single-dim access is supported for now
+        if len(indices) == 1:
+            formula = Select(array_sym, indices[0])
+        else:
+            # Multi-dimensional access: Linearize symbolically
+            # idx = indices[0]*w0 + indices[1]*w1 + ... + indices[n-1]*wn-1 + indices[n]
+            terms = []
+            for i, idx_expr in enumerate(indices):
+                if i == len(indices) - 1:
+                    terms.append(idx_expr)  # Stride 1 for last dimension
+                else:
+                    stride_sym = self._get_stride_symbol(name, i)
+                    terms.append(Times(idx_expr, stride_sym))
+
+            formula = Select(array_sym, Plus(*terms))
 
         return formula, reads
+
+    def _get_stride_symbol(self, array_name: str, dim: int) -> PysmtFormula:
+        """Gets or creates a symbolic stride for a given array dimension."""
+        sym_name = f"_stride_{array_name}_{dim}"
+        if sym_name in self.known_symbols:
+            return self.known_symbols[sym_name]
+
+        # Create new symbol
+        sym = self.builder.add_symbol(sym_name, INT)
+        self.known_symbols[sym_name] = sym
+        return sym
 
     # --- Helpers ---
 

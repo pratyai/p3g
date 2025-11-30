@@ -153,7 +153,7 @@ The core of the language is its unique statement syntax, which explicitly annota
 
 **General Form:**
 ```
-(<reads>) => (<writes>) (<source_states>).<statement_name>| <statement_body>
+(<reads> => <writes>) (<source_states>).<statement_name>| <statement_body>
 ```
 
 Let's break this down:
@@ -164,7 +164,10 @@ The access annotation specifies the data read and written by a statement within 
 
 -   `<reads_list>`: A comma-separated list of arrays and their accessed subsets that the statement reads from.
 -   `=>`: An arrow separating the read list from the write list.
--   `<writes_list>`: A comma-separated list of arrays and their accessed subsets that the statement writes to.
+-   `<writes_list>`: A comma-separated list of arrays and their accessed subsets that the statement writes to. **Any array appearing in the write list must also appear in the read list**, representing the consumption of the array's previous state.
+
+**Convention for Structure Nodes:**
+For structure nodes (loops and conditionals), it is conventional to list the involved arrays using the 0-th element subscript (e.g., `(A[0] => A[0])`) rather than specifying the full range. This serves as a placeholder to indicate which arrays are involved in the structure.
 
 **Example:**
 ```pcode
@@ -198,14 +201,14 @@ Represents a generic, atomic computation. The details of the computation are con
 
 **Syntax:**
 ```
-(<reads>) => (<writes>) S1| op(description)
+(<reads> => <writes>) S1| op(description)
 ```
 
 **Example:**
 ```pcode
 decl A, B
 
-(A[i-1], B[i]) => (A[i]) S1| op(add)
+(A[i-1], B[i] => A[i]) S1| op(add)
 ```
 
 ### Sequential Loop (`for`)
@@ -214,7 +217,7 @@ Represents a sequential `for` loop. The loop body is an indented block of furthe
 
 **Syntax:**
 ```
-(<reads>) => (<writes>) L1| for <var> = <start> to <end>:
+(<reads> => <writes>) L1| for <var> = <start> to <end>:
     <indented_block_of_statements>
 ```
 - `<var>`: The loop iteration variable.
@@ -224,8 +227,8 @@ Represents a sequential `for` loop. The loop body is an indented block of furthe
 ```pcode
 decl A, B
 
-(A[0:N-1], B[1:N]) => (A[1:N]) L1| for i = 1 to N:
-    (A[i-1], B[i]) => (A[i]) S1| op(add)
+(A[0:N-1], B[1:N] => A[1:N]) L1| for i = 1 to N:
+    (A[i-1], B[i] => A[i]) S1| op(add)
 ```
 Here, the loop `L1` as a whole reads from `A[0:N-1]` and `B[1:N]` and writes to `A[1:N]`. The statement `S1` inside the loop specifies the access for a single iteration.
 
@@ -235,7 +238,7 @@ Represents a conditional branch.
 
 **Syntax:**
 ```
-(<reads>) => (<writes>) B1| if <condition>:
+(<reads> => <writes>) B1| if <condition>:
     <indented_if_block>
 else:
     <indented_else_block>
@@ -246,8 +249,8 @@ else:
 ```pcode
 decl A, B
 
-(A[0:N-1], B[1:N]) => (A[1:N]) B1| if B[i] > 0 and not (A[i] = B[i]):
-    (A[i-1]) => (A[i]) S2| op(copy)
+(A[0:N-1], B[1:N] => A[1:N]) B1| if B[i] > 0 and not (A[i] = B[i]):
+    (A[i-1] => A[i]) S2| op(copy)
 ```
 
 ### Assertion (`!`)
@@ -326,7 +329,7 @@ A simple sequential loop where each element depends on the previous one.
 decl A, B
 out A
 
-(A[0:N-1], B[1:N]) => (A[1:N]) L1| for i = 1 to N:
+(A[0:N-1], B[1:N] => A[1:N]) L1| for i = 1 to N:
     () => () S1| op(some_op)
 ```
 _Note: In this simplified example, we omit the inner statement's accesses, assuming they are inferred._
@@ -338,9 +341,9 @@ A loop where a write only occurs if a condition is met.
 decl A, B
 out A
 
-(A[0:N-1], B[1:N]) => (A[1:N]) L1| for i = 1 to N:
-    (B[i]) => () B1| if B[i] > 0:
-        (A[i-1]) => (A[i]) S1| op(copy)
+(A[0:N-1], B[1:N] => A[1:N]) L1| for i = 1 to N:
+    (B[i] =>) B1| if B[i] > 0:
+        (A[i-1] => A[i]) S1| op(copy)
 ```
 - The `if` statement `B1` only *reads* `B[i]` to evaluate its condition.
 - The `op` statement `S1` only executes if the branch is taken.
@@ -352,8 +355,8 @@ Two sequential operations where the second (`S2`) explicitly depends on the data
 decl A, B, C
 out C
 
-(A[0:N]) => (B[0:N]) S1| op(step1)
+(A[0:N], B[0:N] => B[0:N]) S1| op(step1)
 
-(B[0:N]) => (C[0:N]) (S1).S2| op(step2)
+(B[0:N], C[0:N] => C[0:N]) (S1).S2| op(step2)
 ```
 - `S2` reads the version of `B` that was written by `S1`.

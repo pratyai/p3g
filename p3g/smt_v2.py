@@ -12,6 +12,7 @@ import io
 import itertools
 from collections import namedtuple
 
+from pysmt.rewritings import NNFizer
 from pysmt.shortcuts import (
     Symbol,
     Equals,
@@ -23,6 +24,7 @@ from pysmt.shortcuts import (
     LE,
     Exists,
     ForAll,
+    Implies,
     get_free_variables,
     substitute,
     TRUE,
@@ -32,7 +34,6 @@ from pysmt.shortcuts import (
 )
 from pysmt.smtlib.printers import SmtPrinter
 from pysmt.typing import INT
-from pysmt.rewritings import NNFizer, PrenexNormalizer
 
 from p3g.graph import Graph, Loop, Data, Compute, Branch
 from p3g.subsets import (
@@ -49,7 +50,8 @@ ComputeItem = namedtuple("ComputeItem", ["path_cond", "compute_node", "loops"])
 class SmtQueryBuilder:
     """A structured builder for the specific SMT query pattern needed."""
 
-    def __init__(self):
+    def __init__(self, logic: str | None = None):
+        self.logic = logic
         self._universal_vars: set[PysmtSymbol] = set()
         self._existential_vars: set[PysmtSymbol] = set()
         self._antecedent_clauses: list[PysmtFormula] = []
@@ -134,6 +136,8 @@ class SmtQueryBuilder:
     def build_query(self) -> str:
         """Assembles and returns the final SMT-LIB query string with pretty-printing."""
         # Step 1: Build the main formula object
+        # We simplify components first, but assume Implies structure is desired for output
+        # (especially for CHC/Horn clauses where '=>' is standard).
         antecedent = (
             And(self._antecedent_clauses) if self._antecedent_clauses else TRUE()
         )
@@ -141,16 +145,22 @@ class SmtQueryBuilder:
             Or(self._consequent_clauses) if self._consequent_clauses else FALSE()
         )
 
+        ant_simp = simplify(antecedent)
+        cons_simp = simplify(consequent)
+
+        # Filter universals to only those actually used in the simplified formula
+        used_vars = get_free_variables(ant_simp) | get_free_variables(cons_simp)
         sorted_universals = sorted(
-            list(self._universal_vars), key=lambda s: s.symbol_name()
+            [v for v in self._universal_vars if v in used_vars],
+            key=lambda s: s.symbol_name(),
         )
 
-        main_formula = ForAll(sorted_universals, Or(Not(antecedent), consequent))
-        main_formula = simplify(main_formula)
-        # main_formula = NNFizer().convert(main_formula)
-        # main_formula = simplify(main_formula)
-        # main_formula = PrenexNormalizer().normalize(main_formula)
-        # main_formula = simplify(main_formula)
+        # Construct Implies. Note: We do NOT call simplify() on the final structure
+        # because pysmt simplifies Implies(A, B) into Or(Not(A), B), which we want
+        # to avoid to preserve the '(=> ...)' syntax for CHC solvers.
+        main_formula = ForAll(
+            sorted_universals, Implies(simplify(And(ant_simp, Not(cons_simp))), FALSE())
+        )
 
         # Step 2: Collect all free variables for the declaration header
         # To avoid statefulness issues, we use a local set for this build.
@@ -188,7 +198,13 @@ class SmtQueryBuilder:
                 return f"(declare-fun {s.symbol_name()} () (Array {t.index_type} {t.elem_type}))"
             return f"(declare-fun {s.symbol_name()} () {t})"
 
-        header = sorted([get_decl_str(d) for d in final_existentials], key=str)
+        header_lines = sorted([get_decl_str(d) for d in final_existentials], key=str)
+
+        output_lines = []
+        if self.logic:
+            output_lines.append(f"(set-logic {self.logic})")
+
+        output_lines.extend(header_lines)
 
         all_assertions_parts = []
         if toplevel_assertion_strs:
@@ -198,7 +214,7 @@ class SmtQueryBuilder:
 
         all_assertions = "\n".join(all_assertions_parts)
 
-        return "\n".join(header) + f"\n\n{all_assertions}\n\n(check-sat)"
+        return "\n".join(output_lines) + f"\n\n{all_assertions}\n\n(check-sat)"
 
     def build_negated_query(self) -> str:
         """
@@ -267,7 +283,13 @@ class SmtQueryBuilder:
                 return f"(declare-fun {s.symbol_name()} () (Array {t.index_type} {t.elem_type}))"
             return f"(declare-fun {s.symbol_name()} () {t})"
 
-        header = sorted([get_decl_str(d) for d in final_existentials], key=str)
+        header_lines = sorted([get_decl_str(d) for d in final_existentials], key=str)
+
+        output_lines = []
+        if self.logic:
+            output_lines.append(f"(set-logic {self.logic})")
+
+        output_lines.extend(header_lines)
 
         all_assertions_parts = []
         if toplevel_assertion_strs:
@@ -277,7 +299,7 @@ class SmtQueryBuilder:
 
         all_assertions = "\n".join(all_assertions_parts)
 
-        return "\n".join(header) + f"\n\n{all_assertions}\n\n(check-sat)"
+        return "\n".join(output_lines) + f"\n\n{all_assertions}\n\n(check-sat)"
 
 
 def _flatten_graph_to_compute_items(
@@ -374,16 +396,17 @@ def exists_data_forall_bounds_forall_iters_chained(
     extra_assertions: list[PysmtFormula] | None = None,
     verbose: bool = True,
     build_negated: bool = False,
+    logic: str | None = None,
 ) -> str:
     """
     Generates an SMT query to prove that for a loop, there EXISTS a data
-    configuration such that FORALL bounds and FORALL adjacent iterations, a
-    dependency exists.
+    configuration such that FORALL loop bounds and FORALL adjacent iterations, a
+    dependency is present.
 
     If build_negated is True, a quantifier-free query is generated to check
     for the existence of a counterexample.
     """
-    builder = SmtQueryBuilder()
+    builder = SmtQueryBuilder(logic=logic)
 
     # Use the original loop variable from the P3G model for the analysis
     k = loop_node.loop_var
@@ -415,8 +438,6 @@ def exists_data_forall_bounds_forall_iters_chained(
         # This symbol represents the array's identity/location.
         loc_sym = Symbol(f"DATA!{array_name}", INT)
         id_to_location_symbol_map[data_node.array_id] = loc_sym
-        # Define this location symbol as a constant at the top level.
-        builder.add_toplevel_assertion(Equals(loc_sym, Int(data_node.array_id)))
 
     # Note: Symbols for array *values* (e.g., A_val) are not created here.
     # They are discovered automatically by the SmtQueryBuilder if they appear
