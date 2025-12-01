@@ -303,6 +303,13 @@ class PseudocodeParser:
         hierarchical_writes_raw, _ = self._parse_write_access_list()
         self._consume("RPAREN")
 
+        # Automatically add written arrays to read list if not present
+        read_names = {r[0] for r in hierarchical_reads_raw}
+        for w_name, w_subset in hierarchical_writes_raw:
+            if w_name not in read_names:
+                hierarchical_reads_raw.append((w_name, w_subset))
+                read_names.add(w_name)
+
         # Handle follow_statements and disjoint paths
         follow_statements: list[str] = []
         if self._peek().type == "LPAREN":

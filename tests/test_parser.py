@@ -332,6 +332,28 @@ class TestPseudocodeParser:
         graph = parser.parse(code)
         assert "decl_i" in [str(s) for s in graph.symbols]
 
+    def test_auto_add_writes_to_reads_parsing(self):
+        code = textwrap.dedent("""
+            decl A
+            ( => A[0]) S1| op(init)
+        """).strip()
+        parser = PseudocodeParser()
+        graph = parser.parse(code)
+
+        graph_string = get_p3g_structure_string(graph)
+
+        expected_string = textwrap.dedent("""
+            ### root ### (Symbols: ['A_val'])
+              Data Nodes (IDs): DATA[A(0)/10001], DATA[A(1)/10001]
+              COMPUTE(S1): Reads=A(0)[0], Writes=A(1)[0]
+        """).strip()
+
+        # Normalizing to account for dynamic IDs and other non-deterministic elements
+        normalized_actual = _normalize_graph_string(graph_string).strip()
+        normalized_expected = _normalize_graph_string(expected_string).strip()
+
+        assert normalized_actual == normalized_expected
+
 
 class TestGraphDefinitionsParsing:
     """
