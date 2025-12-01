@@ -30,6 +30,8 @@ class SmtResult:
     num_and: int = 0
     num_or: int = 0
     formula_size: int = 0
+    num_variables: int = 0
+    num_arrays: int = 0
 
 
 # --- Solver Configuration ---
@@ -217,6 +219,8 @@ class MetricsWalker(IdentityDagWalker):
         self.num_and = 0
         self.num_or = 0
         self.formula_size = 0
+        self.unique_variables = set()
+        self.unique_arrays = set()
 
     def walk_forall(self, formula, args, **kwargs):
         self.num_quantifiers += 1
@@ -241,6 +245,10 @@ class MetricsWalker(IdentityDagWalker):
     def walk_symbol(self, formula, args, **kwargs):
         self.num_atoms += 1
         self.formula_size += 1
+        if formula.symbol_type().is_array_type():
+            self.unique_arrays.add(formula)
+        else:
+            self.unique_variables.add(formula)
         return formula
 
     def walk_int_constant(self, formula, args, **kwargs):
@@ -299,6 +307,8 @@ def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
             num_and = walker.num_and
             num_or = walker.num_or
             formula_size = walker.formula_size
+            num_variables = len(walker.unique_variables)
+            num_arrays = len(walker.unique_arrays)
 
             result: bool = s.check_sat()
 
@@ -320,6 +330,8 @@ def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
                     num_and,
                     num_or,
                     formula_size,
+                    num_variables,
+                    num_arrays,
                 )
             )
 
@@ -374,6 +386,8 @@ def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> SmtResult:
                 num_and,
                 num_or,
                 formula_size,
+                num_variables,
+                num_arrays,
             ) = result_tuple
 
             if result:
@@ -396,6 +410,8 @@ def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> SmtResult:
                     num_and=num_and,
                     num_or=num_or,
                     formula_size=formula_size,
+                    num_variables=num_variables,
+                    num_arrays=num_arrays,
                 )
             else:
                 print(f"Solver result: unsat")
@@ -407,6 +423,8 @@ def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> SmtResult:
                     num_and=num_and,
                     num_or=num_or,
                     formula_size=formula_size,
+                    num_variables=num_variables,
+                    num_arrays=num_arrays,
                 )
     else:
         # This case should ideally not be reached if the process finished without timeout

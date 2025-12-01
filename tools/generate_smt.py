@@ -64,11 +64,15 @@ def log_to_db(db_path, data):
             main_quantifiers INTEGER,
             main_atoms INTEGER,
             main_size INTEGER,
+            main_variables INTEGER,
+            main_arrays INTEGER,
             negated_result TEXT,
             negated_time REAL,
             negated_quantifiers INTEGER,
             negated_atoms INTEGER,
             negated_size INTEGER,
+            negated_variables INTEGER,
+            negated_arrays INTEGER,
             conclusion TEXT
         )
     """)
@@ -77,10 +81,10 @@ def log_to_db(db_path, data):
         """
         INSERT INTO runs (
             input_file, loop_index, query_type,
-            main_result, main_time, main_quantifiers, main_atoms, main_size,
-            negated_result, negated_time, negated_quantifiers, negated_atoms, negated_size,
+            main_result, main_time, main_quantifiers, main_atoms, main_size, main_variables, main_arrays,
+            negated_result, negated_time, negated_quantifiers, negated_atoms, negated_size, negated_variables, negated_arrays,
             conclusion
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
         (
             data.get("input_file"),
@@ -91,11 +95,15 @@ def log_to_db(db_path, data):
             data.get("main_quantifiers"),
             data.get("main_atoms"),
             data.get("main_size"),
+            data.get("main_variables"),
+            data.get("main_arrays"),
             data.get("negated_result"),
             data.get("negated_time"),
             data.get("negated_quantifiers"),
             data.get("negated_atoms"),
             data.get("negated_size"),
+            data.get("negated_variables"),
+            data.get("negated_arrays"),
             data.get("conclusion"),
         ),
     )
@@ -331,11 +339,15 @@ Defaults to '?'.""",
         "main_quantifiers": None,
         "main_atoms": None,
         "main_size": None,
+        "main_variables": None,
+        "main_arrays": None,
         "negated_result": None,
         "negated_time": None,
         "negated_quantifiers": None,
         "negated_atoms": None,
         "negated_size": None,
+        "negated_variables": None,
+        "negated_arrays": None,
         "conclusion": None,
     }
 
@@ -351,11 +363,13 @@ Defaults to '?'.""",
         run_data["main_quantifiers"] = main_result.num_quantifiers
         run_data["main_atoms"] = main_result.num_atoms
         run_data["main_size"] = main_result.formula_size
+        run_data["main_variables"] = main_result.num_variables
+        run_data["main_arrays"] = main_result.num_arrays
 
         print(
             f"Primary Query Result: {main_result_str} (Time: {main_result.time_elapsed:.4f}s, "
             f"Quantifiers: {main_result.num_quantifiers}, Atoms: {main_result.num_atoms}, "
-            f"And: {main_result.num_and}, Or: {main_result.num_or}, Size: {main_result.formula_size})"
+            f"Size: {main_result.formula_size}, Vars: {main_result.num_variables}, Arrays: {main_result.num_arrays})"
         )
     except SolverReturnedUnknownResultError:
         print("Primary Query Result: UNKNOWN (Solver returned unknown)")
@@ -380,11 +394,13 @@ Defaults to '?'.""",
             run_data["negated_quantifiers"] = negated_result.num_quantifiers
             run_data["negated_atoms"] = negated_result.num_atoms
             run_data["negated_size"] = negated_result.formula_size
+            run_data["negated_variables"] = negated_result.num_variables
+            run_data["negated_arrays"] = negated_result.num_arrays
 
             print(
                 f"Negated Query Result: {negated_result_str} (Time: {negated_result.time_elapsed:.4f}s, "
                 f"Quantifiers: {negated_result.num_quantifiers}, Atoms: {negated_result.num_atoms}, "
-                f"And: {negated_result.num_and}, Or: {negated_result.num_or}, Size: {negated_result.formula_size})"
+                f"Size: {negated_result.formula_size}, Vars: {negated_result.num_variables}, Arrays: {negated_result.num_arrays})"
             )
         except SolverReturnedUnknownResultError:
             print("Negated Query Result: UNKNOWN (Solver returned unknown)")
