@@ -304,11 +304,9 @@ class PseudocodeParser:
         self._consume("RPAREN")
 
         # Automatically add written arrays to read list if not present
-        read_names = {r[0] for r in hierarchical_reads_raw}
         for w_name, w_subset in hierarchical_writes_raw:
-            if w_name not in read_names:
+            if (w_name, w_subset) not in hierarchical_reads_raw:
                 hierarchical_reads_raw.append((w_name, w_subset))
-                read_names.add(w_name)
 
         # Handle follow_statements and disjoint paths
         follow_statements: list[str] = []

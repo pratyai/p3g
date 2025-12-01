@@ -1,5 +1,5 @@
 sym N
-var i, j, k
+var i_inv, j, k
 decl seq, table
 out table
 
@@ -8,27 +8,27 @@ out table
 
 ; Outer loop for i (descending)
 ; MAIN OUTER LOOP
-(table[0,0] => table[0,0]) L_i | for i = N-1 to 0:
+(table[0,0] => table[0,0]) L_i | for i_inv = 0 to (N-1):
     ; Inner loop for j (ascending)
-    (table[0,0], seq[0] => table[0,0]) L_j | for j = i+1 to N-1:
+    (table[0,0], seq[0] => table[0,0]) L_j | for j = (N - i_inv) to (N-1):
 
         ; if j - 1 >= 0:
         (table[0,0] => table[0,0]) B_cond1 | if (j - 1) >= 0:
-            (table[i,j], table[i,j-1] => table[i,j]) S_max1 | op(update_max_j_minus_1)
+            (table[N-1-i_inv,j], table[N-1-i_inv,j-1] => table[N-1-i_inv,j]) S_max1 | op(update_max_j_minus_1)
 
         ; if i + 1 < N:
-        (table[0,0] => table[0,0]) B_cond2 | if (i + 1) < N:
-            (table[i,j], table[i+1,j] => table[i,j]) S_max2 | op(update_max_i_plus_1)
+        (table[0,0] => table[0,0]) B_cond2 | if (N - i_inv) < N:
+            (table[N-1-i_inv,j], table[N-i_inv,j] => table[N-1-i_inv,j]) S_max2 | op(update_max_i_plus_1)
 
         ; if j - 1 >= 0 and i + 1 < N:
-        (table[0,0], seq[0] => table[0,0]) B_cond3 | if ((j - 1) >= 0) and ((i + 1) < N):
+        (table[0,0], seq[0] => table[0,0]) B_cond3 | if ((j - 1) >= 0) and ((N - i_inv) < N):
             ; if i < j - 1:
-            (table[0,0], seq[0] => table[0,0]) B_cond3_inner | if i < (j - 1):
-                (table[i,j], table[i+1,j-1], seq[i], seq[j] => table[i,j]) S_match_add | op(update_max_match_add)
+            (table[0,0], seq[0] => table[0,0]) B_cond3_inner | if ((N - 1) - i_inv) < (j - 1):
+                (table[N-1-i_inv,j], table[N-i_inv,j-1], seq[N-1-i_inv], seq[j] => table[N-1-i_inv,j]) S_match_add | op(update_max_match_add)
             ; else: (corresponds to i >= j - 1)
-            (table[0,0] => table[0,0]) B_cond3_else | if i >= (j - 1):
-                (table[i,j], table[i+1,j-1] => table[i,j]) S_simple_max | op(update_max_simple)
+            (table[0,0] => table[0,0]) B_cond3_else | if ((N - 1) - i_inv) >= (j - 1):
+                (table[N-1-i_inv,j], table[N-i_inv,j-1] => table[N-1-i_inv,j]) S_simple_max | op(update_max_simple)
 
         ; Innermost loop for k
-        (table[0,0] => table[0,0]) L_k | for k = i+1 to j-1:
-            (table[i,j], table[i,k], table[k+1,j] => table[i,j]) S_max_k | op(update_max_k_split)
+        (table[0,0] => table[0,0]) L_k | for k = (N - i_inv) to j-1:
+            (table[N-1-i_inv,j], table[N-1-i_inv,k], table[k+1,j] => table[N-1-i_inv,j]) S_max_k | op(update_max_k_split)
