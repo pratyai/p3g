@@ -1,0 +1,45 @@
+decl Ham, int_pts, Y, P0, P1, Tz, X
+sym NR, NM, slab_per_bc
+var idx, n, r, c
+
+out P0, P1
+
+; Initialize P0 and P1
+( => P0[0:NR-1, 0:NM-1]) S0_P0_init| op(P0_init)
+( => P1[0:NR-1, 0:NM-1]) S0_P1_init| op(P1_init)
+
+; MAIN OUTER LOOP
+(P0[0], P1[0], int_pts[0], Ham[0], Y[0] => P0[0], P1[0]) (S0_P0_init, S0_P1_init).L1_idx| for idx = 0 to 31:
+    ; Tz = np.zeros((NR, NR), dtype=np.complex128)
+    ( => Tz[0:NR-1, 0:NR-1]) .S2_Tz_init| op(Tz_init)
+
+    ; Inner loop for n
+    (Tz[0], Ham[0] => Tz[0]) (S2_Tz_init).L2_n| for n = 0 to slab_per_bc:
+        ; Nested loops for element-wise accumulation of Tz
+        (Tz[0] => Tz[0]) .L3_r| for r = 0 to NR-1:
+            (Tz[0] => Tz[0]) .L4_c| for c = 0 to NR-1:
+                ; Tz[r, c] += zz * Ham[n, r, c] where zz = np.power(z, slab_per_bc / 2 - n) and z = int_pts[idx]
+                (Tz[r, c], Ham[n, r, c], int_pts[idx] => Tz[r, c]) .S3_Tz_accum_element| op(Tz_element_accumulation)
+
+    ; X = np.linalg.solve(Tz, Y)
+    (Tz[0:NR-1, 0:NR-1], Y[0:NR-1, 0:NM-1] => X[0:NR-1, 0:NM-1]) (L2_n).S4_X_solve| op(solve_X)
+
+    ; if np.absolute(z) < 1.0: (z is int_pts[idx])
+    (X[0], int_pts[idx] => X[0]) (S4_X_solve).B1_if_z_condition| if true: ; Original condition 'abs(int_pts[idx]) < 1.0' cannot be directly translated due to lack of 'abs' support for complex numbers in .pcode expressions.
+        ; Nested loops for element-wise negation of X
+        (X[0] => X[0]) .L5_r_negate| for r = 0 to NR-1:
+            (X[0] => X[0]) .L6_c_negate| for c = 0 to NM-1:
+                ; X[r, c] = -X[r, c]
+                (X[r, c] => X[r, c]) .S5_X_negate_element| op(negate_X_element)
+
+    ; Nested loops for element-wise accumulation of P0
+    (P0[0], X[0] => P0[0]) (B1_if_z_condition).L7_r_p0| for r = 0 to NR-1:
+        (P0[0], X[0] => P0[0]) .L8_c_p0| for c = 0 to NM-1:
+            ; P0[r, c] += X[r, c]
+            (P0[r, c], X[r, c] => P0[r, c]) .S6_P0_accum_element| op(P0_element_accumulation)
+
+    ; Nested loops for element-wise accumulation of P1
+    (P1[0], X[0], int_pts[0] => P1[0]) (L7_r_p0).L9_r_p1| for r = 0 to NR-1:
+        (P1[0], X[0], int_pts[0] => P1[0]) .L10_c_p1| for c = 0 to NM-1:
+            ; P1[r, c] += z * X[r, c] where z = int_pts[idx]
+            (P1[r, c], X[r, c], int_pts[idx] => P1[r, c]) .S7_P1_accum_element| op(P1_element_accumulation)

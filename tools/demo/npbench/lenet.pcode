@@ -1,0 +1,212 @@
+decl input, conv1, conv1bias, conv2, conv2bias, fc1w, fc1b, fc2w, fc2b, fc3w, fc3b
+decl x1, x2, x3, x4, x5, x6, x7
+decl conv_output_tmp1, add_output_tmp1, maxpool_output_tmp1
+decl conv_output_tmp2, add_output_tmp2, maxpool_output_tmp2
+decl reshape_output_tmp
+decl matmul_tmp_fc1, add_tmp_fc1, relu_output_fc1
+decl matmul_tmp_fc2, add_tmp_fc2, relu_output_fc2
+decl matmul_tmp_fc3, add_tmp_fc3_final
+decl accumulator ; For np.sum in conv2d
+
+sym N, H, W, C_before_fc1, S0, S1, S2, S3, S4, S5
+sym H_out_conv1, W_out_conv1 ; For first conv2d
+sym H_out_pool1, W_out_pool1 ; For first maxpool2d
+sym H_out_conv2, W_out_conv2 ; For second conv2d
+sym H_out_pool2, W_out_pool2 ; For second maxpool2d
+
+var n_loop, h_loop, w_loop, c_in_loop, c_out_loop, k_h_loop, k_w_loop ; General conv2d variables
+var mp_n_loop, mp_h_loop, mp_w_loop, mp_c_loop, mp_r_win, mp_c_win ; General maxpool2d variables
+var mat_r, mat_c, mat_k ; General matmul variables
+var relu_r, relu_c ; General relu variables
+var add_r, add_c ; General element-wise add variables
+var reshape_n, reshape_c ; General reshape variables
+
+out add_tmp_fc3_final ; The final output of lenet5
+
+; Placeholder values for H_out and W_out for conv2d calls
+; H_out_conv1 = H - S4 + 1
+; W_out_conv1 = W - S4 + 1
+
+; H_out_pool1 = H_out_conv1 // 2
+; W_out_pool1 = W_out_conv1 // 2
+
+; H_out_conv2 = H_out_pool1 - S4 + 1
+; W_out_conv2 = W_out_pool1 - S4 + 1
+
+; H_out_pool2 = H_out_conv2 // 2
+; W_out_pool2 = W_out_conv2 // 2
+
+
+; Stage 1: x1 = relu4(conv2d(input, conv1) + conv1bias)
+; 1.1: conv_output_tmp1 = conv2d(input, conv1)
+; Initialize conv_output_tmp1
+(conv_output_tmp1[0,0,0,0] => conv_output_tmp1[0,0,0,0]) S0_conv_out_tmp1_init| op(conv_output_tmp1_init_zeros)
+
+; MAIN OUTER LOOP
+(input[0], conv1[0], conv_output_tmp1[0] => conv_output_tmp1[0]) (S0_conv_out_tmp1_init).L1_h_conv1| for h_loop = 0 to H_out_conv1 - 1:
+    (input[0], conv1[0], conv_output_tmp1[0] => conv_output_tmp1[0]) .L2_w_conv1| for w_loop = 0 to W_out_conv1 - 1:
+        (input[0], conv1[0], conv_output_tmp1[0] => conv_output_tmp1[0]) .L3_n_conv1| for n_loop = 0 to N - 1:
+            (input[0], conv1[0], conv_output_tmp1[0] => conv_output_tmp1[0]) .L4_c_out_conv1| for c_out_loop = 0 to 6 - 1: ; C_out for conv1 is 6
+                (accumulator[0] => accumulator[0]) .S1_accum_init_conv1| op(accumulator_init_zero)
+                (input[0], conv1[0], accumulator[0] => accumulator[0]) (S1_accum_init_conv1).L5_k_h_conv1| for k_h_loop = 0 to 5 - 1: ; K for conv1 is 5
+                    (input[0], conv1[0], accumulator[0] => accumulator[0]) .L6_k_w_conv1| for k_w_loop = 0 to 5 - 1: ; K for conv1 is 5
+                        (input[0], conv1[0], accumulator[0] => accumulator[0]) .L7_c_in_conv1| for c_in_loop = 0 to 1 - 1: ; C_in for conv1 is 1
+                            (input[n_loop, h_loop + k_h_loop, w_loop + k_w_loop, c_in_loop], conv1[k_h_loop, k_w_loop, c_in_loop, c_out_loop], accumulator[0] => accumulator[0]) .S2_conv_accum_element1| op(multiply_and_accumulate_conv1)
+                (accumulator[0], conv_output_tmp1[n_loop, h_loop, w_loop, c_out_loop] => conv_output_tmp1[n_loop, h_loop, w_loop, c_out_loop]) (L7_c_in_conv1).S3_conv_output_assign1| op(assign_sum_to_conv_output1)
+
+; 1.2: add_output_tmp1 = conv_output_tmp1 + conv1bias
+(conv_output_tmp1[0], conv1bias[0], add_output_tmp1[0] => add_output_tmp1[0]) (S3_conv_output_assign1).L8_n_add1| for n_loop = 0 to N - 1:
+    (conv_output_tmp1[0], conv1bias[0], add_output_tmp1[0] => add_output_tmp1[0]) .L9_h_add1| for h_loop = 0 to H_out_conv1 - 1:
+        (conv_output_tmp1[0], conv1bias[0], add_output_tmp1[0] => add_output_tmp1[0]) .L10_w_add1| for w_loop = 0 to W_out_conv1 - 1:
+            (conv_output_tmp1[0], conv1bias[0], add_output_tmp1[0] => add_output_tmp1[0]) .L11_c_add1| for c_out_loop = 0 to 6 - 1:
+                (conv_output_tmp1[n_loop, h_loop, w_loop, c_out_loop], conv1bias[c_out_loop], add_output_tmp1[n_loop, h_loop, w_loop, c_out_loop] => add_output_tmp1[n_loop, h_loop, w_loop, c_out_loop]) .S4_add_bias_element1| op(add_bias_element1)
+
+; 1.3: x1 = relu4(add_output_tmp1)
+(add_output_tmp1[0], x1[0] => x1[0]) (S4_add_bias_element1).L12_n_relu1| for n_loop = 0 to N - 1:
+    (add_output_tmp1[0], x1[0] => x1[0]) .L13_h_relu1| for h_loop = 0 to H_out_conv1 - 1:
+        (add_output_tmp1[0], x1[0] => x1[0]) .L14_w_relu1| for w_loop = 0 to W_out_conv1 - 1:
+            (add_output_tmp1[0], x1[0] => x1[0]) .L15_c_relu1| for c_out_loop = 0 to 6 - 1:
+                (add_output_tmp1[n_loop, h_loop, w_loop, c_out_loop], x1[n_loop, h_loop, w_loop, c_out_loop] => x1[n_loop, h_loop, w_loop, c_out_loop]) .S5_relu_element1| op(relu_element1)
+
+
+; Stage 2: x2 = maxpool2d(x1)
+; Initialize x2
+(x2[0,0,0,0] => x2[0,0,0,0]) S6_x2_init| op(x2_init_zeros)
+
+(x1[0], x2[0] => x2[0]) (S5_relu_element1).L16_n_pool1| for mp_n_loop = 0 to N - 1:
+    (x1[0], x2[0] => x2[0]) .L17_h_pool1| for mp_h_loop = 0 to H_out_pool1 - 1:
+        (x1[0], x2[0] => x2[0]) .L18_w_pool1| for mp_w_loop = 0 to W_out_pool1 - 1:
+            (x1[0], x2[0] => x2[0]) .L19_c_pool1| for mp_c_loop = 0 to 6 - 1: ; C_out from conv1 is 6
+                ; Initialize max value for current output element
+                (x1[mp_n_loop, 2 * mp_h_loop, 2 * mp_w_loop, mp_c_loop], x2[mp_n_loop, mp_h_loop, mp_w_loop, mp_c_loop] => x2[mp_n_loop, mp_h_loop, mp_w_loop, mp_c_loop]) .S7_max_init1| op(max_init)
+                
+                ; Loop over 2x2 window
+                (x1[0], x2[0] => x2[0]) (S7_max_init1).L20_r_pool1| for mp_r_win = 0 to 2 - 1:
+                    (x1[0], x2[0] => x2[0]) .L21_c_pool1| for mp_c_win = 0 to 2 - 1:
+                        ; Compare and update max value
+                        (x1[mp_n_loop, 2 * mp_h_loop + mp_r_win, 2 * mp_w_loop + mp_c_win, mp_c_loop], x2[mp_n_loop, mp_h_loop, mp_w_loop, mp_c_loop] => x2[mp_n_loop, mp_h_loop, mp_w_loop, mp_c_loop]) .S8_max_compare1| op(max_compare)
+
+
+; Stage 3: x3 = relu4(conv2d(x2, conv2) + conv2bias)
+; 3.1: conv_output_tmp2 = conv2d(x2, conv2)
+; Initialize conv_output_tmp2
+(conv_output_tmp2[0,0,0,0] => conv_output_tmp2[0,0,0,0]) S9_conv_out_tmp2_init| op(conv_output_tmp2_init_zeros)
+
+(x2[0], conv2[0], conv_output_tmp2[0] => conv_output_tmp2[0]) (S8_max_compare1).L22_h_conv2| for h_loop = 0 to H_out_conv2 - 1:
+    (x2[0], conv2[0], conv_output_tmp2[0] => conv_output_tmp2[0]) .L23_w_conv2| for w_loop = 0 to W_out_conv2 - 1:
+        (x2[0], conv2[0], conv_output_tmp2[0] => conv_output_tmp2[0]) .L24_n_conv2| for n_loop = 0 to N - 1:
+            (x2[0], conv2[0], conv_output_tmp2[0] => conv_output_tmp2[0]) .L25_c_out_conv2| for c_out_loop = 0 to 16 - 1: ; C_out for conv2 is 16
+                (accumulator[0] => accumulator[0]) .S10_accum_init_conv2| op(accumulator_init_zero)
+
+                (x2[0], conv2[0], accumulator[0] => accumulator[0]) (S10_accum_init_conv2).L26_k_h_conv2| for k_h_loop = 0 to 5 - 1: ; K for conv2 is 5
+                    (x2[0], conv2[0], accumulator[0] => accumulator[0]) .L27_k_w_conv2| for k_w_loop = 0 to 5 - 1: ; K for conv2 is 5
+                        (x2[0], conv2[0], accumulator[0] => accumulator[0]) .L28_c_in_conv2| for c_in_loop = 0 to 6 - 1: ; C_in for conv2 is 6
+                            (x2[n_loop, h_loop + k_h_loop, w_loop + k_w_loop, c_in_loop], conv2[k_h_loop, k_w_loop, c_in_loop, c_out_loop], accumulator[0] => accumulator[0]) .S11_conv_accum_element2| op(multiply_and_accumulate_conv2)
+                
+                (accumulator[0], conv_output_tmp2[n_loop, h_loop, w_loop, c_out_loop] => conv_output_tmp2[n_loop, h_loop, w_loop, c_out_loop]) (L28_c_in_conv2).S12_conv_output_assign2| op(assign_sum_to_conv_output2)
+
+; 3.2: add_output_tmp2 = conv_output_tmp2 + conv2bias
+(conv_output_tmp2[0], conv2bias[0], add_output_tmp2[0] => add_output_tmp2[0]) (S12_conv_output_assign2).L29_n_add2| for n_loop = 0 to N - 1:
+    (conv_output_tmp2[0], conv2bias[0], add_output_tmp2[0] => add_output_tmp2[0]) .L30_h_add2| for h_loop = 0 to H_out_conv2 - 1:
+        (conv_output_tmp2[0], conv2bias[0], add_output_tmp2[0] => add_output_tmp2[0]) .L31_w_add2| for w_loop = 0 to W_out_conv2 - 1:
+            (conv_output_tmp2[0], conv2bias[0], add_output_tmp2[0] => add_output_tmp2[0]) .L32_c_add2| for c_out_loop = 0 to 16 - 1:
+                (conv_output_tmp2[n_loop, h_loop, w_loop, c_out_loop], conv2bias[c_out_loop], add_output_tmp2[n_loop, h_loop, w_loop, c_out_loop] => add_output_tmp2[n_loop, h_loop, w_loop, c_out_loop]) .S13_add_bias_element2| op(add_bias_element2)
+
+; 3.3: x3 = relu4(add_output_tmp2)
+(add_output_tmp2[0], x3[0] => x3[0]) (S13_add_bias_element2).L33_n_relu2| for n_loop = 0 to N - 1:
+    (add_output_tmp2[0], x3[0] => x3[0]) .L34_h_relu2| for h_loop = 0 to H_out_conv2 - 1:
+        (add_output_tmp2[0], x3[0] => x3[0]) .L35_w_relu2| for w_loop = 0 to W_out_conv2 - 1:
+            (add_output_tmp2[0], x3[0] => x3[0]) .L36_c_relu2| for c_out_loop = 0 to 16 - 1:
+                (add_output_tmp2[n_loop, h_loop, w_loop, c_out_loop], x3[n_loop, h_loop, w_loop, c_out_loop] => x3[n_loop, h_loop, w_loop, c_out_loop]) .S14_relu_element2| op(relu_element2)
+
+
+; Stage 4: x4 = maxpool2d(x3)
+; Initialize x4
+(x4[0,0,0,0] => x4[0,0,0,0]) S15_x4_init| op(x4_init_zeros)
+
+(x3[0], x4[0] => x4[0]) (S14_relu_element2).L37_n_pool2| for mp_n_loop = 0 to N - 1:
+    (x3[0], x4[0] => x4[0]) .L38_h_pool2| for mp_h_loop = 0 to H_out_pool2 - 1:
+        (x3[0], x4[0] => x4[0]) .L39_w_pool2| for mp_w_loop = 0 to W_out_pool2 - 1:
+            (x3[0], x4[0] => x4[0]) .L40_c_pool2| for mp_c_loop = 0 to 16 - 1: ; C_out from conv2 is 16
+                ; Initialize max value for current output element
+                (x3[mp_n_loop, 2 * mp_h_loop, 2 * mp_w_loop, mp_c_loop], x4[mp_n_loop, mp_h_loop, mp_w_loop, mp_c_loop] => x4[mp_n_loop, mp_h_loop, mp_w_loop, mp_c_loop]) .S16_max_init2| op(max_init)
+                
+                ; Loop over 2x2 window
+                (x3[0], x4[0] => x4[0]) (S16_max_init2).L41_r_pool2| for mp_r_win = 0 to 2 - 1:
+                    (x3[0], x4[0] => x4[0]) .L42_c_pool2| for mp_c_win = 0 to 2 - 1:
+                        ; Compare and update max value
+                        (x3[mp_n_loop, 2 * mp_h_loop + mp_r_win, 2 * mp_w_loop + mp_c_win, mp_c_loop], x4[mp_n_loop, mp_h_loop, mp_w_loop, mp_c_loop] => x4[mp_n_loop, mp_h_loop, mp_w_loop, mp_c_loop]) .S17_max_compare2| op(max_compare)
+
+
+; Stage 5: x5 = np.reshape(x4, (N, C_before_fc1))
+; Initialize x5
+(x5[0,0] => x5[0,0]) S18_x5_init| op(x5_init_zeros)
+
+(x4[0], x5[0] => x5[0]) (S17_max_compare2).L43_n_reshape| for reshape_n = 0 to N - 1:
+    (x4[0], x5[0] => x5[0]) .L44_c_reshape| for reshape_c = 0 to C_before_fc1 - 1:
+        ; Calculate original 4D index from 2D index (reshape_c)
+        ; c_out_4d = reshape_c % 16
+        ; w_out_4d = (reshape_c / 16) % W_out_pool2
+        ; h_out_4d = (reshape_c / (16 * W_out_pool2)) % H_out_pool2
+        (x4[reshape_n, (reshape_c / (16 * W_out_pool2)) % H_out_pool2, (reshape_c / 16) % W_out_pool2, reshape_c % 16], x5[reshape_n, reshape_c] => x5[reshape_n, reshape_c]) .S19_reshape_copy| op(reshape_copy)
+
+
+; Stage 6: x6 = relu2(x5 @ fc1w + fc1b)
+; 6.1: matmul_tmp_fc1 = x5 @ fc1w
+; Initialize matmul_tmp_fc1
+(matmul_tmp_fc1[0,0] => matmul_tmp_fc1[0,0]) S20_matmul_tmp_fc1_init| op(matmul_init_zero)
+
+(x5[0], fc1w[0], matmul_tmp_fc1[0] => matmul_tmp_fc1[0]) (S19_reshape_copy).L45_n_matmul_fc1| for mat_r = 0 to N - 1:
+    (x5[0], fc1w[0], matmul_tmp_fc1[0] => matmul_tmp_fc1[0]) .L46_c_matmul_fc1| for mat_c = 0 to 120 - 1:
+        (matmul_tmp_fc1[mat_r, mat_c] => matmul_tmp_fc1[mat_r, mat_c]) .S21_matmul_init_element_fc1| op(matmul_init_zero)
+        (x5[0], fc1w[0], matmul_tmp_fc1[mat_r, mat_c] => matmul_tmp_fc1[mat_r, mat_c]) (S21_matmul_init_element_fc1).L47_k_matmul_fc1| for mat_k = 0 to C_before_fc1 - 1:
+            (x5[mat_r, mat_k], fc1w[mat_k, mat_c], matmul_tmp_fc1[mat_r, mat_c] => matmul_tmp_fc1[mat_r, mat_c]) .S22_matmul_accum_fc1| op(matmul_accumulate)
+
+; 6.2: add_tmp_fc1 = matmul_tmp_fc1 + fc1b
+(matmul_tmp_fc1[0], fc1b[0], add_tmp_fc1[0] => add_tmp_fc1[0]) (S22_matmul_accum_fc1).L48_n_add_fc1| for add_r = 0 to N - 1:
+    (matmul_tmp_fc1[0], fc1b[0], add_tmp_fc1[0] => add_tmp_fc1[0]) .L49_c_add_fc1| for add_c = 0 to 120 - 1:
+        (matmul_tmp_fc1[add_r, add_c], fc1b[add_c], add_tmp_fc1[add_r, add_c] => add_tmp_fc1[add_r, add_c]) .S23_add_bias_element_fc1| op(add_bias_element)
+
+; 6.3: x6 = relu2(add_tmp_fc1)
+(add_tmp_fc1[0], x6[0] => x6[0]) (S23_add_bias_element_fc1).L50_n_relu_fc1| for relu_r = 0 to N - 1:
+    (add_tmp_fc1[0], x6[0] => x6[0]) .L51_c_relu_fc1| for relu_c = 0 to 120 - 1:
+        (add_tmp_fc1[relu_r, relu_c], x6[relu_r, relu_c] => x6[relu_r, relu_c]) .S24_relu_element_fc1| op(relu_element)
+
+
+; Stage 7: x7 = relu2(x6 @ fc2w + fc2b)
+; 7.1: matmul_tmp_fc2 = x6 @ fc2w
+; Initialize matmul_tmp_fc2
+(matmul_tmp_fc2[0,0] => matmul_tmp_fc2[0,0]) S25_matmul_tmp_fc2_init| op(matmul_init_zero)
+
+(x6[0], fc2w[0], matmul_tmp_fc2[0] => matmul_tmp_fc2[0]) (S24_relu_element_fc1).L52_n_matmul_fc2| for mat_r = 0 to N - 1:
+    (x6[0], fc2w[0], matmul_tmp_fc2[0] => matmul_tmp_fc2[0]) .L53_c_matmul_fc2| for mat_c = 0 to 84 - 1:
+        (matmul_tmp_fc2[mat_r, mat_c] => matmul_tmp_fc2[mat_r, mat_c]) .S26_matmul_init_element_fc2| op(matmul_init_zero)
+        (x6[0], fc2w[0], matmul_tmp_fc2[mat_r, mat_c] => matmul_tmp_fc2[mat_r, mat_c]) (S26_matmul_init_element_fc2).L54_k_matmul_fc2| for mat_k = 0 to 120 - 1:
+            (x6[mat_r, mat_k], fc2w[mat_k, mat_c], matmul_tmp_fc2[mat_r, mat_c] => matmul_tmp_fc2[mat_r, mat_c]) .S27_matmul_accum_fc2| op(matmul_accumulate)
+
+; 7.2: add_tmp_fc2 = matmul_tmp_fc2 + fc2b
+(matmul_tmp_fc2[0], fc2b[0], add_tmp_fc2[0] => add_tmp_fc2[0]) (S27_matmul_accum_fc2).L55_n_add_fc2| for add_r = 0 to N - 1:
+    (matmul_tmp_fc2[0], fc2b[0], add_tmp_fc2[0] => add_tmp_fc2[0]) .L56_c_add_fc2| for add_c = 0 to 84 - 1:
+        (matmul_tmp_fc2[add_r, add_c], fc2b[add_c], add_tmp_fc2[add_r, add_c] => add_tmp_fc2[add_r, add_c]) .S28_add_bias_element_fc2| op(add_bias_element)
+
+; 7.3: x7 = relu2(add_tmp_fc2)
+(add_tmp_fc2[0], x7[0] => x7[0]) (S28_add_bias_element_fc2).L57_n_relu_fc2| for relu_r = 0 to N - 1:
+    (add_tmp_fc2[0], x7[0] => x7[0]) .L58_c_relu_fc2| for relu_c = 0 to 84 - 1:
+        (add_tmp_fc2[relu_r, relu_c], x7[relu_r, relu_c] => x7[relu_r, relu_c]) .S29_relu_element_fc2| op(relu_element)
+
+
+; Stage 8: return x7 @ fc3w + fc3b
+; 8.1: matmul_tmp_fc3 = x7 @ fc3w
+; Initialize matmul_tmp_fc3
+(matmul_tmp_fc3[0,0] => matmul_tmp_fc3[0,0]) S30_matmul_tmp_fc3_init| op(matmul_init_zero)
+
+(x7[0], fc3w[0], matmul_tmp_fc3[0] => matmul_tmp_fc3[0]) (S29_relu_element_fc2).L59_n_matmul_fc3| for mat_r = 0 to N - 1:
+    (x7[0], fc3w[0], matmul_tmp_fc3[0] => matmul_tmp_fc3[0]) .L60_c_matmul_fc3| for mat_c = 0 to 10 - 1:
+        (matmul_tmp_fc3[mat_r, mat_c] => matmul_tmp_fc3[mat_r, mat_c]) .S31_matmul_init_element_fc3| op(matmul_init_zero)
+        (x7[0], fc3w[0], matmul_tmp_fc3[mat_r, mat_c] => matmul_tmp_fc3[mat_r, mat_c]) (S31_matmul_init_element_fc3).L61_k_matmul_fc3| for mat_k = 0 to 84 - 1:
+            (x7[mat_r, mat_k], fc3w[mat_k, mat_c], matmul_tmp_fc3[mat_r, mat_c] => matmul_tmp_fc3[mat_r, mat_c]) .S32_matmul_accum_fc3| op(matmul_accumulate)
+
+; 8.2: add_tmp_fc3_final = matmul_tmp_fc3 + fc3b
+(matmul_tmp_fc3[0], fc3b[0], add_tmp_fc3_final[0] => add_tmp_fc3_final[0]) (S32_matmul_accum_fc3).L62_n_add_fc3| for add_r = 0 to N - 1:
+    (matmul_tmp_fc3[0], fc3b[0], add_tmp_fc3_final[0] => add_tmp_fc3_final[0]) .L63_c_add_fc3| for add_c = 0 to 10 - 1:
+        (matmul_tmp_fc3[add_r, add_c], fc3b[add_c], add_tmp_fc3_final[add_r, add_c] => add_tmp_fc3_final[add_r, add_c]) .S33_add_bias_element_fc3| op(add_bias_element)

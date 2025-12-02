@@ -1,0 +1,57 @@
+decl in_field, out_field, coeff
+decl lap_field, res1, flx_field, res2, fly_field
+decl temp_cond1, temp_cond2
+
+sym I, J, K
+var i_loop, j_loop, k_loop
+
+out out_field
+
+; MAIN OUTER LOOP (Implicit, as all calculations are on the full fields)
+; Loop for lap_field calculation
+(in_field[0], lap_field[0] => lap_field[0]) ().L1_i_lap| for i_loop = 0 to I + 2 - 1:
+    (in_field[0], lap_field[0] => lap_field[0]) .L2_j_lap| for j_loop = 0 to J + 2 - 1:
+        (in_field[0], lap_field[0] => lap_field[0]) .L3_k_lap| for k_loop = 0 to K - 1:
+            (in_field[i_loop+1,j_loop+1,k_loop], in_field[i_loop+2,j_loop+1,k_loop], in_field[i_loop,j_loop+1,k_loop], in_field[i_loop+1,j_loop+2,k_loop], in_field[i_loop+1,j_loop,k_loop], in_field[i_loop+1,j_loop+1,k_loop+1], in_field[i_loop+1,j_loop+1,k_loop-1], lap_field[i_loop,j_loop,k_loop] => lap_field[i_loop,j_loop,k_loop]) .S1_lap_field| op(compute_lap_field)
+
+; Loop for res1 calculation
+(lap_field[0], res1[0] => res1[0]) (S1_lap_field).L4_i_res1| for i_loop = 0 to I - 1:
+    (lap_field[0], res1[0] => res1[0]) .L5_j_res1| for j_loop = 0 to J - 1:
+        (lap_field[0], res1[0] => res1[0]) .L6_k_res1| for k_loop = 0 to K - 1:
+            (lap_field[i_loop+1,j_loop+1,k_loop], lap_field[i_loop,j_loop+1,k_loop], res1[i_loop,j_loop,k_loop] => res1[i_loop,j_loop,k_loop]) .S2_res1_calc| op(compute_res1)
+
+; Loop for flx_field calculation (involving np.where)
+(res1[0], in_field[0], flx_field[0], temp_cond1[0] => flx_field[0], temp_cond1[0]) (S2_res1_calc).L7_i_flx| for i_loop = 0 to I + 1 - 1:
+    (res1[0], in_field[0], flx_field[0], temp_cond1[0] => flx_field[0], temp_cond1[0]) .L8_j_flx| for j_loop = 0 to J - 1:
+        (res1[0], in_field[0], flx_field[0], temp_cond1[0] => flx_field[0], temp_cond1[0]) .L9_k_flx| for k_loop = 0 to K - 1:
+            ; Compute condition: (res1[i_loop, j_loop, k_loop] * (in_field[i_loop+2, j_loop+2, k_loop] - in_field[i_loop+1, j_loop+2, k_loop])) > 0
+            (res1[i_loop, j_loop, k_loop], in_field[i_loop+2, j_loop+2, k_loop], in_field[i_loop+1, j_loop+2, k_loop], temp_cond1[i_loop, j_loop, k_loop] => temp_cond1[i_loop, j_loop, k_loop]) .S3_cond1_calc| op(compute_condition1)
+            
+            (flx_field[i_loop, j_loop, k_loop], res1[i_loop, j_loop, k_loop], temp_cond1[i_loop, j_loop, k_loop] => flx_field[i_loop, j_loop, k_loop]) (S3_cond1_calc).B1_flx_where| if (temp_cond1[i_loop, j_loop, k_loop] = 1):
+                (flx_field[i_loop, j_loop, k_loop] => flx_field[i_loop, j_loop, k_loop]) .S4_flx_true| op(assign_zero)
+            else:
+                (res1[i_loop, j_loop, k_loop], flx_field[i_loop, j_loop, k_loop] => flx_field[i_loop, j_loop, k_loop]) .S5_flx_false| op(assign_res1)
+
+; Loop for res2 calculation
+(lap_field[0], res2[0] => res2[0]) (B1_flx_where).L10_i_res2| for i_loop = 0 to I - 1:
+    (lap_field[0], res2[0] => res2[0]) .L11_j_res2| for j_loop = 0 to J + 1 - 1:
+        (lap_field[0], res2[0] => res2[0]) .L12_k_res2| for k_loop = 0 to K - 1:
+            (lap_field[i_loop+1,j_loop+1,k_loop], lap_field[i_loop+1,j_loop,k_loop], res2[i_loop,j_loop,k_loop] => res2[i_loop,j_loop,k_loop]) .S6_res2_calc| op(compute_res2)
+
+; Loop for fly_field calculation (involving np.where)
+(res2[0], in_field[0], fly_field[0], temp_cond2[0] => fly_field[0], temp_cond2[0]) (S6_res2_calc).L13_i_fly| for i_loop = 0 to I - 1:
+    (res2[0], in_field[0], fly_field[0], temp_cond2[0] => fly_field[0], temp_cond2[0]) .L14_j_fly| for j_loop = 0 to J + 1 - 1:
+        (res2[0], in_field[0], fly_field[0], temp_cond2[0] => fly_field[0], temp_cond2[0]) .L15_k_fly| for k_loop = 0 to K - 1:
+            ; Compute condition: (res2[i_loop, j_loop, k_loop] * (in_field[i_loop+2, j_loop+2, k_loop] - in_field[i_loop+2, j_loop+1, k_loop])) > 0
+            (res2[i_loop, j_loop, k_loop], in_field[i_loop+2, j_loop+2, k_loop], in_field[i_loop+2, j_loop+1, k_loop], temp_cond2[i_loop, j_loop, k_loop] => temp_cond2[i_loop, j_loop, k_loop]) .S7_cond2_calc| op(compute_condition2)
+
+            (fly_field[i_loop, j_loop, k_loop], res2[i_loop, j_loop, k_loop], temp_cond2[i_loop, j_loop, k_loop] => fly_field[i_loop, j_loop, k_loop]) (S7_cond2_calc).B2_fly_where| if (temp_cond2[i_loop, j_loop, k_loop] = 1):
+                (fly_field[i_loop, j_loop, k_loop] => fly_field[i_loop, j_loop, k_loop]) .S8_fly_true| op(assign_zero)
+            else:
+                (res2[i_loop, j_loop, k_loop], fly_field[i_loop, j_loop, k_loop] => fly_field[i_loop, j_loop, k_loop]) .S9_fly_false| op(assign_res2)
+
+; Loop for out_field final calculation
+(in_field[0], coeff[0], flx_field[0], fly_field[0], out_field[0] => out_field[0]) (B2_fly_where).L16_i_out| for i_loop = 0 to I - 1:
+    (in_field[0], coeff[0], flx_field[0], fly_field[0], out_field[0] => out_field[0]) .L17_j_out| for j_loop = 0 to J - 1:
+        (in_field[0], coeff[0], flx_field[0], fly_field[0], out_field[0] => out_field[0]) .L18_k_out| for k_loop = 0 to K - 1:
+            (in_field[i_loop+2, j_loop+2, k_loop], coeff[i_loop, j_loop, k_loop], flx_field[i_loop+1, j_loop, k_loop], flx_field[i_loop, j_loop, k_loop], fly_field[i_loop, j_loop+1, k_loop], fly_field[i_loop, j_loop, k_loop], out_field[i_loop, j_loop, k_loop] => out_field[i_loop, j_loop, k_loop]) .S10_final_calc| op(compute_final_out_field)

@@ -1,0 +1,37 @@
+decl A, B, C, D, tmp1, tmp2, result
+sym NI, NJ, NK, NL, NM
+var i, j, k, l, m
+
+out result
+
+; MAIN OUTER LOOP
+
+; 1. Compute tmp1 = A @ B
+; Initialize tmp1
+(tmp1[0,0] => tmp1[0,0]) S0_tmp1_init| op(tmp1_init_zero)
+
+(A[0], B[0], tmp1[0] => tmp1[0]) (S0_tmp1_init).L1_i_tmp1| for i = 0 to NI - 1:
+    (A[0], B[0], tmp1[0] => tmp1[0]) .L2_j_tmp1| for j = 0 to NJ - 1:
+        (tmp1[i,j] => tmp1[i,j]) .S1_tmp1_init_element| op(tmp1_init_zero_element)
+        (A[0], B[0], tmp1[i,j] => tmp1[i,j]) (S1_tmp1_init_element).L3_k_tmp1| for k = 0 to NK - 1:
+            (A[i,k], B[k,j], tmp1[i,j] => tmp1[i,j]) .S2_tmp1_accum| op(tmp1_accumulate)
+
+; 2. Compute tmp2 = tmp1 @ C
+; Initialize tmp2
+(tmp2[0,0] => tmp2[0,0]) S3_tmp2_init| op(tmp2_init_zero)
+
+(tmp1[0], C[0], tmp2[0] => tmp2[0]) (S2_tmp1_accum).L4_i_tmp2| for i = 0 to NI - 1:
+    (tmp1[0], C[0], tmp2[0] => tmp2[0]) .L5_m_tmp2| for m = 0 to NM - 1:
+        (tmp2[i,m] => tmp2[i,m]) .S4_tmp2_init_element| op(tmp2_init_zero_element)
+        (tmp1[0], C[0], tmp2[i,m] => tmp2[i,m]) (S4_tmp2_init_element).L6_j_tmp2| for j = 0 to NJ - 1:
+            (tmp1[i,j], C[j,m], tmp2[i,m] => tmp2[i,m]) .S5_tmp2_accum| op(tmp2_accumulate)
+
+; 3. Compute result = tmp2 @ D
+; Initialize result
+(result[0,0] => result[0,0]) S6_result_init| op(result_init_zero)
+
+(tmp2[0], D[0], result[0] => result[0]) (S5_tmp2_accum).L7_i_result| for i = 0 to NI - 1:
+    (tmp2[0], D[0], result[0] => result[0]) .L8_l_result| for l = 0 to NL - 1:
+        (result[i,l] => result[i,l]) .S7_result_init_element| op(result_init_zero_element)
+        (tmp2[0], D[0], result[i,l] => result[i,l]) (S7_result_init_element).L9_m_result| for m = 0 to NM - 1:
+            (tmp2[i,m], D[m,l], result[i,l] => result[i,l]) .S8_result_accum| op(result_accumulate)

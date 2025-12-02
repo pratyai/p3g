@@ -1,64 +1,103 @@
 sym N, TSTEPS
-var t, j
+var t, i, j
+
 decl u, v, p, q
+decl DX, DY, DT, B1, B2, mul1, mul2, a, b, c, d, e, f
+
 out u
 
-; MAIN OUTER LOOP
-(u[0,0], v[0,0], p[0,0], q[0,0] => u[0,0], v[0,0], p[0,0], q[0,0]) L_time | for t = 1 to TSTEPS:
+; Calculate scalar constants
+(DX[0] => DX[0]) S0_DX_calc| op(calc_DX_from_N) ; DX = 1.0 / N (N is implicit sym input)
+(DY[0] => DY[0]) .S1_DY_calc| op(calc_DY_from_N) ; DY = 1.0 / N
+(DT[0] => DT[0]) .S2_DT_calc| op(calc_DT_from_TSTEPS) ; DT = 1.0 / TSTEPS
+(B1[0] => B1[0]) .S3_B1_set| op(set_B1) ; B1 = 2.0
+(B2[0] => B2[0]) .S4_B2_set| op(set_B2) ; B2 = 1.0
+(B1[0], DT[0], DX[0], mul1[0] => mul1[0]) .S5_mul1_calc| op(calc_mul1) ; mul1 = B1 * DT / (DX * DX)
+(B2[0], DT[0], DY[0], mul2[0] => mul2[0]) .S6_mul2_calc| op(calc_mul2) ; mul2 = B2 * DT / (DY * DY)
+(mul1[0], a[0] => a[0]) .S7_a_calc| op(calc_a) ; a = -mul1 / 2.0
+(mul2[0], b[0] => b[0]) .S8_b_calc| op(calc_b) ; b = 1.0 + mul2
+(a[0], c[0] => c[0]) .S9_c_set| op(set_c) ; c = a
+(mul2[0], d[0] => d[0]) .S10_d_calc| op(calc_d) ; d = -mul2 / 2.0
+(mul2[0], e[0] => e[0]) .S11_e_calc| op(calc_e) ; e = 1.0 + mul2
+(d[0], f[0] => f[0]) .S12_f_set| op(set_f) ; f = d
+
+; Initialize v, p, q arrays
+(v[0,0] => v[0,0]) (S12_f_set).L_init_v_i| for i = 0 to N-1:
+    (v[0,0] => v[0,0]) .L_init_v_j| for j = 0 to N-1:
+        (v[i,j] => v[i,j]) .S13_init_v_element| op(init_v_zero)
+
+(p[0,0] => p[0,0]) (L_init_v_j).L_init_p_i| for i = 0 to N-1:
+    (p[0,0] => p[0,0]) .L_init_p_j| for j = 0 to N-1:
+        (p[i,j] => p[i,j]) .S14_init_p_element| op(init_p_zero)
+
+(q[0,0] => q[0,0]) (L_init_p_j).L_init_q_i| for i = 0 to N-1:
+    (q[0,0] => q[0,0]) .L_init_q_j| for j = 0 to N-1:
+        (q[i,j] => q[i,j]) .S15_init_q_element| op(init_q_zero)
+
+; MAIN OUTER LOOP (Time-stepping loop)
+(u[0,0], v[0,0], p[0,0], q[0,0], a[0], b[0], c[0], d[0], e[0], f[0] => u[0,0], v[0,0], p[0,0], q[0,0]) (L_init_q_j).L_time| for t = 1 to TSTEPS:
 
     ; --- Column sweep ---
-    ; v[0, 1:N-1] = 1.0
-    (v[0, 1:N-1] => v[0, 1:N-1]) S_v_init_col | op(v_init_col)
-    
-    ; p[1:N-1, 0] = 0.0
-    (p[1:N-1, 0] => p[1:N-1, 0]) S_p_init_col | op(p_init_col)
-    
-    ; q[1:N-1, 0] = v[0, 1:N-1]
-    (v[0, 1:N-1], q[1:N-1, 0] => q[1:N-1, 0]) S_q_init_col | op(q_init_col)
-    
+    ; v[0, 1:N - 1] = 1.0
+    (v[0,0] => v[0,0]) .L_v_init_col_j| for j = 1 to N-2:
+        (v[0, j] => v[0, j]) .S16_v_init_col_element| op(set_one)
+
+    ; p[1:N - 1, 0] = 0.0
+    (p[0,0] => p[0,0]) (S16_v_init_col_element).L_p_init_col_i| for i = 1 to N-2:
+        (p[i, 0] => p[i, 0]) .S17_p_init_col_element| op(set_zero)
+
+    ; q[1:N - 1, 0] = v[0, 1:N - 1]
+    (v[0,0], q[0,0] => q[0,0]) (S17_p_init_col_element).L_q_init_col_i| for i = 1 to N-2:
+        (v[0, i], q[i, 0] => q[i, 0]) .S18_q_init_col_element| op(copy_from_v_element)
+
     ; Forward substitution (Column)
-    (u[0,0], p[0,0], q[0,0] => p[0,0], q[0,0]) L_j_fwd_col | for j = 1 to N-2:
-        ; p[1:N-1, j] = ... depends on p[..., j-1]
-        (p[1:N-1, j-1], p[1:N-1, j] => p[1:N-1, j]) S_p_calc_col | op(p_calc_col)
+    (u[0,0], p[0,0], q[0,0], a[0], b[0], c[0], d[0], e[0], f[0] => p[0,0], q[0,0]) (S18_q_init_col_element).L_j_fwd_col| for j = 1 to N-2:
+        ; p[1:N-1, j] = -c / (a * p[1:N-1, j - 1] + b)
+        (p[0,0], a[0], b[0], c[0] => p[0,0]) .L_i_p_fwd_col| for i = 1 to N-2:
+            (p[i, j-1], a[0], b[0], c[0], p[i, j] => p[i, j]) .S19_p_calc_col| op(p_calc_col_element)
 
-        ; q[1:N-1, j] = ...
-        (u[j, 0:N-2], u[j, 1:N-1], u[j, 2:N], q[1:N-1, j-1], p[1:N-1, j-1], q[1:N-1, j] => q[1:N-1, j]) S_q_calc_col | op(q_calc_col)
+        ; q[1:N-1, j] = (-d * u[j, 0:N - 2] + (1.0 + 2.0 * d) * u[j, 1:N - 1] - f * u[j, 2:N] - a * q[1:N - 1, j - 1]) / (a * p[1:N - 1, j - 1] + b)
+        (u[0,0], p[0,0], q[0,0], a[0], b[0], c[0], d[0], e[0], f[0] => q[0,0]) (S19_p_calc_col).L_i_q_fwd_col| for i = 1 to N-2:
+            (u[i, j-1], u[i, j], u[i, j+1], q[i, j-1], p[i, j-1], a[0], b[0], c[0], d[0], e[0], f[0], q[i, j] => q[i, j]) .S20_q_calc_col| op(q_calc_col_element)
 
-    ; v[N-1, 1:N-1] = 1.0
-    (v[N-1, 1:N-1] => v[N-1, 1:N-1]) S_v_end_col | op(v_end_col)
-    
+    ; v[N - 1, 1:N - 1] = 1.0
+    (v[0,0] => v[0,0]) (S20_q_calc_col).L_v_end_col_j| for j = 1 to N-2:
+        (v[N-1, j] => v[N-1, j]) .S21_v_end_col_element| op(set_one)
+
     ; Backward substitution (Column)
-    (v[0,0], p[0,0], q[0,0] => v[0,0]) L_j_bwd_col | for j = N-2 to 1:
-         ; v[j, 1:N-1] = p[1:N-1, j] * v[j+1, 1:N-1] + q[1:N-1, j]
-         ; LHS: v[j, row] for row in 1..N-2
-         ; RHS: p[row, j], v[j+1, row], q[row, j]
-         (p[1:N-1, j], v[j+1, 1:N-1], q[1:N-1, j], v[j, 1:N-1] => v[j, 1:N-1]) S_v_calc_col | op(v_calc_col)
+    (v[0,0], p[0,0], q[0,0] => v[0,0]) (S21_v_end_col_element).L_j_bwd_col| for j = N-2 to 1:
+        (v[0,0], p[0,0], q[0,0] => v[0,0]) .L_i_v_bwd_col| for i = 1 to N-2:
+            (p[i, j], v[i+1, j], q[i, j], v[i, j] => v[i, j]) .S22_v_calc_col| op(v_calc_col_element)
 
 
     ; --- Row sweep ---
-    ; u[1:N-1, 0] = 1.0
-    (u[1:N-1, 0] => u[1:N-1, 0]) S_u_init_row | op(u_init_row)
-    
-    ; p[1:N-1, 0] = 0.0
-    (p[1:N-1, 0] => p[1:N-1, 0]) S_p_init_row | op(p_init_row)
-    
-    ; q[1:N-1, 0] = u[1:N-1, 0]
-    (u[1:N-1, 0], q[1:N-1, 0] => q[1:N-1, 0]) S_q_init_row | op(q_init_row)
+    ; u[1:N - 1, 0] = 1.0
+    (u[0,0] => u[0,0]) (S22_v_calc_col).L_u_init_row_i| for i = 1 to N-2:
+        (u[i, 0] => u[i, 0]) .S23_u_init_row_element| op(set_one)
+
+    ; p[1:N - 1, 0] = 0.0
+    (p[0,0] => p[0,0]) (S23_u_init_row_element).L_p_init_row_i| for i = 1 to N-2:
+        (p[i, 0] => p[i, 0]) .S24_p_init_row_element| op(set_zero)
+
+    ; q[1:N - 1, 0] = u[1:N - 1, 0]
+    (u[0,0], q[0,0] => q[0,0]) (S24_p_init_row_element).L_q_init_row_i| for i = 1 to N-2:
+        (u[i, 0], q[i, 0] => q[i, 0]) .S25_q_init_row_element| op(copy_from_u_element)
 
     ; Forward substitution (Row)
-    (v[0,0], p[0,0], q[0,0] => p[0,0], q[0,0]) L_j_fwd_row | for j = 1 to N-2:
-        ; p[1:N-1, j] = ...
-        (p[1:N-1, j-1], p[1:N-1, j] => p[1:N-1, j]) S_p_calc_row | op(p_calc_row)
-        
-        ; q[1:N-1, j] = ...
-        (v[0:N-2, j], v[1:N-1, j], v[2:N, j], q[1:N-1, j-1], p[1:N-1, j-1], q[1:N-1, j] => q[1:N-1, j]) S_q_calc_row | op(q_calc_row)
+    (u[0,0], v[0,0], p[0,0], q[0,0], a[0], b[0], c[0], d[0], e[0], f[0] => p[0,0], q[0,0]) (S25_q_init_row_element).L_j_fwd_row| for j = 1 to N-2:
+        ; p[1:N-1, j] = -f / (d * p[1:N-1, j - 1] + e)
+        (p[0,0], d[0], e[0], f[0] => p[0,0]) .L_i_p_fwd_row| for i = 1 to N-2:
+            (p[i, j-1], d[0], e[0], f[0], p[i, j] => p[i, j]) .S26_p_calc_row| op(p_calc_row_element)
 
-    ; u[1:N-1, N-1] = 1.0
-    (u[1:N-1, N-1] => u[1:N-1, N-1]) S_u_end_row | op(u_end_row)
-    
+        ; q[1:N-1, j] = (-a * v[0:N - 2, j] + (1.0 + 2.0 * a) * v[1:N - 1, j] - c * v[2:N, j] - d * q[1:N - 1, j - 1]) / (d * p[1:N - 1, j - 1] + e)
+        (v[0,0], p[0,0], q[0,0], a[0], b[0], c[0], d[0], e[0], f[0] => q[0,0]) (S26_p_calc_row).L_i_q_fwd_row| for i = 1 to N-2:
+            (v[i-1, j], v[i, j], v[i+1, j], q[i, j-1], p[i, j-1], a[0], b[0], c[0], d[0], e[0], f[0], q[i, j] => q[i, j]) .S27_q_calc_row| op(q_calc_row_element)
+
+    ; u[1:N - 1, N - 1] = 1.0
+    (u[0,0] => u[0,0]) (S27_q_calc_row).L_u_end_row_i| for i = 1 to N-2:
+        (u[i, N-1] => u[i, N-1]) .S28_u_end_row_element| op(set_one)
+
     ; Backward substitution (Row)
-    (u[0,0], p[0,0], q[0,0] => u[0,0]) L_j_bwd_row | for j = N-2 to 1:
-        ; u[1:N-1, j] = p[1:N-1, j] * u[1:N-1, j+1] + q[1:N-1, j]
-        ; LHS: u[row, j]
-        ; RHS: p[row, j], u[row, j+1], q[row, j]
-        (p[1:N-1, j], u[1:N-1, j+1], q[1:N-1, j], u[1:N-1, j] => u[1:N-1, j]) S_u_calc_row | op(u_calc_row)
+    (u[0,0], p[0,0], q[0,0] => u[0,0]) (S28_u_end_row_element).L_j_bwd_row| for j = N-2 to 1:
+        (u[0,0], p[0,0], q[0,0] => u[0,0]) .L_i_u_bwd_row| for i = 1 to N-2:
+            (p[i, j], u[i, j+1], q[i, j], u[i, j] => u[i, j]) .S29_u_calc_row| op(u_calc_row_element)

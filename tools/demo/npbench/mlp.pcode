@@ -1,0 +1,83 @@
+decl input, w1, b1, w2, b2, w3, b3, x1, x2, x3, tmp_max, tmp_out, tmp_sum, matmul_tmp1, add_tmp1, matmul_tmp2, add_tmp2, matmul_tmp3, add_tmp3
+sym C_in, N, S0, S1, S2, N1, N2
+var n_mlp, c_in_mlp, s0_mlp, s1_mlp, s2_mlp, n1_softmax, n2_softmax, k_matmul
+
+out x3
+
+; Compute matmul_tmp1 = input @ w1
+; MAIN OUTER LOOP
+(input[0], w1[0], matmul_tmp1[0] => matmul_tmp1[0]) ().L1_n_matmul1| for n_mlp = 0 to N - 1:
+    (input[0], w1[0], matmul_tmp1[0] => matmul_tmp1[0]) .L2_s0_matmul1| for s0_mlp = 0 to S0 - 1:
+        ; Initialize matmul_tmp1[n_mlp, s0_mlp] to 0
+        (matmul_tmp1[n_mlp, s0_mlp] => matmul_tmp1[n_mlp, s0_mlp]) .S1_matmul_init| op(matmul_init_zero)
+        ; Inner loop for matrix multiplication accumulation
+        (input[0], w1[0], matmul_tmp1[n_mlp, s0_mlp] => matmul_tmp1[n_mlp, s0_mlp]) (S1_matmul_init).L3_k_matmul1| for k_matmul = 0 to C_in - 1:
+            (input[n_mlp, k_matmul], w1[k_matmul, s0_mlp], matmul_tmp1[n_mlp, s0_mlp] => matmul_tmp1[n_mlp, s0_mlp]) .S2_matmul_accum| op(matmul_accumulate)
+
+; Compute add_tmp1 = matmul_tmp1 + b1 (with broadcasting b1)
+(matmul_tmp1[0], b1[0], add_tmp1[0] => add_tmp1[0]) (L3_k_matmul1).L4_n_add1| for n_mlp = 0 to N - 1:
+    (matmul_tmp1[0], b1[0], add_tmp1[0] => add_tmp1[0]) .L5_s0_add1| for s0_mlp = 0 to S0 - 1:
+        (matmul_tmp1[n_mlp, s0_mlp], b1[s0_mlp], add_tmp1[n_mlp, s0_mlp] => add_tmp1[n_mlp, s0_mlp]) .S3_add_b1_element| op(add_b1)
+
+; Compute x1 = relu(add_tmp1)
+(add_tmp1[0], x1[0] => x1[0]) (L5_s0_add1).L6_n_relu1| for n_mlp = 0 to N - 1:
+    (add_tmp1[0], x1[0] => x1[0]) .L7_s0_relu1| for s0_mlp = 0 to S0 - 1:
+        (add_tmp1[n_mlp, s0_mlp], x1[n_mlp, s0_mlp] => x1[n_mlp, s0_mlp]) .S4_relu_element| op(relu_element)
+
+; Compute matmul_tmp2 = x1 @ w2
+(x1[0], w2[0], matmul_tmp2[0] => matmul_tmp2[0]) (L7_s0_relu1).L8_n_matmul2| for n_mlp = 0 to N - 1:
+    (x1[0], w2[0], matmul_tmp2[0] => matmul_tmp2[0]) .L9_s1_matmul2| for s1_mlp = 0 to S1 - 1:
+        ; Initialize matmul_tmp2[n_mlp, s1_mlp] to 0
+        (matmul_tmp2[n_mlp, s1_mlp] => matmul_tmp2[n_mlp, s1_mlp]) .S5_matmul_init| op(matmul_init_zero)
+        ; Inner loop for matrix multiplication accumulation
+        (x1[0], w2[0], matmul_tmp2[n_mlp, s1_mlp] => matmul_tmp2[n_mlp, s1_mlp]) (S5_matmul_init).L10_k_matmul2| for k_matmul = 0 to S0 - 1:
+            (x1[n_mlp, k_matmul], w2[k_matmul, s1_mlp], matmul_tmp2[n_mlp, s1_mlp] => matmul_tmp2[n_mlp, s1_mlp]) .S6_matmul_accum| op(matmul_accumulate)
+
+; Compute add_tmp2 = matmul_tmp2 + b2 (with broadcasting b2)
+(matmul_tmp2[0], b2[0], add_tmp2[0] => add_tmp2[0]) (L10_k_matmul2).L11_n_add2| for n_mlp = 0 to N - 1:
+    (matmul_tmp2[0], b2[0], add_tmp2[0] => add_tmp2[0]) .L12_s1_add2| for s1_mlp = 0 to S1 - 1:
+        (matmul_tmp2[n_mlp, s1_mlp], b2[s1_mlp], add_tmp2[n_mlp, s1_mlp] => add_tmp2[n_mlp, s1_mlp]) .S7_add_b2_element| op(add_b2)
+
+; Compute x2 = relu(add_tmp2)
+(add_tmp2[0], x2[0] => x2[0]) (L12_s1_add2).L13_n_relu2| for n_mlp = 0 to N - 1:
+    (add_tmp2[0], x2[0] => x2[0]) .L14_s1_relu2| for s1_mlp = 0 to S1 - 1:
+        (add_tmp2[n_mlp, s1_mlp], x2[n_mlp, s1_mlp] => x2[n_mlp, s1_mlp]) .S8_relu_element| op(relu_element)
+
+; Compute matmul_tmp3 = x2 @ w3
+(x2[0], w3[0], matmul_tmp3[0] => matmul_tmp3[0]) (L14_s1_relu2).L15_n_matmul3| for n_mlp = 0 to N - 1:
+    (x2[0], w3[0], matmul_tmp3[0] => matmul_tmp3[0]) .L16_s2_matmul3| for s2_mlp = 0 to S2 - 1:
+        ; Initialize matmul_tmp3[n_mlp, s2_mlp] to 0
+        (matmul_tmp3[n_mlp, s2_mlp] => matmul_tmp3[n_mlp, s2_mlp]) .S9_matmul_init| op(matmul_init_zero)
+        ; Inner loop for matrix multiplication accumulation
+        (x2[0], w3[0], matmul_tmp3[n_mlp, s2_mlp] => matmul_tmp3[n_mlp, s2_mlp]) (S9_matmul_init).L17_k_matmul3| for k_matmul = 0 to S1 - 1:
+            (x2[n_mlp, k_matmul], w3[k_matmul, s2_mlp], matmul_tmp3[n_mlp, s2_mlp] => matmul_tmp3[n_mlp, s2_mlp]) .S10_matmul_accum| op(matmul_accumulate)
+
+; Compute add_tmp3 = matmul_tmp3 + b3 (with broadcasting b3)
+(matmul_tmp3[0], b3[0], add_tmp3[0] => add_tmp3[0]) (L17_k_matmul3).L18_n_add3| for n_mlp = 0 to N - 1:
+    (matmul_tmp3[0], b3[0], add_tmp3[0] => add_tmp3[0]) .L19_s2_add3| for s2_mlp = 0 to S2 - 1:
+        (matmul_tmp3[n_mlp, s2_mlp], b3[s2_mlp], add_tmp3[n_mlp, s2_mlp] => add_tmp3[n_mlp, s2_mlp]) .S11_add_b3_element| op(add_b3)
+
+; Softmax(add_tmp3) computation starts here
+; Compute tmp_max = np.maximum.reduce(add_tmp3, axis=-1, keepdims=True)
+(add_tmp3[0], tmp_max[0] => tmp_max[0]) (L19_s2_add3).L20_n_tmp_max| for n_mlp = 0 to N - 1:
+    ; Initialize tmp_max[n_mlp, 0] with the first element for comparison
+    (add_tmp3[n_mlp, 0], tmp_max[n_mlp, 0] => tmp_max[n_mlp, 0]) .S12_tmp_max_init| op(tmp_max_init)
+    (add_tmp3[0], tmp_max[0] => tmp_max[0]) (S12_tmp_max_init).L21_s2_tmp_max_reduce| for s2_mlp = 1 to S2 - 1: ; Start from 1 as 0th is init
+        (add_tmp3[n_mlp, s2_mlp], tmp_max[n_mlp, 0] => tmp_max[n_mlp, 0]) .S13_tmp_max_compare| op(tmp_max_compare_and_update)
+
+; Compute tmp_out = np.exp(add_tmp3 - tmp_max)
+(add_tmp3[0], tmp_max[0], tmp_out[0] => tmp_out[0]) (L21_s2_tmp_max_reduce).L22_n_tmp_out| for n_mlp = 0 to N - 1:
+    (add_tmp3[0], tmp_max[0], tmp_out[0] => tmp_out[0]) .L23_s2_tmp_out| for s2_mlp = 0 to S2 - 1:
+        (add_tmp3[n_mlp, s2_mlp], tmp_max[n_mlp, 0], tmp_out[n_mlp, s2_mlp] => tmp_out[n_mlp, s2_mlp]) .S14_exp_sub_element| op(exp_subtract)
+
+; Compute tmp_sum = np.add.reduce(tmp_out, axis=-1, keepdims=True)
+(tmp_out[0], tmp_sum[0] => tmp_sum[0]) (L23_s2_tmp_out).L24_n_tmp_sum| for n_mlp = 0 to N - 1:
+    ; Initialize tmp_sum[n_mlp, 0] to 0
+    (tmp_sum[n_mlp, 0] => tmp_sum[n_mlp, 0]) .S15_tmp_sum_init| op(tmp_sum_init_zero)
+    (tmp_out[0], tmp_sum[0] => tmp_sum[0]) (S15_tmp_sum_init).L25_s2_tmp_sum_reduce| for s2_mlp = 0 to S2 - 1:
+        (tmp_out[n_mlp, s2_mlp], tmp_sum[n_mlp, 0] => tmp_sum[n_mlp, 0]) .S16_tmp_sum_accumulate| op(tmp_sum_accumulate)
+
+; Compute x3 = tmp_out / tmp_sum
+(tmp_out[0], tmp_sum[0], x3[0] => x3[0]) (L25_s2_tmp_sum_reduce).L26_n_x3| for n_mlp = 0 to N - 1:
+    (tmp_out[0], tmp_sum[0], x3[0] => x3[0]) .L27_s2_x3| for s2_mlp = 0 to S2 - 1:
+        (tmp_out[n_mlp, s2_mlp], tmp_sum[n_mlp, 0], x3[n_mlp, s2_mlp] => x3[n_mlp, s2_mlp]) .S17_divide_element| op(divide_element)

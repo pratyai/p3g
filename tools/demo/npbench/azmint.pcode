@@ -1,39 +1,107 @@
-decl data, radius, bin_edges_u, histu, bin_edges_w, histw, res, amin_u, amax_u, bin_idx_u, amin_w, amax_w, bin_idx_w
 sym N, npt
-var i, k
+var i_loop, k_loop, b_loop
+
+decl data, radius, bin_edges_u, histu, bin_edges_w, histw, res
+decl a_min_u, a_max_u, delta_u
+decl a_min_w, a_max_w, delta_w
+decl bin_u, bin_w ; scalar temporary for bin index
+decl temp_expr_u_num, temp_expr_u_den ; For compute_bin expression intermediates
+decl temp_expr_w_num, temp_expr_w_den
+
 out res
 
-; --- Part 1: bin_edges_u ---
-(radius[0:N-1], amin_u[0], amax_u[0] => amin_u[0], amax_u[0]) S1| op(minmax)
+; Part A: histu calculation
+; A.1: Initialize bin_edges_u
+(bin_edges_u[0] => bin_edges_u[0]) ().L1_k_bin_edges_u_init| for k_loop = 0 to npt:
+    (bin_edges_u[k_loop] => bin_edges_u[k_loop]) .S1_bin_edges_u_init_element| op(init_zero)
 
-(amin_u[0], amax_u[0], bin_edges_u[0] => bin_edges_u[0]) L1| for k = 0 to npt-1:
-    (amin_u[0], amax_u[0], bin_edges_u[k] => bin_edges_u[k]) S2| op(calc_edge)
+; A.2: Initialize histu
+(histu[0] => histu[0]) (S1_bin_edges_u_init_element).L2_b_histu_init| for b_loop = 0 to npt - 1:
+    (histu[b_loop] => histu[b_loop]) .S2_histu_init_element| op(init_zero)
 
-(amax_u[0], bin_edges_u[npt] => bin_edges_u[npt]) S3| op(last_edge)
+; A.3.1: a_min_u = np.amin(radius)
+(a_min_u[0] => a_min_u[0]) (S2_histu_init_element).S3_amin_u_init| op(min_init_from_radius_element)
+(radius[0], a_min_u[0] => a_min_u[0]) (S3_amin_u_init).L3_i_amin_u| for i_loop = 1 to N-1:
+    (radius[i_loop], a_min_u[0] => a_min_u[0]) .S4_amin_u_compare| op(min_compare)
 
-; --- Part 2: histu ---
-(histu[0:npt-1] => histu[0:npt-1]) S4| op(init)
+; A.3.2: a_max_u = np.amax(radius)
+(a_max_u[0] => a_max_u[0]) (S4_amin_u_compare).S5_amax_u_init| op(max_init_from_radius_element)
+(radius[0], a_max_u[0] => a_max_u[0]) (S5_amax_u_init).L4_i_amax_u| for i_loop = 1 to N-1:
+    (radius[i_loop], a_max_u[0] => a_max_u[0]) .S6_amax_u_compare| op(max_compare)
 
+; A.3.3: delta_u = (a_max_u - a_min_u) / npt
+(a_max_u[0], a_min_u[0], delta_u[0] => delta_u[0]) (S6_amax_u_compare).S7_delta_u_calc| op(calc_delta_u_from_npt_sym) ; npt is implicit as sym
+
+; A.3.4: for k_loop = 0 to npt-1: bin_edges_u[k_loop] = a_min_u + k_loop * delta_u
+(a_min_u[0], delta_u[0], bin_edges_u[0] => bin_edges_u[0]) (S7_delta_u_calc).L5_k_bin_edges_u_calc| for k_loop = 0 to npt-1:
+    (a_min_u[0], delta_u[0], bin_edges_u[k_loop] => bin_edges_u[k_loop]) .S8_calc_edge_u_element| op(calc_edge)
+
+; A.3.5: bin_edges_u[npt] = a_max_u
+(a_max_u[0], bin_edges_u[npt] => bin_edges_u[npt]) (S8_calc_edge_u_element).S9_last_edge_u| op(assign_amax_u)
+
+; A.4: Main loop for histu
 ; MAIN OUTER LOOP
-(radius[0], bin_edges_u[0], histu[0] => histu[0]) L2| for i = 0 to N-1:
-    (radius[i], bin_edges_u[0:npt], bin_idx_u[i] => bin_idx_u[i]) S5| op(compute_bin)
-    (histu[bin_idx_u[i]] => histu[bin_idx_u[i]]) (S5).S6| op(incr)
+(radius[0], bin_edges_u[0], histu[0] => histu[0]) (S9_last_edge_u).L6_i_histu| for i_loop = 0 to N-1:
+    ; bin = min(compute_bin(radius[i_loop], bin_edges_u), npt - 1)
+    ; Inlining compute_bin:
+    ; a_min = bin_edges_u[0]
+    ; a_max = bin_edges_u[npt]
+    (bin_edges_u[0], radius[i_loop], temp_expr_u_num[0] => temp_expr_u_num[0]) .S10_comp_bin_u_num| op(comp_bin_u_num_from_npt_sym) ; npt implicit in computation
+    (bin_edges_u[0], bin_edges_u[npt], temp_expr_u_den[0] => temp_expr_u_den[0]) .S11_comp_bin_u_den| op(comp_bin_u_den)
+    (temp_expr_u_num[0], temp_expr_u_den[0], bin_u[0] => bin_u[0]) .S12_comp_bin_u_res| op(comp_bin_u_res_from_npt_sym) ; npt implicit in computation
 
-; --- Part 3: bin_edges_w ---
-(radius[0:N-1], amin_w[0], amax_w[0] => amin_w[0], amax_w[0]) S7| op(minmax)
+    ; bin = min(bin_u[0], npt - 1)
+    (bin_u[0] => bin_u[0]) .S13_min_bin_u| op(min_with_npt_minus_1_sym) ; npt implicit in computation
 
-(amin_w[0], amax_w[0], bin_edges_w[0] => bin_edges_w[0]) L3| for k = 0 to npt-1:
-    (amin_w[0], amax_w[0], bin_edges_w[k] => bin_edges_w[k]) S8| op(calc_edge)
+    ; histu[bin_u[0]] += 1
+    (histu[bin_u[0]] => histu[bin_u[0]]) .S14_histu_incr| op(increment_histu)
 
-(amax_w[0], bin_edges_w[npt] => bin_edges_w[npt]) S9| op(last_edge)
 
-; --- Part 4: histw ---
-(histw[0:npt-1] => histw[0:npt-1]) S10| op(init)
+; Part B: histw calculation
+; B.1: Initialize bin_edges_w
+(bin_edges_w[0] => bin_edges_w[0]) (S14_histu_incr).L7_k_bin_edges_w_init| for k_loop = 0 to npt:
+    (bin_edges_w[k_loop] => bin_edges_w[k_loop]) .S15_bin_edges_w_init_element| op(init_zero)
 
-(radius[0], bin_edges_w[0], data[0], histw[0] => histw[0]) L4| for i = 0 to N-1:
-    (radius[i], bin_edges_w[0:npt], bin_idx_w[i] => bin_idx_w[i]) S11| op(compute_bin)
-    (histw[bin_idx_w[i]], data[i] => histw[bin_idx_w[i]]) (S11).S12| op(accumulate)
+; B.2: Initialize histw
+(histw[0] => histw[0]) (S15_bin_edges_w_init_element).L8_b_histw_init| for b_loop = 0 to npt - 1:
+    (histw[b_loop] => histw[b_loop]) .S16_histw_init_element| op(init_zero)
 
-; --- Part 5: Division ---
-(histw[0], histu[0], res[0] => res[0]) L5| for k = 0 to npt-1:
-    (histw[k], histu[k], res[k] => res[k]) S13| op(div)
+; B.3.1: a_min_w = np.amin(radius)
+(a_min_w[0] => a_min_w[0]) (S16_histw_init_element).S17_amin_w_init| op(min_init_from_radius_element)
+(radius[0], a_min_w[0] => a_min_w[0]) (S17_amin_w_init).L9_i_amin_w| for i_loop = 1 to N-1:
+    (radius[i_loop], a_min_w[0] => a_min_w[0]) .S18_amin_w_compare| op(min_compare)
+
+; B.3.2: a_max_w = np.amax(radius)
+(a_max_w[0] => a_max_w[0]) (S18_amin_w_compare).S19_amax_w_init| op(max_init_from_radius_element)
+(radius[0], a_max_w[0] => a_max_w[0]) (S19_amax_w_init).L10_i_amax_w| for i_loop = 1 to N-1:
+    (radius[i_loop], a_max_w[0] => a_max_w[0]) .S20_amax_w_compare| op(max_compare)
+
+; B.3.3: delta_w = (a_max_w - a_min_w) / npt
+(a_max_w[0], a_min_w[0], delta_w[0] => delta_w[0]) (S20_amax_w_compare).S21_delta_w_calc| op(calc_delta_w_from_npt_sym)
+
+; B.3.4: bin_edges_w[k] = a_min_w + k * delta_w
+(a_min_w[0], delta_w[0], bin_edges_w[0] => bin_edges_w[0]) (S21_delta_w_calc).L11_k_bin_edges_w_calc| for k_loop = 0 to npt-1:
+    (a_min_w[0], delta_w[0], bin_edges_w[k_loop] => bin_edges_w[k_loop]) .S22_calc_edge_w_element| op(calc_edge)
+
+; B.3.5: bin_edges_w[npt] = a_max_w
+(a_max_w[0], bin_edges_w[npt] => bin_edges_w[npt]) (S22_calc_edge_w_element).S23_last_edge_w| op(assign_amax_w)
+
+; B.4: Main loop for histw
+(radius[0], bin_edges_w[0], data[0], histw[0] => histw[0]) (S23_last_edge_w).L12_i_histw| for i_loop = 0 to N-1:
+    ; bin = min(compute_bin(radius[i_loop], bin_edges_w), npt - 1)
+    ; Inlining compute_bin:
+    ; a_min = bin_edges_w[0]
+    ; a_max = bin_edges_w[npt]
+    (bin_edges_w[0], radius[i_loop], temp_expr_w_num[0] => temp_expr_w_num[0]) .S24_comp_bin_w_num| op(comp_bin_w_num_from_npt_sym)
+    (bin_edges_w[0], bin_edges_w[npt], temp_expr_w_den[0] => temp_expr_w_den[0]) .S25_comp_bin_w_den| op(comp_bin_w_den)
+    (temp_expr_w_num[0], temp_expr_w_den[0], bin_w[0] => bin_w[0]) .S26_comp_bin_w_res| op(comp_bin_w_res_from_npt_sym)
+
+    ; bin = min(bin_w[0], npt - 1)
+    (bin_w[0] => bin_w[0]) .S27_min_bin_w| op(min_with_npt_minus_1_sym)
+
+    ; histw[bin_w[0]] += data[i_loop]
+    (histw[bin_w[0]], data[i_loop], histw[bin_w[0]] => histw[bin_w[0]]) .S28_histw_accum| op(accumulate_histw)
+
+; Part C: Division res = histw / histu
+(histw[0], histu[0], res[0] => res[0]) (S28_histw_accum).L13_b_res_div| for b_loop = 0 to npt-1:
+    (histw[b_loop], histu[b_loop], res[b_loop] => res[b_loop]) .S29_res_div_element| op(divide_element)

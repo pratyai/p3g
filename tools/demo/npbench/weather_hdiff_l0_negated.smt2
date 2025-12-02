@@ -1,0 +1,31 @@
+(declare-fun I () Int)
+(declare-fun J () Int)
+(declare-fun K () Int)
+(declare-fun i_loop () Int)
+
+(assert (and
+  (forall ((j_loop_0 Int) (j_loop_1 Int) (k_loop_0 Int) (k_loop_1 Int))
+    (or
+      (not (= i_loop (+ i_loop 1)))
+      (not (= j_loop_0 j_loop_1))
+      (not (= k_loop_0 k_loop_1))
+      (not (<= 0 j_loop_0))
+      (not (<= j_loop_0 (- (+ J 2) 1)))
+      (not (<= 0 k_loop_0))
+      (not (<= k_loop_0 (- K 1)))
+      (not (<= 0 j_loop_1))
+      (not (<= j_loop_1 (- (+ J 2) 1)))
+      (not (<= 0 k_loop_1))
+      (not (<= k_loop_1 (- K 1)))
+    )
+  )
+  (and
+    (<= 0 i_loop)
+    (<= (+ i_loop 1) (- (+ I 2) 1))
+    (<= 1 (- K 1))
+    (<= 1 (- (+ J 2) 1))
+    (<= 1 (- (+ I 2) 1))
+  )
+))
+
+(check-sat)

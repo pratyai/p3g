@@ -1,0 +1,19 @@
+decl in_field, out_field, tmp_field
+sym I, J, K, TSTEPS
+var t, i_loop, j_loop, k_loop
+
+out out_field
+
+; MAIN OUTER LOOP
+(in_field[0], out_field[0] => out_field[0]) ().L1_t| for t = 0 to TSTEPS - 1:
+    ; Compute tmp_field
+    (in_field[0], tmp_field[0] => tmp_field[0]) .L2_i_tmp| for i_loop = 0 to I - 1:
+        (in_field[0], tmp_field[0] => tmp_field[0]) .L3_j_tmp| for j_loop = 0 to J - 1:
+            (in_field[0], tmp_field[0] => tmp_field[0]) .L4_k_tmp| for k_loop = 0 to K - 1:
+                (in_field[i_loop+1, j_loop+1, k_loop], in_field[i_loop+2, j_loop+1, k_loop], in_field[i_loop, j_loop+1, k_loop], tmp_field[i_loop, j_loop, k_loop] => tmp_field[i_loop, j_loop, k_loop]) .S1_tmp_field_calc| op(compute_tmp_field)
+
+    ; Compute out_field
+    (in_field[0], out_field[0], tmp_field[0] => out_field[0]) (S1_tmp_field_calc).L5_i_out| for i_loop = 0 to I - 1:
+        (in_field[0], out_field[0], tmp_field[0] => out_field[0]) .L6_j_out| for j_loop = 0 to J - 1:
+            (in_field[0], out_field[0], tmp_field[0] => out_field[0]) .L7_k_out| for k_loop = 0 to K - 1:
+                (tmp_field[i_loop, j_loop, k_loop], tmp_field[i_loop+1, j_loop, k_loop], out_field[i_loop+1, j_loop+1, k_loop] => out_field[i_loop+1, j_loop+1, k_loop]) .S2_out_field_calc| op(compute_out_field)

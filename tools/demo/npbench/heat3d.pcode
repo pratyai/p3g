@@ -1,0 +1,19 @@
+decl A, B
+sym N, TSTEPS
+var t, i, j, k
+
+out A, B
+
+; MAIN OUTER LOOP
+(A[0,0,0], B[0,0,0] => A[0,0,0], B[0,0,0]) ().L1_t| for t = 1 to TSTEPS - 1:
+    ; Compute B[1:-1, 1:-1, 1:-1]
+    (A[0,0,0], B[0,0,0] => B[0,0,0]) .L2_i_B| for i = 1 to N - 2:
+        (A[0,0,0], B[0,0,0] => B[0,0,0]) .L3_j_B| for j = 1 to N - 2:
+            (A[0,0,0], B[0,0,0] => B[0,0,0]) .L4_k_B| for k = 1 to N - 2:
+                (A[i-1,j,k], A[i+1,j,k], A[i,j-1,k], A[i,j+1,k], A[i,j,k-1], A[i,j,k+1], A[i,j,k], B[i,j,k] => B[i,j,k]) .S1_stencil_B| op(compute_stencil_B)
+
+    ; Compute A[1:-1, 1:-1, 1:-1]
+    (A[0,0,0], B[0,0,0] => A[0,0,0]) (L4_k_B).L5_i_A| for i = 1 to N - 2:
+        (A[0,0,0], B[0,0,0] => A[0,0,0]) .L6_j_A| for j = 1 to N - 2:
+            (A[0,0,0], B[0,0,0] => A[0,0,0]) .L7_k_A| for k = 1 to N - 2:
+                (B[i-1,j,k], B[i+1,j,k], B[i,j-1,k], B[i,j+1,k], B[i,j,k-1], B[i,j,k+1], B[i,j,k], A[i,j,k] => A[i,j,k]) .S2_stencil_A| op(compute_stencil_A)

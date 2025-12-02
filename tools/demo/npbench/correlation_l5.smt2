@@ -1,13 +1,12 @@
 
 
-(assert (forall ((M Int) (N Int) (i Int))
+(assert (forall ((M Int) (N Int) (i Int) (j Int))
   (=>
     (and
-      (not (or (exists ((j_1 Int)(j_0 Int)) (and (<= (+ i 2) j_1) (<= j_0 (- M 1)) (<= (+ i 1) j_0) (<= j_1 (- M 1)) (or (and (= i j_1) (= j_0 (+ i 1))) (and (= i (+ i 1)) (= j_0 j_1))))) (exists ((j_1 Int)(j_0 Int)) (and (<= (+ i 2) j_1) (<= j_0 (- M 1)) (<= (+ i 1) j_0) (<= j_1 (- M 1)) (= i (+ i 1)) (= j_0 j_1)))))
+      (<= (+ j 1) (- M 1))
+      (not (or (and (= i (+ j 1)) (= j i)) (= j (+ j 1))))
       (<= (+ i 2) (- M 1))
-      (<= 1 (- M 2))
-      (<= 0 i)
-      (<= (+ i 1) (- M 2))
+      (<= (+ i 1) j)
     )
     false
   )

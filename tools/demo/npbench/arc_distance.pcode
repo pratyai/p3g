@@ -1,0 +1,61 @@
+decl theta_1, phi_1, theta_2, phi_2
+decl temp_theta_diff, temp_theta_diff_half, temp_sin_theta_diff_half, temp_sin_theta_diff_half_sq
+decl temp_cos_theta1, temp_cos_theta2
+decl temp_phi_diff, temp_phi_diff_half, temp_sin_phi_diff_half, temp_sin_phi_diff_half_sq
+decl temp_product_cos_sin_sq
+decl temp
+decl temp_sqrt, one_minus_temp_sqrt
+decl distance_matrix
+
+sym N
+var idx
+
+out distance_matrix
+
+; MAIN OUTER LOOP
+(theta_1[0], phi_1[0], theta_2[0], phi_2[0], distance_matrix[0] => distance_matrix[0]) ().L1_idx| for idx = 0 to N - 1:
+    ; 1. temp_theta_diff = theta_2 - theta_1
+    (theta_2[idx], theta_1[idx], temp_theta_diff[idx] => temp_theta_diff[idx]) .S1_theta_diff| op(theta_diff)
+
+    ; 2. temp_theta_diff_half = temp_theta_diff / 2
+    (temp_theta_diff[idx], temp_theta_diff_half[idx] => temp_theta_diff_half[idx]) .S2_theta_diff_half| op(divide_by_2)
+
+    ; 3. temp_sin_theta_diff_half = np.sin(temp_theta_diff_half)
+    (temp_theta_diff_half[idx], temp_sin_theta_diff_half[idx] => temp_sin_theta_diff_half[idx]) .S3_sin_theta_diff_half| op(sin_val)
+
+    ; 4. temp_sin_theta_diff_half_sq = temp_sin_theta_diff_half**2
+    (temp_sin_theta_diff_half[idx], temp_sin_theta_diff_half_sq[idx] => temp_sin_theta_diff_half_sq[idx]) .S4_square_val| op(square_val)
+
+    ; 5. temp_cos_theta1 = np.cos(theta_1)
+    (theta_1[idx], temp_cos_theta1[idx] => temp_cos_theta1[idx]) .S5_cos_theta1| op(cos_val)
+
+    ; 6. temp_cos_theta2 = np.cos(theta_2)
+    (theta_2[idx], temp_cos_theta2[idx] => temp_cos_theta2[idx]) .S6_cos_theta2| op(cos_val)
+
+    ; 7. temp_phi_diff = phi_2 - phi_1
+    (phi_2[idx], phi_1[idx], temp_phi_diff[idx] => temp_phi_diff[idx]) .S7_phi_diff| op(phi_diff)
+
+    ; 8. temp_phi_diff_half = temp_phi_diff / 2
+    (temp_phi_diff[idx], temp_phi_diff_half[idx] => temp_phi_diff_half[idx]) .S8_phi_diff_half| op(divide_by_2)
+
+    ; 9. temp_sin_phi_diff_half = np.sin(temp_phi_diff_half)
+    (temp_phi_diff_half[idx], temp_sin_phi_diff_half[idx] => temp_sin_phi_diff_half[idx]) .S9_sin_phi_diff_half| op(sin_val)
+
+    ; 10. temp_sin_phi_diff_half_sq = temp_sin_phi_diff_half**2
+    (temp_sin_phi_diff_half[idx], temp_sin_phi_diff_half_sq[idx] => temp_sin_phi_diff_half_sq[idx]) .S10_square_val| op(square_val)
+
+    ; 11. temp_product_cos_sin_sq = temp_cos_theta1 * temp_cos_theta2 * temp_sin_phi_diff_half_sq
+    (temp_cos_theta1[idx], temp_cos_theta2[idx], temp_sin_phi_diff_half_sq[idx], temp_product_cos_sin_sq[idx] => temp_product_cos_sin_sq[idx]) .S11_product| op(multiply_three)
+
+    ; 12. temp = temp_sin_theta_diff_half_sq + temp_product_cos_sin_sq
+    (temp_sin_theta_diff_half_sq[idx], temp_product_cos_sin_sq[idx], temp[idx] => temp[idx]) .S12_add_temp| op(add_values)
+
+    ; 13. temp_sqrt = np.sqrt(temp)
+    (temp[idx], temp_sqrt[idx] => temp_sqrt[idx]) .S13_sqrt_temp| op(sqrt_val)
+
+    ; 14. one_minus_temp_sqrt = np.sqrt(1 - temp)
+    (temp[idx], one_minus_temp_sqrt[idx] => one_minus_temp_sqrt[idx]) .S14_sqrt_one_minus_temp| op(sqrt_one_minus_val)
+
+    ; 15. distance_matrix = 2 * (np.arctan2(np.sqrt(temp), np.sqrt(1 - temp)))
+    (temp_sqrt[idx], one_minus_temp_sqrt[idx], distance_matrix[idx] => distance_matrix[idx]) .S15_arctan2| op(arctan2_val)
+    (distance_matrix[idx] => distance_matrix[idx]) .S16_multiply_by_2| op(multiply_by_2)

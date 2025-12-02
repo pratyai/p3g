@@ -1,88 +1,131 @@
-sym nx, ny, nt, nit
+sym nx, ny, nt, nit, rho, dt, dx, dy, nu
 var n, q, y, x
+
 decl u, v, p, b, un, vn, pn
+decl tmp_b_term1, tmp_b_term2, tmp_b_term3, tmp_b_term4, tmp_b_term5, tmp_b_term6
+decl tmp_p_term1, tmp_p_term2, tmp_p_term3 ; For pressure poisson update
+decl tmp_u_term1, tmp_u_term2, tmp_u_term3, tmp_u_term4, tmp_u_term5, tmp_u_term6, tmp_u_term7 ; For u update
+decl tmp_v_term1, tmp_v_term2, tmp_v_term3, tmp_v_term4, tmp_v_term5, tmp_v_term6, tmp_v_term7 ; For v update
+
 out u, v, p
 
+; Initialize un
+(un[0,0] => un[0,0]) ().L_init_un_y| for y = 0 to ny-1:
+    (un[0,0] => un[0,0]) .L_init_un_x| for x = 0 to nx-1:
+        (un[y,x] => un[y,x]) .S0_init_un_element| op(init_zero)
+
+; Initialize vn
+(vn[0,0] => vn[0,0]) (L_init_un_x).L_init_vn_y| for y = 0 to ny-1:
+    (vn[0,0] => vn[0,0]) .L_init_vn_x| for x = 0 to nx-1:
+        (vn[y,x] => vn[y,x]) .S1_init_vn_element| op(init_zero)
+
+; Initialize b (explicitly zeros in Python)
+(b[0,0] => b[0,0]) (L_init_vn_x).L_init_b_y| for y = 0 to ny-1:
+    (b[0,0] => b[0,0]) .L_init_b_x| for x = 0 to nx-1:
+        (b[y,x] => b[y,x]) .S2_init_b_element| op(init_zero)
+
 ; MAIN OUTER LOOP
-(u[0,0], v[0,0], p[0,0] => u[0,0], v[0,0], p[0,0]) L_time| for n = 0 to nt-1:
+(u[0,0], v[0,0], p[0,0], b[0,0], un[0,0], vn[0,0], pn[0,0] => u[0,0], v[0,0], p[0,0]) (L_init_b_x).L_time| for n = 0 to nt-1:
 
     ; un = u.copy()
-    (u[0,0], un[0,0] => un[0,0]) L_copy_u| for y = 0 to ny-1:
-        (u[0,0], un[0,0] => un[0,0]) L_copy_u_inner| for x = 0 to nx-1:
-            (u[y, x], un[y, x] => un[y, x]) S_copy_u| op(copy)
+    (u[0,0], un[0,0] => un[0,0]) .L_copy_un_y| for y = 0 to ny-1:
+        (u[0,0], un[0,0] => un[0,0]) .L_copy_un_x| for x = 0 to nx-1:
+            (u[y, x], un[y, x] => un[y, x]) .S3_copy_u| op(copy_u)
 
     ; vn = v.copy()
-    (v[0,0], vn[0,0] => vn[0,0]) L_copy_v| for y = 0 to ny-1:
-        (v[0,0], vn[0,0] => vn[0,0]) L_copy_v_inner| for x = 0 to nx-1:
-            (v[y, x], vn[y, x] => vn[y, x]) S_copy_v| op(copy)
+    (v[0,0], vn[0,0] => vn[0,0]) (S3_copy_u).L_copy_vn_y| for y = 0 to ny-1:
+        (v[0,0], vn[0,0] => vn[0,0]) .L_copy_vn_x| for x = 0 to nx-1:
+            (v[y, x], vn[y, x] => vn[y, x]) .S4_copy_v| op(copy_v)
 
-    ; build_up_b
-    (u[0,0], v[0,0], b[0,0] => b[0,0]) L_build_b| for y = 1 to ny-2:
-        (u[0,0], v[0,0], b[0,0] => b[0,0]) L_build_b_inner| for x = 1 to nx-2:
-            (u[y, x+1], u[y, x-1], u[y+1, x], u[y-1, x], v[y, x+1], v[y, x-1], v[y+1, x], v[y-1, x], b[y, x] => b[y, x]) S_calc_b| op(build_b)
+    ; b = build_up_b(rho, dt, u, v, dx, dy)
+    (u[0,0], v[0,0], b[0,0], tmp_b_term1[0,0], tmp_b_term2[0,0], tmp_b_term3[0,0], tmp_b_term4[0,0], tmp_b_term5[0,0], tmp_b_term6[0,0] => b[0,0]) (S4_copy_v).L_build_b_y| for y = 1 to ny-2:
+        (u[0,0], v[0,0], b[0,0], tmp_b_term1[0,0], tmp_b_term2[0,0], tmp_b_term3[0,0], tmp_b_term4[0,0], tmp_b_term5[0,0], tmp_b_term6[0,0] => b[0,0]) .L_build_b_x| for x = 1 to nx-2:
+            ; (u[1:-1, 2:] - u[1:-1, 0:-2]) / (2 * dx)  => tmp_b_term1
+            (u[y,x+1], u[y,x-1], tmp_b_term1[y,x] => tmp_b_term1[y,x]) .S5_b_term1| op(calc_b_term1_from_dx_sym)
 
-    ; pressure_poisson
-    (p[0,0], b[0,0], pn[0,0] => p[0,0], pn[0,0]) L_poisson| for q = 0 to nit-1:
+            ; (v[2:, 1:-1] - v[0:-2, 1:-1]) / (2 * dy) => tmp_b_term2
+            (v[y+1,x], v[y-1,x], tmp_b_term2[y,x] => tmp_b_term2[y,x]) .S6_b_term2| op(calc_b_term2_from_dy_sym)
+
+            ; tmp_b_term3 = rho * (1/dt * (tmp_b_term1 + tmp_b_term2))
+            (tmp_b_term1[y,x], tmp_b_term2[y,x], tmp_b_term3[y,x] => tmp_b_term3[y,x]) .S7_b_term3| op(calc_b_term3_from_rho_dt_sym)
+
+            ; ((u[1:-1, 2:] - u[1:-1, 0:-2]) / (2 * dx))**2 => tmp_b_term4 (tmp_b_term1**2)
+            (tmp_b_term1[y,x], tmp_b_term4[y,x] => tmp_b_term4[y,x]) .S8_b_term4| op(calc_b_term4)
+
+            ; 2 * (...) => tmp_b_term5 where (...) = (u[2:, 1:-1] - u[0:-2, 1:-1]) / (2 * dy) * (v[1:-1, 2:] - v[1:-1, 0:-2]) / (2 * dx)
+            (u[y+1,x], u[y-1,x], v[y,x+1], v[y,x-1], tmp_b_term5[y,x] => tmp_b_term5[y,x]) .S9_b_term5| op(calc_b_term5_from_dx_dy_sym)
+
+            ; ((v[2:, 1:-1] - v[0:-2, 1:-1]) / (2 * dy))**2 => tmp_b_term6 (tmp_b_term2**2)
+            (tmp_b_term2[y,x], tmp_b_term6[y,x] => tmp_b_term6[y,x]) .S10_b_term6| op(calc_b_term6)
+
+            ; b[y,x] = tmp_b_term3 - tmp_b_term4 - tmp_b_term5 - tmp_b_term6
+            (tmp_b_term3[y,x], tmp_b_term4[y,x], tmp_b_term5[y,x], tmp_b_term6[y,x], b[y,x] => b[y,x]) .S11_b_final| op(calc_b_final)
+
+    ; pressure_poisson(nit, p, dx, dy, b)
+    (p[0,0], b[0,0], pn[0,0] => p[0,0], pn[0,0]) (S11_b_final).L_poisson_q| for q = 0 to nit-1:
         ; pn = p.copy()
-        (p[0,0], pn[0,0] => pn[0,0]) L_copy_p| for y = 0 to ny-1:
-            (p[0,0], pn[0,0] => pn[0,0]) L_copy_p_inner| for x = 0 to nx-1:
-                (p[y, x], pn[y, x] => pn[y, x]) S_copy_p| op(copy)
+        (p[0,0], pn[0,0] => pn[0,0]) .L_copy_pn_y| for y = 0 to ny-1:
+            (p[0,0], pn[0,0] => pn[0,0]) .L_copy_pn_x| for x = 0 to nx-1:
+                (p[y, x], pn[y, x] => pn[y, x]) .S12_copy_p| op(copy_p)
         
-        ; p update
-        (pn[0,0], b[0,0], p[0,0] => p[0,0]) L_update_p| for y = 1 to ny-2:
-            (pn[0,0], b[0,0], p[0,0] => p[0,0]) L_update_p_inner| for x = 1 to nx-2:
-                (pn[y, x+1], pn[y, x-1], pn[y+1, x], pn[y-1, x], b[y, x], p[y, x] => p[y, x]) S_calc_p| op(poisson_step)
+        ; p[1:-1, 1:-1] update
+        (pn[0,0], b[0,0], p[0,0] => p[0,0]) (S12_copy_p).L_update_p_y| for y = 1 to ny-2:
+            (pn[0,0], b[0,0], p[0,0] => p[0,0]) .L_update_p_x| for x = 1 to nx-2:
+                ; Complex expression for p[y,x] update
+                (pn[y, x+1], pn[y, x-1], pn[y+1, x], pn[y-1, x], b[y, x], p[y, x] => p[y, x]) .S13_poisson_step| op(poisson_step_from_dx_dy_sym)
 
         ; BCs
         ; p[:, -1] = p[:, -2]
-        (p[0,0] => p[0,0]) L_bc_p_right| for y = 0 to ny-1:
-            (p[y, nx-2], p[y, nx-1] => p[y, nx-1]) S_bc_p_right| op(bc_copy)
+        (p[0,0] => p[0,0]) (S13_poisson_step).L_bc_p_right_y| for y = 0 to ny-1:
+            (p[y, nx-2], p[y, nx-1] => p[y, nx-1]) .S14_bc_p_right| op(bc_copy)
 
         ; p[0, :] = p[1, :]
-        (p[0,0] => p[0,0]) L_bc_p_bottom| for x = 0 to nx-1:
-            (p[1, x], p[0, x] => p[0, x]) S_bc_p_bottom| op(bc_copy)
+        (p[0,0] => p[0,0]) (S14_bc_p_right).L_bc_p_bottom_x| for x = 0 to nx-1:
+            (p[1, x], p[0, x] => p[0, x]) .S15_bc_p_bottom| op(bc_copy)
             
         ; p[:, 0] = p[:, 1]
-        (p[0,0] => p[0,0]) L_bc_p_left| for y = 0 to ny-1:
-            (p[y, 1], p[y, 0] => p[y, 0]) S_bc_p_left| op(bc_copy)
+        (p[0,0] => p[0,0]) (S15_bc_p_bottom).L_bc_p_left_y| for y = 0 to ny-1:
+            (p[y, 1], p[y, 0] => p[y, 0]) .S16_bc_p_left| op(bc_copy)
             
         ; p[-1, :] = 0
-        (p[0,0] => p[0,0]) L_bc_p_top| for x = 0 to nx-1:
-            (p[ny-1, x] => p[ny-1, x]) S_bc_p_top| op(bc_zero)
+        (p[0,0] => p[0,0]) (S16_bc_p_left).L_bc_p_top_x| for x = 0 to nx-1:
+            (p[ny-1, x] => p[ny-1, x]) .S17_bc_p_top| op(bc_zero)
+    
+    ; Update u (from cavity_flow)
+    (u[0,0], v[0,0], p[0,0], un[0,0], vn[0,0] => u[0,0]) (S17_bc_p_top).L_update_u_y| for y = 1 to ny-2:
+        (u[0,0], v[0,0], p[0,0], un[0,0], vn[0,0] => u[0,0]) .L_update_u_x| for x = 1 to nx-2:
+            ; Complex expression for u[y,x] update
+            (un[y,x], un[y,x+1], un[y,x-1], un[y+1,x], un[y-1,x], vn[y,x], p[y,x+1], p[y,x-1], u[y,x] => u[y,x]) .S18_update_u_element| op(update_u_from_rho_dt_dx_dy_nu_sym)
+    
+    ; Update v (from cavity_flow)
+    (u[0,0], v[0,0], p[0,0], un[0,0], vn[0,0] => v[0,0]) (S18_update_u_element).L_update_v_y| for y = 1 to ny-2:
+        (u[0,0], v[0,0], p[0,0], un[0,0], vn[0,0] => v[0,0]) .L_update_v_x| for x = 1 to nx-2:
+            ; Complex expression for v[y,x] update
+            (vn[y,x], vn[y,x+1], vn[y,x-1], vn[y+1,x], vn[y-1,x], un[y,x], p[y+1,x], p[y-1,x], v[y,x] => v[y,x]) .S19_update_v_element| op(update_v_from_rho_dt_dx_dy_nu_sym)
 
-    ; Update u
-    (un[0,0], vn[0,0], p[0,0], u[0,0] => u[0,0]) L_update_u| for y = 1 to ny-2:
-        (un[0,0], vn[0,0], p[0,0], u[0,0] => u[0,0]) L_update_u_inner| for x = 1 to nx-2:
-             (un[y, x], un[y, x+1], un[y, x-1], un[y+1, x], un[y-1, x], vn[y, x], p[y, x+1], p[y, x-1], u[y, x] => u[y, x]) S_calc_u| op(update_u)
-
-    ; Update v
-    (un[0,0], vn[0,0], p[0,0], v[0,0] => v[0,0]) L_update_v| for y = 1 to ny-2:
-        (un[0,0], vn[0,0], p[0,0], v[0,0] => v[0,0]) L_update_v_inner| for x = 1 to nx-2:
-             (vn[y, x], vn[y, x+1], vn[y, x-1], vn[y+1, x], vn[y-1, x], un[y, x], p[y+1, x], p[y-1, x], v[y, x] => v[y, x]) S_calc_v| op(update_v)
-
-    ; Velocity BCs
+    ; Velocity BCs (from cavity_flow)
     ; u[0, :] = 0
-    (u[0,0] => u[0,0]) L_bc_u_bot| for x = 0 to nx-1:
-        (u[0, x] => u[0, x]) S_bc_u_bot| op(zero)
+    (u[0,0] => u[0,0]) (S19_update_v_element).L_bc_u_0_x| for x = 0 to nx-1:
+        (u[0, x] => u[0, x]) .S20_bc_u_0_element| op(bc_zero)
     ; u[:, 0] = 0
-    (u[0,0] => u[0,0]) L_bc_u_left| for y = 0 to ny-1:
-        (u[y, 0] => u[y, 0]) S_bc_u_left| op(zero)
+    (u[0,0] => u[0,0]) (S20_bc_u_0_element).L_bc_u_x_0_y| for y = 0 to ny-1:
+        (u[y, 0] => u[y, 0]) .S21_bc_u_x_0_element| op(bc_zero)
     ; u[:, -1] = 0
-    (u[0,0] => u[0,0]) L_bc_u_right| for y = 0 to ny-1:
-        (u[y, nx-1] => u[y, nx-1]) S_bc_u_right| op(zero)
+    (u[0,0] => u[0,0]) (S21_bc_u_x_0_element).L_bc_u_x_nm1_y| for y = 0 to ny-1:
+        (u[y, nx-1] => u[y, nx-1]) .S22_bc_u_x_nm1_element| op(bc_zero)
     ; u[-1, :] = 1
-    (u[0,0] => u[0,0]) L_bc_u_top| for x = 0 to nx-1:
-        (u[ny-1, x] => u[ny-1, x]) S_bc_u_top| op(one)
+    (u[0,0] => u[0,0]) (S22_bc_u_x_nm1_element).L_bc_u_ny1_x| for x = 0 to nx-1:
+        (u[ny-1, x] => u[ny-1, x]) .S23_bc_u_ny1_element| op(bc_one)
 
     ; v[0, :] = 0
-    (v[0,0] => v[0,0]) L_bc_v_bot| for x = 0 to nx-1:
-        (v[0, x] => v[0, x]) S_bc_v_bot| op(zero)
+    (v[0,0] => v[0,0]) (S23_bc_u_ny1_element).L_bc_v_0_x| for x = 0 to nx-1:
+        (v[0, x] => v[0, x]) .S24_bc_v_0_element| op(bc_zero)
     ; v[-1, :] = 0
-    (v[0,0] => v[0,0]) L_bc_v_top| for x = 0 to nx-1:
-        (v[ny-1, x] => v[ny-1, x]) S_bc_v_top| op(zero)
+    (v[0,0] => v[0,0]) (S24_bc_v_0_element).L_bc_v_ny1_x| for x = 0 to nx-1:
+        (v[ny-1, x] => v[ny-1, x]) .S25_bc_v_ny1_element| op(bc_zero)
     ; v[:, 0] = 0
-    (v[0,0] => v[0,0]) L_bc_v_left| for y = 0 to ny-1:
-        (v[y, 0] => v[y, 0]) S_bc_v_left| op(zero)
+    (v[0,0] => v[0,0]) (S25_bc_v_ny1_element).L_bc_v_x_0_y| for y = 0 to ny-1:
+        (v[y, 0] => v[y, 0]) .S26_bc_v_x_0_element| op(bc_zero)
     ; v[:, -1] = 0
-    (v[0,0] => v[0,0]) L_bc_v_right| for y = 0 to ny-1:
-        (v[y, nx-1] => v[y, nx-1]) S_bc_v_right| op(zero)
+    (v[0,0] => v[0,0]) (S26_bc_v_x_0_element).L_bc_v_x_nm1_y| for y = 0 to ny-1:
+        (v[y, nx-1] => v[y, nx-1]) .S27_bc_v_x_nm1_element| op(bc_zero)

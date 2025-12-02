@@ -279,10 +279,10 @@ out A
 
 ! (> N 0)
 
-() => (A[0]) S1| op(init)
+( => A[0]) S1| op(init)
 
-(A[0:N-1]) => (A[1:N]) L1| for i = 1 to N:
-    (A[i-1]) => (A[i]) S2| op(step)
+(A[0:N-1] => A[1:N]) L1| for i = 1 to N:
+    (A[i-1] => A[i]) S2| op(step)
 ```
 In this example, `! (> N 0)` asserts that the symbol `N` is positive before the loop begins. These assertions can be used by backend analysis tools to verify properties or optimize the program representation.
 
@@ -332,7 +332,7 @@ decl A, B
 out A
 
 (A[0:N-1], B[1:N] => A[1:N]) L1| for i = 1 to N:
-    () => () S1| op(some_op)
+    ( => ) S1| op(some_op)
 ```
 _Note: In this simplified example, we omit the inner statement's accesses, assuming they are inferred._
 

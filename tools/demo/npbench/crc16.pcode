@@ -1,0 +1,38 @@
+decl data, crc, cur_byte
+sym N, poly
+var i, j
+
+out crc
+
+; Initialize crc
+(crc[0] => crc[0]) S0_crc_init| op(crc_init_0xFFFF)
+
+; Outer loop for i
+; MAIN OUTER LOOP
+(data[0], crc[0], cur_byte[0] => crc[0], cur_byte[0]) (S0_crc_init).L1_i| for i = 0 to N-1:
+    ; b = data[i]
+    ; cur_byte = 0xFF & b
+    (data[i], cur_byte[0] => cur_byte[0]) .S1_cur_byte_assign| op(assign_cur_byte_from_data)
+
+    ; Inner loop for j (8 iterations)
+    (crc[0], cur_byte[0] => crc[0], cur_byte[0]) (S1_cur_byte_assign).L2_j| for j = 0 to 7:
+        ; Conditional logic for CRC calculation
+        (crc[0], cur_byte[0] => crc[0]) .B1_if_xor| if true: ; Original condition with bitwise operations cannot be directly translated.
+            ; crc = (crc >> 1) ^ poly
+            (crc[0] => crc[0]) .S2_crc_true_branch| op(crc_shift_xor_poly)
+        else:
+            ; crc >>= 1
+            (crc[0] => crc[0]) .S3_crc_false_branch| op(crc_shift_right)
+        
+        ; cur_byte >>= 1 (unconditional after if-else)
+        (cur_byte[0] => cur_byte[0]) (B1_if_xor).S4_cur_byte_shift| op(cur_byte_shift_right)
+
+; Post-loop computations
+; crc = (~crc & 0xFFFF)
+(crc[0] => crc[0]) (L1_i).S5_crc_negate_and| op(crc_negate_and_mask)
+
+; crc = (crc << 8) | ((crc >> 8) & 0xFF)
+(crc[0] => crc[0]) (S5_crc_negate_and).S6_crc_shift_combine| op(crc_shift_combine)
+
+; return crc & 0xFFFF
+(crc[0] => crc[0]) (S6_crc_shift_combine).S7_crc_final_mask| op(crc_final_mask)
