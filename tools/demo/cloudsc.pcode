@@ -1,400 +1,532 @@
-sym KLON, KLEV, NCLV, KIDIA, KFDIA, NCLDTOP
-sym NCLDQL, NCLDQI, NCLDQR, NCLDQS, NCLDQV
-sym RTT, RTHOMO, RAMIN, RLMIN, ZEPSEC, RKOOPTAU, RG, RD, RCPD, RETV, RLVTT, RLSTT, ZQTMST, RALVDCP, RALSDCP, ZRDCP, RALFDCP, RPRECRHMAX, RCOVPMIN, RVRFACTOR, RPECONS, RCL_FAC1, RCL_FAC2, RCL_CONST5R, RCL_CONST6R, RCL_FZRAB, RDENSREF, RCL_CONST7S, RCL_CONST1S, RCL_CONST8S, RCLDTOPCF, RDEPLIQREFRATE, RDEPLIQREFDEPTH
-sym RSNOWLIN1, RSNOWLIN2, RLCRITSNOW, RKCONV, RCLCRIT_LAND, RCLCRIT_SEA, RCL_KKAau, RCL_KKBauq, RCL_KKBaun, RCL_KKAac, RCL_KKBac, RCL_KK_CLOUD_NUM_LAND, RCL_KK_CLOUD_NUM_SEA
-sym NSSOPT, IEVAPRAIN, IEVAPSNOW, IDEPICE, IWARMRAIN
-sym RCL_APB1, RCL_APB2, RCL_APB3, RCL_CONST1I, RCL_CONST2I, RCL_CONST3I, RCL_CONST4I, RCL_CONST5I, RCL_CONST6I, RCL_CDENOM1, RCL_CDENOM2, RCL_CDENOM3, RCL_CONST1R, RCL_CONST2R, RCL_CONST3R, RCL_CONST4R, RCL_KA273
+sym kidia, kfdia, klon, klev, ptsphy
+sym ncldtop ; from yrecldp
+; Constants
+sym ydcst_rtt, ydcst_rd, ydcst_rv, ydcst_rg, ydcst_rcpd, ydcst_retv, ydcst_rlvtt, ydcst_rlstt, ydcst_rlmlt
+sym ydthf_r2es, ydthf_r3les, ydthf_r3ies, ydthf_r4les, ydthf_r4ies, ydthf_r5les, ydthf_r5ies
+sym ydthf_r5alvcp, ydthf_r5alscp, ydthf_ralvdcp, ydthf_ralsdcp, ydthf_ralfdcp
+sym ydthf_rtwat, ydthf_rtice, ydthf_rticecu, ydthf_rtwat_rtice_r, ydthf_rtwat_rticecu_r
+sym yrecldp_rlmin, yrecldp_ramin, yrecldp_rthomo, yrecldp_nssopt, yrecldp_rkconv, yrecldp_rcldiff, yrecldp_rcldiff_convi
+sym yrecldp_rkooptau, yrecldp_rtaumel, yrecldp_rvice, yrecldp_rvrain, yrecldp_rvsnow
+sym yrecldp_rcl_const1i, yrecldp_rcl_const2i, yrecldp_rcl_const3i, yrecldp_rcl_const4i, yrecldp_rcl_const5i, yrecldp_rcl_const6i
+sym yrecldp_rcl_const1r, yrecldp_rcl_const2r, yrecldp_rcl_const3r, yrecldp_rcl_const4r, yrecldp_rcl_const5r, yrecldp_rcl_const6r
+sym yrecldp_rcl_const1s, yrecldp_rcl_const2s, yrecldp_rcl_const3s, yrecldp_rcl_const4s, yrecldp_rcl_const5s, yrecldp_rcl_const6s, yrecldp_rcl_const7s, yrecldp_rcl_const8s
+sym yrecldp_rcl_fac1, yrecldp_rcl_fac2, yrecldp_rcl_fzrab
+sym yrecldp_rclcrit_sea, yrecldp_rclcrit_land
+sym yrecldp_riceinit, yrecldp_rdensref, yrecldp_rpecons, yrecldp_rvrfactor, yrecldp_rprecrhmax, yrecldp_rcovpmin
+sym nclv, ncldql, ncldqi, ncldqr, ncldqs, ncldqv, idepice, iwarmrain, ievaprain, ievapsnow
 
-decl PT, PQ, PA, PCLV, PSUPSAT, PCOVPTOT, PRAINFRAC_TOPRFZ
-decl PVFA, PVFL, PVFI, PDYNA, PDYNL, PDYNI
-decl PHRSW, PHRLW, PVERVEL, PAP, PAPH, PLSM, LDCUM, KTYPE
-decl PLU, PLUDE, PSNDE, PMFU, PMFD
-decl PLCRIT_AER, PICRIT_AER, PRE_ICE, PCCN, PNICE
-decl tendency_cml_u, tendency_cml_v, tendency_cml_T, tendency_cml_o3, tendency_cml_q, tendency_cml_a, tendency_cml_cld
-decl tendency_tmp_u, tendency_tmp_v, tendency_tmp_T, tendency_tmp_o3, tendency_tmp_q, tendency_tmp_a, tendency_tmp_cld
-decl tendency_loc_u, tendency_loc_v, tendency_loc_T, tendency_loc_o3, tendency_loc_q, tendency_loc_a, tendency_loc_cld
-decl PFSQLF, PFSQIF, PFCQNNG, PFCQLNG, PFSQRF, PFSQSF, PFCQRNG, PFCQSNG, PFSQLTUR, PFSQITUR, PFPLSL, PFPLSN, PFHPSL, PFHPSN
+; Inputs
+decl pt, pq, tendency_tmp_t, tendency_tmp_q, tendency_tmp_a, tendency_tmp_cld
+decl pvfa, pvfl, pvfi, pdyna, pdynl, pdyni, phrsw, phrlw, pvervel, pap, paph
+decl plsm, ldcum, ktype, plu, plude, psnde, pmfu, pmfd, pa, pclv, psupsat
+decl plcrit_aer, picrit_aer, pre_ice, pccn, pnice
 
-; Local variables within CLOUDSC subroutine
-decl ZTP1, ZQX, ZQX0, ZA, ZAORIG, ZQXFG, ZSUPSAT, ZICETOT, ZRHC, ZSIGK, ZQE, ZFAC
-decl ZPFPLSX, ZQXN2D, ZLNEG, ZLIQFRAC, ZICEFRAC, ZLI
-decl ZQSMIX, ZFOEEWMT, ZQSICE, ZQSLIQ, ZFOEELIQT, ZFOKOOP, ZFOEALFA
-decl ZTRPAUS, ZPAPHD, ZANEWM1, ZANEW, ZDA, ZCOVPCLR, ZCOVPMAX, ZQPRETOT, ZCLDTOPDIST
-decl ZLICLD, ZRAINAUT, ZRAINACC, ZSNOWAUT, ZLDEFR, ZLDIFDT, ZACUST, ZLCUST, ZLFINALSUM
-decl ZLCOND1, ZLCOND2, ZLEVAPL, ZLEVAPI, ZACOND, ZE, ZEROS, ZAEROS
-decl ZSOLAB, ZSOLAC, ZSOLQB, ZSOLQA
-decl ZFALLSRCE, ZFALLSINK, ZCONVSRCE, ZCONVSINK, ZPSUPSATSRCE
-decl ZQXN, ZQXNM1, ZFLUXQ, ZFRZMAX, ZMELTMAX, ZMF, ZMFDN, ZRAINCLD, ZSNOWCLD
-decl ZDP, ZGDP, ZRHO, ZDTGDP, ZRDTGDP, ZDTGDPF
-decl ZFACW, ZCOR, ZDQSLIQDT, ZCORQSLIQ, ZFACI, ZDQSICEDT, ZCORQSICE, ZALFAW, ZALFAWM, ZFAC, ZDQSMIXDT, ZCORQSMIX, ZDQS
-decl ZEVAPLIMMIX, ZEVAPLIMLIQ, ZEVAPLIMICE, ZEVAP
-decl ZTMPA, ZLIQCLD, ZICECLD
-decl ZDTDP, ZDPMXDT, ZWTOT, ZZZDT, ZDTDIAB, ZDTFORC, ZQOLD, ZTOLD
-decl ZQP, ZQSAT, ZCOND, ZCOND1, ZQP1ENV
-decl ZLCONDLIM, ZZDL
-decl ZVPLIQ, ZVPICE, ZADD, ZBDD, ZCVDS, ZICE0, ZINEW, ZINFACTOR, ZDEPOS
-decl ZPRECIP, ZCFPR, ZCONST, ZLCRIT
-decl ZFALLCORR, ZSNOWRIME
-decl ZMFLUX_UP, ZMFLUX_DN, ZALFA, ZMELT
-decl ZLAMBDA, ZTEMP, ZFRZ, ZPRECLR, ZBETA1, ZBETA, ZDENOM, ZDPR, ZDPEVAP, ZQE, ZZRH
-decl ZESATLIQ, ZEVAP_DENOM, ZCORR2, ZKA, ZSUBSAT, ZTDMTW0, ZCONS1
-decl ZEXPLICIT, ZQLHS, ZSINKSUM, ZMAX, ZRAT, ZZRATIO, ZCOVPTOT, ZRATIO
-decl ZLEVAP, ZVQX
-decl IORDER, ZMIN, IMELT
-decl LLFALL, LLRAINLIQ, LLINDEX1, LLINDEX3, LL_INLINE_TEMP_VAR, LAERICESED
-decl IPHASE
+; Outputs
+decl tendency_loc_t, tendency_loc_q, tendency_loc_a, tendency_loc_cld
+decl pcovptot, prainfrac_toprfz, pfsqlf, pfsqif, pfcqnng, pfcqlng, pfsqrf, pfsqsf, pfcqrng, pfcqsng, pfsqltur, pfsqitur, pfplsl, pfplsn, pfhpsl, pfhpsn
+out tendency_loc_t, tendency_loc_q, tendency_loc_a, tendency_loc_cld
+out pcovptot, prainfrac_toprfz, pfsqlf, pfsqif, pfcqnng, pfcqlng, pfsqrf, pfsqsf, pfcqrng, pfcqsng, pfsqltur, pfsqitur, pfplsl, pfplsn, pfhpsl, pfhpsn
 
-var JK, JM, JN, JL, IK
+; Locals
+decl zlcond1, zlcond2, zlevapl, zlevapi, zrainaut, zsnowaut, zliqcld, zicecld, zfokoop, zicenuclei
+decl zlicld, zlfinalsum, zdqs, ztold, zqold, zdtgdp, zrdtgdp, ztrpaus, zcovpclr, zcovptot, zcovpmax, zqpretot, zldefr, zldifdt, zdtgdpf, zacust, zmf
+decl zrho, ztmp1, ztmp2, ztmp3, ztmp4, ztmp5, ztmp6, ztmp7, zalfawm
+decl zsolab, zsolac, zanewm1, zgdp, zda, llflag, zdp, zpaphd, zmin, zsupsat
+decl iphase, imelt, llfall, zmeltmax, zfrzmax, zicetot
+decl zdqsliqdt, zdqsicedt, zdqsmixdt, zcorqsliq, zcorqsice, zcorqsmix, zevaplimmix, zevaplimliq, zevaplimice, zsolqa, zsolqb, zvqx, ztw1, ztw2, ztw3, ztw4, ztw5, zcldtopdist
+decl zrainacc, zraincld, zsnowrime, zsnowcld, llrainliq, zrg, psum_solqa
+decl zfoealfa, ztp1, zlcust, zli, za, zaorig, llindex1, llindex3, iorder, zliqfrac, zicefrac
+decl zqx, zqx0, zqxn, zqxfg, zqxnm1, zfluxq, zpfplsx, zlneg, zqxn2d, zqsmix, zqsliq, zqsice
+decl zfoeewmt, zfoeew, zfoeeliqt, zqlhs, zratio, zsinksum, zfallsink, zfallsrce, zconvsrce, zconvsink, zpsupsatsrce
 
-out tendency_loc_T, tendency_loc_q, tendency_loc_a, tendency_loc_cld, PCOVPTOT
+var jk, jl, jm, jn, ik, jo, jn_inv_loop, jn_inv
 
-; Initial (pre-loop) setup and tidying operations
-(PT[1:KLON, 1:KLEV], PQ[1:KLON, 1:KLEV], PCLV[1:KLON, 1:KLEV, 1:NCLV], tendency_loc_T[1:KLON, 1:KLEV], tendency_loc_q[1:KLON, 1:KLEV], ZQX[1:KLON, 1:KLEV, 1:NCLV], ZQX0[1:KLON, 1:KLEV, 1:NCLV], ZA[1:KLON, 1:KLEV], ZAORIG[1:KLON, 1:KLEV], ZTP1[1:KLON, 1:KLEV], tendency_loc_a[1:KLON, 1:KLEV], tendency_loc_cld[1:KLON, 1:KLEV, 1:NCLV], ZPFPLSX[1:KLON, 1:KLEV+1, 1:NCLV], ZLNEG[1:KLON, 1:KLEV, 1:NCLV], PRAINFRAC_TOPRFZ[1:KLON] => ZQX[1:KLON, 1:KLEV, 1:NCLV], ZQX0[1:KLON, 1:KLEV, 1:NCLV], ZA[1:KLON, 1:KLEV], ZAORIG[1:KLON, 1:KLEV], ZTP1[1:KLON, 1:KLEV], tendency_loc_T[1:KLON, 1:KLEV], tendency_loc_q[1:KLON, 1:KLEV], tendency_loc_a[1:KLON, 1:KLEV], tendency_loc_cld[1:KLON, 1:KLEV, 1:NCLV], ZPFPLSX[1:KLON, 1:KLEV+1, 1:NCLV], ZLNEG[1:KLON, 1:KLEV, 1:NCLV], PRAINFRAC_TOPRFZ[1:KLON]) InitAndPreLoopCleanup| op(perform_initial_cleanup_and_array_setup)
+; ------------------------------------------------------------------
+; 0. CONSTANTS AND SETUP
+; ------------------------------------------------------------------
 
-; Main Vertical Loop
-(ZQX[0], ZPFPLSX[0], PSUPSAT[0], PLUDE[0], tendency_loc_T[0], tendency_loc_q[0], tendency_loc_a[0], tendency_loc_cld[0], PCOVPTOT[0], ZTP1[0] => ZPFPLSX[0], tendency_loc_T[0], tendency_loc_q[0], tendency_loc_a[0], tendency_loc_cld[0], PCOVPTOT[0], PLUDE[0], ZTP1[0]) MainLoop| for JK = NCLDTOP to KLEV:
+; Lines 538-542
+(=> iphase[0]) S_set_iphase | op(set_iphase_array)
 
-    ; 3.0 INITIALIZE VARIABLES
-    (ZQX[0, JK, 0], ZQXFG[0, 0], ZLICLD[0], ZRAINAUT[0], ZRAINACC[0], ZSNOWAUT[0], ZLDEFR[0], ZACUST[0], ZQPRETOT[0], ZLFINALSUM[0], ZLCOND1[0], ZLCOND2[0], ZSUPSAT[0], ZLEVAPL[0], ZLEVAPI[0], ZSOLAB[0], ZSOLAC[0], ZSOLQB[0, 0, 0], ZSOLQA[0, 0, 0], ZFALLSRCE[0, 0], ZFALLSINK[0, 0], ZCONVSRCE[0, 0], ZCONVSINK[0, 0], ZPSUPSATSRCE[0, 0], ZICETOT[0], PAPH[0], PAP[0], ZTP1[0, JK], ZDP[0], ZGDP[0], ZRHO[0], ZDTGDP[0], ZRDTGDP[0], ZDTGDPF[0], ZFACW[0], ZCOR[0], ZDQSLIQDT[0], ZCORQSLIQ[0], ZFACI[0], ZDQSICEDT[0], ZCORQSICE[0], ZALFAW[0], ZALFAWM[0], ZFAC[0], ZDQSMIXDT[0], ZCORQSMIX[0], ZEVAPLIMMIX[0], ZEVAPLIMLIQ[0], ZEVAPLIMICE[0], ZTMPA[0], ZLIQCLD[0], ZICECLD[0], ZLICLD[0], ZA[0, JK], ZQSLIQ[0, JK], ZQSICE[0, JK], ZQSMIX[0, JK] => ZQXFG[0, 0], ZLICLD[0], ZRAINAUT[0], ZRAINACC[0], ZSNOWAUT[0], ZLDEFR[0], ZACUST[0], ZQPRETOT[0], ZLFINALSUM[0], ZLCOND1[0], ZLCOND2[0], ZSUPSAT[0], ZLEVAPL[0], ZLEVAPI[0], ZSOLAB[0], ZSOLAC[0], ZSOLQB[0, 0, 0], ZSOLQA[0, 0, 0], ZFALLSRCE[0, 0], ZFALLSINK[0, 0], ZCONVSRCE[0, 0], ZCONVSINK[0, 0], ZPSUPSATSRCE[0, 0], ZICETOT[0], ZDP[0], ZGDP[0], ZRHO[0], ZDTGDP[0], ZRDTGDP[0], ZDTGDPF[0], ZFACW[0], ZCOR[0], ZDQSLIQDT[0], ZCORQSLIQ[0], ZFACI[0], ZDQSICEDT[0], ZCORQSICE[0], ZALFAW[0], ZALFAWM[0], ZFAC[0], ZDQSMIXDT[0], ZCORQSMIX[0], ZEVAPLIMMIX[0], ZEVAPLIMLIQ[0], ZEVAPLIMICE[0], ZTMPA[0], ZLIQCLD[0], ZICECLD[0], ZLICLD[0]) Loop_30_Init| for JL = KIDIA to KFDIA:
-         (ZQX[JL, JK, 1:NCLV], ZQXFG[JL, 1:NCLV] => ZQXFG[JL, 1:NCLV]) S30_Init_ZQXFG| op(init_ZQXFG)
-         
-         (PAPH[JL, JK+1], PAPH[JL, JK], PAP[JL, JK], ZTP1[JL, JK], ZDP[JL], ZGDP[JL], ZRHO[JL], ZDTGDP[JL], ZRDTGDP[JL] => ZDP[JL], ZGDP[JL], ZRHO[JL], ZDTGDP[JL], ZRDTGDP[JL]) S30_CalcVars1| op(calc_vars_1)
-         
-         (PAP[JL, JK], PAP[JL, JK-1], ZDTGDPF[JL] => ZDTGDPF[JL]) If_K_GT_1| if JK > 1:
-             (PAP[JL, JK], PAP[JL, JK-1], ZDTGDPF[JL] => ZDTGDPF[JL]) S30_Calc_ZDTGDPF| op(calc_zdtgdpf)
+; Lines 548-552
+(=> imelt[0]) S_set_imelt | op(set_imelt_array)
 
-         (ZTP1[JL, JK], ZQSLIQ[JL, JK], ZQSICE[JL, JK], ZQSMIX[JL, JK], ZFACW[0], ZCOR[0], ZDQSLIQDT[0], ZCORQSLIQ[0], ZFACI[0], ZDQSICEDT[0], ZCORQSICE[0], ZALFAW[0], ZALFAWM[0], ZFAC[0], ZDQSMIXDT[0], ZCORQSMIX[0] => ZFACW[0], ZCOR[0], ZDQSLIQDT[0], ZCORQSLIQ[0], ZFACI[0], ZDQSICEDT[0], ZCORQSICE[0], ZALFAW[0], ZALFAWM[0], ZFAC[0], ZDQSMIXDT[0], ZCORQSMIX[0]) S30_CalcDQS| op(calc_dqsdt)
-         (ZQSMIX[JL, JK], ZQX[JL, JK, NCLDQV], ZQSLIQ[JL, JK], ZQSICE[JL, JK], ZEVAPLIMMIX[0], ZEVAPLIMLIQ[0], ZEVAPLIMICE[0] => ZEVAPLIMMIX[0], ZEVAPLIMLIQ[0], ZEVAPLIMICE[0]) S30_CalcEvapLim| op(calc_evap_lim)
-         (ZA[JL, JK], ZQX[JL, JK, NCLDQL], ZQX[JL, JK, NCLDQI], ZTMPA[0], ZLIQCLD[JL], ZICECLD[JL], ZLICLD[JL] => ZTMPA[0], ZLIQCLD[JL], ZICECLD[JL], ZLICLD[JL]) S30_CalcCloudCond| op(calc_cloud_cond)
+; Lines 576-580
+(=> zvqx[0]) S_set_zvqx | op(set_zvqx_array)
 
-    ; Evaporate very small amounts of liquid and ice
-    (ZQX[0, JK, 0], ZSOLQA[0, 0, 0] => ZSOLQA[0, 0, 0]) Loop_EvapSmall| for JL = KIDIA to KFDIA:
-        (ZQX[JL, JK, NCLDQL], ZSOLQA[JL, NCLDQV, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQV] => ZSOLQA[JL, NCLDQV, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQV]) If_SmallLiq| if ZQX[JL, JK, NCLDQL] < RLMIN:
-             (ZQX[JL, JK, NCLDQL], ZSOLQA[JL, NCLDQV, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQV] => ZSOLQA[JL, NCLDQV, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQV]) Op_SmallLiq| op(evap_small_liq)
-        (ZQX[JL, JK, NCLDQI], ZSOLQA[JL, NCLDQV, NCLDQI], ZSOLQA[JL, NCLDQI, NCLDQV] => ZSOLQA[JL, NCLDQV, NCLDQI], ZSOLQA[JL, NCLDQI, NCLDQV]) If_SmallIce| if ZQX[JL, JK, NCLDQI] < RLMIN:
-             (ZQX[JL, JK, NCLDQI], ZSOLQA[JL, NCLDQV, NCLDQI], ZSOLQA[JL, NCLDQI, NCLDQV] => ZSOLQA[JL, NCLDQV, NCLDQI], ZSOLQA[JL, NCLDQI, NCLDQV]) Op_SmallIce| op(evap_small_ice)
+; Lines 581-588
+(=> llfall[0]) L_init_llfall_1 | for jm = 1 to nclv:
+    (zvqx[0], llfall[0] => llfall[0]) B_init_llfall | if (zvqx[jm-1] > 0):
+        (=> llfall[jm-1]) S_set_llfall_true | op(set_llfall_true)
+(=> llfall[ncldqi-1]) S_set_llfall_ncldqi_false | op(set_llfall_ncldqi_false)
 
-    ; 3.1 ICE SUPERSATURATION ADJUSTMENT
-    (ZTP1[0, JK], ZFOKOOP[0], ZA[0, JK], ZFAC[0], ZFACI[0], ZQX[0, JK, 0], ZQSICE[0, JK], ZCORQSICE[0], ZSUPSAT[0], ZQP1ENV[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0], ZSOLAC[0], PSUPSAT[0, JK], ZPSUPSATSRCE[0, 0] => ZFOKOOP[0], ZFAC[0], ZFACI[0], ZSUPSAT[0], ZQP1ENV[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0], ZSOLAC[0], ZPSUPSATSRCE[0, 0]) Loop_31_Supersat| for JL = KIDIA to KFDIA:
-        (ZTP1[JL, JK], ZFOKOOP[JL] => ZFOKOOP[JL]) S31_CalcZFOKOOP| op(calc_ZFOKOOP)
-        
-        (ZTP1[JL, JK], ZA[JL, JK], ZFOKOOP[JL], ZFAC[0], ZFACI[0] => ZFAC[0], ZFACI[0]) If_ZFAC| if (ZTP1[JL, JK] >= RTT) or (NSSOPT = 0):
-             (ZFAC[0], ZFACI[0] => ZFAC[0], ZFACI[0]) S31_ZFAC_1| op(ZFAC_equals_1)
-        else:
-             (ZA[JL, JK], ZFOKOOP[JL], ZFAC[0], ZFACI[0] => ZFAC[0], ZFACI[0]) S31_ZFAC_Else| op(calc_ZFAC_else)
+; ------------------------------------------------------------------
+; 1. INITIAL VALUES
+; ------------------------------------------------------------------
 
-        (ZA[JL, JK], ZQX[JL, JK, NCLDQV], ZFAC[0], ZQSICE[JL, JK], ZCORQSICE[JL], ZSUPSAT[JL], ZQP1ENV[0] => ZSUPSAT[JL], ZQP1ENV[0]) If_ZSUPSAT| if ZA[JL, JK] > (1 - RAMIN):
-             (ZQX[JL, JK, NCLDQV], ZFAC[0], ZQSICE[JL, JK], ZCORQSICE[JL], ZSUPSAT[JL] => ZSUPSAT[JL]) S31_CalcSupsat_In| op(calc_supsat_incloud)
-        else:
-             (ZQX[JL, JK, NCLDQV], ZA[JL, JK], ZQSICE[JL, JK], ZQP1ENV[0] => ZQP1ENV[0]) S31_CalcEnv| op(calc_env_humidity)
-             (ZQP1ENV[0], ZFAC[0], ZQSICE[JL, JK], ZCORQSICE[JL], ZA[JL, JK], ZSUPSAT[JL] => ZSUPSAT[JL]) S31_CalcSupsat_Env| op(calc_supsat_env)
+; Lines 557-561 (Initialization of Output Tendencies: Temperature, Humidity, Cloud cover)
+(=> tendency_loc_t[0,0], tendency_loc_q[0,0], tendency_loc_a[0,0]) L_init_tend_tqa_1 | for jk = 1 to klev:
+    (=> tendency_loc_t[jk-1,0], tendency_loc_q[jk-1,0], tendency_loc_a[jk-1,0]) L_init_tend_tqa_2 | for jl = kidia to kfdia:
+        (=> tendency_loc_t[jk-1, jl-1], tendency_loc_q[jk-1, jl-1], tendency_loc_a[jk-1, jl-1]) S_init_tend_tqa | op(init_tend_tqa)
 
-        (ZSUPSAT[JL], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0], ZSOLAC[JL] => ZSOLQA[JL, 0, 0], ZQXFG[JL, 0], ZSOLAC[JL]) If_ApplySupsat| if ZSUPSAT[JL] > ZEPSEC:
-             (ZTP1[JL, JK], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0] => ZSOLQA[JL, 0, 0], ZQXFG[JL, 0]) If_Phase| if ZTP1[JL, JK] > RTHOMO:
-                  (ZSUPSAT[JL], ZSOLQA[JL, NCLDQL, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQL], ZQXFG[JL, NCLDQL] => ZSOLQA[JL, NCLDQL, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQL], ZQXFG[JL, NCLDQL]) S31_Liq| op(add_liq)
-             else:
-                  (ZSUPSAT[JL], ZSOLQA[JL, NCLDQI, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQI], ZQXFG[JL, NCLDQI] => ZSOLQA[JL, NCLDQI, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQI], ZQXFG[JL, NCLDQI]) S31_Ice| op(add_ice)
-             (ZA[JL, JK], ZFACI[0], ZSOLAC[JL] => ZSOLAC[JL]) S31_CloudAmt| op(inc_cloud_amt)
+; Lines 562-565 (Initialization of Output Tendencies: Cloud Liquid/Ice)
+(=> tendency_loc_cld[0,0,0]) L_init_tend_cld_1 | for jm = 1 to nclv - 1:
+    (=> tendency_loc_cld[jm-1,0,0]) L_init_tend_cld_2 | for jk = 1 to klev:
+        (=> tendency_loc_cld[jm-1,jk-1,0]) L_init_tend_cld_3 | for jl = kidia to kfdia:
+            (=> tendency_loc_cld[jm-1, jk-1, jl-1]) S_init_tend_cld | op(init_tend_cld)
 
-        (PSUPSAT[JL, JK], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0], ZSOLAC[JL], ZPSUPSATSRCE[JL, 0] => ZSOLQA[JL, 0, 0], ZQXFG[JL, 0], ZSOLAC[JL], ZPSUPSATSRCE[JL, 0]) If_ApplyPrevSupsat| if PSUPSAT[JL, JK] > ZEPSEC:
-             (ZTP1[JL, JK], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0], ZPSUPSATSRCE[JL, 0] => ZSOLQA[JL, 0, 0], ZQXFG[JL, 0], ZPSUPSATSRCE[JL, 0]) If_PrevPhase| if ZTP1[JL, JK] > RTHOMO:
-                  (PSUPSAT[JL, JK], ZSOLQA[JL, NCLDQL, NCLDQL], ZPSUPSATSRCE[JL, NCLDQL], ZQXFG[JL, NCLDQL] => ZSOLQA[JL, NCLDQL, NCLDQL], ZPSUPSATSRCE[JL, NCLDQL], ZQXFG[JL, NCLDQL]) S31_PrevLiq| op(add_prev_liq)
-             else:
-                  (PSUPSAT[JL, JK], ZSOLQA[JL, NCLDQI, NCLDQI], ZPSUPSATSRCE[JL, NCLDQI], ZQXFG[JL, NCLDQI] => ZSOLQA[JL, NCLDQI, NCLDQI], ZPSUPSATSRCE[JL, NCLDQI], ZQXFG[JL, NCLDQI]) S31_PrevIce| op(add_prev_ice)
-             (ZA[JL, JK], ZFACI[0], ZSOLAC[JL] => ZSOLAC[JL]) S31_PrevCloudAmt| op(inc_prev_cloud_amt)
+; Lines 568-571 (Initialization of Output Tendencies: Total Cloud Cover and last CLV species)
+(=> pcovptot[0,0], tendency_loc_cld[0,0,0]) L_init_pcovptot_1 | for jk = 1 to klev:
+    (=> pcovptot[jk-1,0], tendency_loc_cld[nclv-1,jk-1,0]) L_init_pcovptot_2 | for jl = kidia to kfdia:
+        (=> pcovptot[jk-1, jl-1], tendency_loc_cld[nclv-1, jk-1, jl-1]) S_init_pcovptot | op(init_pcovptot)
 
-    ; 3.2 DETRAINMENT FROM CONVECTION
-    (PLUDE[0, JK], LDCUM[0], PLU[0, JK+1], PSNDE[0, JK], ZSOLAC[0], ZCONVSRCE[0, 0], ZSOLQA[0, 0, 0] => PLUDE[0, JK], ZSOLAC[0], ZCONVSRCE[0, 0], ZSOLQA[0, 0, 0]) Block_32_Detrain| if (JK < KLEV) and (JK >= NCLDTOP):
-        (PLUDE[0, JK], LDCUM[0], PLU[0, JK+1], ZSOLAC[0], ZCONVSRCE[0, 0], ZSOLQA[0, 0, 0], PSNDE[0, JK] => PLUDE[0, JK], ZSOLAC[0], ZCONVSRCE[0, 0], ZSOLQA[0, 0, 0]) Loop_32_Detrain| for JL = KIDIA to KFDIA:
-             (PLUDE[JL, JK], ZDTGDP[JL] => PLUDE[JL, JK]) S32_Scale| op(scale_PLUDE)
-             (LDCUM[JL], PLUDE[JL, JK], PLU[JL, JK+1], ZSOLAC[JL], ZCONVSRCE[JL, 0], ZSOLQA[JL, 0, 0] => ZSOLAC[JL], ZCONVSRCE[JL, 0], ZSOLQA[JL, 0, 0]) If_Detrain| if ((LDCUM[JL] = 1) and (PLUDE[JL, JK] > RLMIN)) and (PLU[JL, JK+1] > ZEPSEC):
-                  (PLUDE[JL, JK], PLU[JL, JK+1], ZFOEALFA[JL, JK], ZSOLAC[JL], ZCONVSRCE[JL, NCLDQL], ZCONVSRCE[JL, NCLDQI], ZSOLQA[JL, NCLDQL, NCLDQL], ZSOLQA[JL, NCLDQI, NCLDQI] => ZSOLAC[JL], ZCONVSRCE[JL, NCLDQL], ZCONVSRCE[JL, NCLDQI], ZSOLQA[JL, NCLDQL, NCLDQL], ZSOLQA[JL, NCLDQI, NCLDQI]) S32_Apply| op(apply_detrainment)
-             else:
-                  (PLUDE[JL, JK] => PLUDE[JL, JK]) S32_Zero| op(zero_plude)
-             (LDCUM[JL], PSNDE[JL, JK], ZSOLQA[JL, NCLDQS, NCLDQS] => ZSOLQA[JL, NCLDQS, NCLDQS]) If_Snow| if LDCUM[JL] = 1:
-                  (PSNDE[JL, JK], ZDTGDP[JL], ZSOLQA[JL, NCLDQS, NCLDQS] => ZSOLQA[JL, NCLDQS, NCLDQS]) S32_Snow| op(apply_snow_detrainment)
+; Lines 599-605 (Non-CLV Initialization)
+(pt[0,0], tendency_tmp_t[0,0], pq[0,0], tendency_tmp_q[0,0], pa[0,0], tendency_tmp_a[0,0] => ztp1[0,0], zqx[0,0,0], zqx0[0,0,0], za[0,0], zaorig[0,0]) L_init_nonclv_1 | for jk = 1 to klev:
+    (pt[jk-1,0], tendency_tmp_t[jk-1,0], pq[jk-1,0], tendency_tmp_q[jk-1,0], pa[jk-1,0], tendency_tmp_a[jk-1,0] => ztp1[jk-1,0], zqx[ncldqv-1,jk-1,0], zqx0[ncldqv-1,jk-1,0], za[jk-1,0], zaorig[jk-1,0]) L_init_nonclv_2 | for jl = kidia to kfdia:
+        (pt[jk-1, jl-1], tendency_tmp_t[jk-1, jl-1], pq[jk-1, jl-1], tendency_tmp_q[jk-1, jl-1], pa[jk-1, jl-1], tendency_tmp_a[jk-1, jl-1] => ztp1[jk-1, jl-1], zqx[ncldqv-1, jk-1, jl-1], zqx0[ncldqv-1, jk-1, jl-1], za[jk-1, jl-1], zaorig[jk-1, jl-1]) S_init_nonclv | op(init_nonclv)
 
-    ; 3.3 SUBSIDENCE
-    (PMFU[0, JK], PMFD[0, JK], ZQX[0, JK-1, 0], ZSOLAC[0], ZSOLQA[0, 0, 0], ZLFINALSUM[0], ZCONVSRCE[0, 0], ZLCUST[0, 0], ZMF[0], ZANEWM1[0], ZACUST[0], ZTP1[0, JK], PAPH[0, JK], PAP[0, JK], ZDTDP[0], ZDTFORC[0], ZDQS[0], ZEVAPLIMMIX[0] => ZLCUST[0, 0], ZCONVSRCE[0, 0], ZSOLAC[0], ZSOLQA[0, 0, 0], ZLFINALSUM[0], ZMF[0], ZACUST[0], ZDTDP[0], ZDTFORC[0], ZDQS[0]) Block_33_Subsidence_Above| if JK > NCLDTOP:
-         (PMFU[0, JK], PMFD[0, JK], ZDTGDP[0], ZMF[0], ZANEWM1[0], ZACUST[0] => ZMF[0], ZACUST[0]) Loop_33_CalcZMF| for JL = KIDIA to KFDIA:
-             (PMFU[JL, JK], PMFD[JL, JK], ZDTGDP[JL], ZMF[JL] => ZMF[JL]) S33_ZMF| op(calc_ZMF)
-             (ZMF[JL], ZANEWM1[JL], ZACUST[JL] => ZACUST[JL]) S33_ZACUST| op(calc_ZACUST)
+; Lines 610-614 (CLV Family Initialization)
+(pclv[0,0,0], tendency_tmp_cld[0,0,0] => zqx[0,0,0], zqx0[0,0,0]) L_init_clv_1 | for jm = 1 to nclv - 1:
+    (pclv[jm-1,0,0], tendency_tmp_cld[jm-1,0,0] => zqx[jm-1,0,0], zqx0[jm-1,0,0]) L_init_clv_2 | for jk = 1 to klev:
+        (pclv[jm-1,jk-1,0], tendency_tmp_cld[jm-1,jk-1,0] => zqx[jm-1,jk-1,0], zqx0[jm-1,jk-1,0]) L_init_clv_3 | for jl = kidia to kfdia:
+            (pclv[jm-1, jk-1, jl-1], tendency_tmp_cld[jm-1, jk-1, jl-1] => zqx[jm-1, jk-1, jl-1], zqx0[jm-1, jk-1, jl-1]) S_init_clv | op(init_clv)
 
-         (ZMF[0], ZQX[0, JK-1, 0], ZLCUST[0, 0], ZCONVSRCE[0, 0] => ZLCUST[0, 0], ZCONVSRCE[0, 0]) Loop_33_ZLCUST| for JM = 1 to NCLV:
-             (ZMF[0], ZQX[0, JK-1, JM], LLFALL[JM], IPHASE[JM], ZLCUST[0, JM], ZCONVSRCE[0, JM] => ZLCUST[0, JM], ZCONVSRCE[0, JM]) Loop_33_ZLCUST_Inner| for JL = KIDIA to KFDIA:
-                  (LLFALL[JM], IPHASE[JM], ZLCUST[JL, JM], ZCONVSRCE[JL, JM] => ZLCUST[JL, JM], ZCONVSRCE[JL, JM]) If_NoFall| if (LLFALL[JM] = 0) and (IPHASE[JM] > 0):
-                        (ZMF[JL], ZQX[JL, JK-1, JM], ZLCUST[JL, JM], ZCONVSRCE[JL, JM] => ZLCUST[JL, JM], ZCONVSRCE[JL, JM]) S33_ZLCUST| op(calc_ZLCUST)
+; Lines 619-622 (Zero zpfplsx arrays)
+(=> zpfplsx[0,0,0]) L_zero_zpfplsx_1 | for jm = 1 to nclv:
+    (=> zpfplsx[jm-1,0,0]) L_zero_zpfplsx_2 | for jk = 1 to klev + 1:
+        (=> zpfplsx[jm-1,jk-1,0]) L_zero_zpfplsx_3 | for jl = kidia to kfdia:
+            (=> zpfplsx[jm-1, jk-1, jl-1]) S_zero_zpfplsx | op(zero_zpfplsx)
 
-         (ZTP1[0, JK-1], ZTP1[0, JK], PAPH[0, JK], PAP[0, JK], ZANEWM1[0], ZDQSMIXDT[0], ZDQS[0], ZDTDP[0], ZDTFORC[0] => ZDTDP[0], ZDTFORC[0], ZDQS[0]) Loop_33_CalcZDQS| for JL = KIDIA to KFDIA:
-             (ZTP1[JL, JK-1], ZTP1[JL, JK], PAPH[JL, JK], ZDTDP[JL] => ZDTDP[JL]) S33_ZDTDP| op(calc_ZDTDP)
-             (ZDTDP[JL], PAP[JL, JK], PAP[JL, JK-1], ZDTFORC[JL] => ZDTFORC[JL]) S33_ZDTFORC| op(calc_ZDTFORC)
-             (ZANEWM1[JL], ZDTFORC[JL], ZDQSMIXDT[JL], ZDQS[JL] => ZDQS[JL]) S33_ZDQS| op(calc_ZDQS)
+; Lines 624-628 (Zero zqxn2d, zlneg arrays)
+(=> zqxn2d[0,0,0], zlneg[0,0,0]) L_zero_zqxn2d_1 | for jm = 1 to nclv:
+    (=> zqxn2d[jm-1,0,0], zlneg[jm-1,0,0]) L_zero_zqxn2d_2 | for jk = 1 to klev:
+        (=> zqxn2d[jm-1,jk-1,0], zlneg[jm-1,jk-1,0]) L_zero_zqxn2d_3 | for jl = kidia to kfdia:
+            (=> zqxn2d[jm-1, jk-1, jl-1], zlneg[jm-1, jk-1, jl-1]) S_zero_zqxn2d | op(zero_zqxn2d_zlneg)
 
-         (ZLCUST[0, 0], ZDQS[0], ZEVAPLIMMIX[0], ZLFINALSUM[0], ZSOLQA[0, 0, 0] => ZLFINALSUM[0], ZSOLQA[0, 0, 0]) Loop_33_Evap| for JM = 1 to NCLV:
-             (ZLCUST[0, JM], ZDQS[0], ZEVAPLIMMIX[0], ZLFINALSUM[0], ZSOLQA[0, 0, 0] => ZLFINALSUM[0], ZSOLQA[0, 0, 0]) Loop_33_Evap_Inner| for JL = KIDIA to KFDIA:
-                  (LLFALL[JM], IPHASE[JM], ZLFINALSUM[JL], ZSOLQA[JL, JM, JM], ZSOLQA[JL, NCLDQV, JM], ZSOLQA[JL, JM, NCLDQV] => ZLFINALSUM[JL], ZSOLQA[JL, JM, JM], ZSOLQA[JL, NCLDQV, JM], ZSOLQA[JL, JM, NCLDQV]) If_Evap| if (LLFALL[JM] = 0) and (IPHASE[JM] > 0):
-                       (ZLCUST[JL, JM], ZDQS[JL], ZEVAPLIMMIX[JL], ZLFINALSUM[JL], ZSOLQA[JL, JM, JM], ZSOLQA[JL, NCLDQV, JM], ZSOLQA[JL, JM, NCLDQV] => ZLFINALSUM[JL], ZSOLQA[JL, JM, JM], ZSOLQA[JL, NCLDQV, JM], ZSOLQA[JL, JM, NCLDQV]) S33_Evap| op(apply_subsidence_evap)
+; Lines 630-631 (Initialize prainfrac_toprfz)
+(=> prainfrac_toprfz[0]) L_init_prainfrac_1 | for jl = kidia to kfdia:
+    (=> prainfrac_toprfz[jl-1]) S_init_prainfrac | op(init_prainfrac)
+; Line 632 (Initialize llrainliq)
+(=> llrainliq[0]) S_init_llrainliq | op(init_llrainliq_all_true)
 
-         (ZLFINALSUM[0], ZACUST[0], ZSOLAC[0] => ZACUST[0], ZSOLAC[0]) Loop_33_ResetCloud| for JL = KIDIA to KFDIA:
-             (ZLFINALSUM[JL], ZACUST[JL] => ZACUST[JL]) If_Reset| if ZLFINALSUM[JL] < ZEPSEC:
-                  (ZACUST[JL] => ZACUST[JL]) S33_Reset| op(reset_ZACUST)
-             (ZSOLAC[JL], ZACUST[JL] => ZSOLAC[JL]) S33_Add| op(add_ZACUST_to_ZSOLAC)
+; Lines 637-658 (Tidy up very small cloud cover or total cloud water)
+(zqx[0,0,0], za[0,0], zlneg[0,0,0], tendency_loc_q[0,0], tendency_loc_t[0,0] => zqx[0,0,0], za[0,0], zlneg[0,0,0], tendency_loc_q[0,0], tendency_loc_t[0,0]) L_tidy_cloud_1 | for jk = 1 to klev:
+    (zqx[0,0,0], za[0,0], zlneg[0,0,0], tendency_loc_q[0,0], tendency_loc_t[0,0] => zqx[0,0,0], za[0,0], zlneg[0,0,0], tendency_loc_q[0,0], tendency_loc_t[0,0]) L_tidy_cloud_2 | for jl = kidia to kfdia:
+        (zqx[0], za[0], zlneg[0], tendency_loc_q[0], tendency_loc_t[0] => zqx[0], za[0], zlneg[0], tendency_loc_q[0], tendency_loc_t[0]) B_tidy_cloud | if (((zqx[ncldql-1,jk-1,jl-1] + zqx[ncldqi-1,jk-1,jl-1]) < yrecldp_rlmin) or (za[jk-1,jl-1] < yrecldp_ramin)):
+            (zqx[ncldql-1,jk-1,jl-1], tendency_loc_q[jk-1,jl-1], tendency_loc_t[jk-1,jl-1] => zqx[ncldql-1,jk-1,jl-1], tendency_loc_q[jk-1,jl-1], tendency_loc_t[jk-1,jl-1]) S_tidy_liquid | op(tidy_liquid)
+            (zqx[ncldqi-1,jk-1,jl-1], tendency_loc_q[jk-1,jl-1], tendency_loc_t[jk-1,jl-1] => zqx[ncldqi-1,jk-1,jl-1], tendency_loc_q[jk-1,jl-1], tendency_loc_t[jk-1,jl-1]) S_tidy_ice | op(tidy_ice)
+            (=> za[jk-1,jl-1]) S_tidy_zero_za | op(tidy_zero_za)
 
-    (PMFU[0, JK+1], PMFD[0, JK+1], ZSOLAB[0], ZSOLQB[0, 0, 0], ZCONVSINK[0, 0], ZMFDN[0] => ZSOLAB[0], ZSOLQB[0, 0, 0], ZCONVSINK[0, 0], ZMFDN[0]) Block_33_Subsidence_Below| if JK < KLEV:
-         (PMFU[0, JK+1], PMFD[0, JK+1], ZSOLAB[0], ZSOLQB[0, 0, 0], ZCONVSINK[0, 0], ZMFDN[0] => ZMFDN[0], ZSOLAB[0], ZSOLQB[0, 0, 0], ZCONVSINK[0, 0]) Loop_33_Sink| for JL = KIDIA to KFDIA:
-             (PMFU[JL, JK+1], PMFD[JL, JK+1], ZDTGDP[JL], ZMFDN[JL] => ZMFDN[JL]) S33_ZMFDN| op(calc_ZMFDN)
-             (ZMFDN[JL], ZSOLAB[JL], ZSOLQB[JL, NCLDQL, NCLDQL], ZSOLQB[JL, NCLDQI, NCLDQI], ZCONVSINK[JL, NCLDQL], ZCONVSINK[JL, NCLDQI] => ZSOLAB[JL], ZSOLQB[JL, NCLDQL, NCLDQL], ZSOLQB[JL, NCLDQI, NCLDQI], ZCONVSINK[JL, NCLDQL], ZCONVSINK[JL, NCLDQI]) S33_Sink| op(apply_subsidence_sink)
+; Lines 665-679 (Tidy up small CLV variables)
+(zqx[0,0,0], zlneg[0,0,0], tendency_loc_q[0,0], tendency_loc_t[0,0] => zqx[0,0,0], zlneg[0,0,0], tendency_loc_q[0,0], tendency_loc_t[0,0]) L_tidy_clv_1 | for jm = 1 to nclv - 1:
+    (zqx[jm-1,0,0], zlneg[jm-1,0,0], tendency_loc_q[0,0], tendency_loc_t[0,0] => zqx[jm-1,0,0], zlneg[jm-1,0,0], tendency_loc_q[0,0], tendency_loc_t[0,0]) L_tidy_clv_2 | for jk = 1 to klev:
+        (zqx[jm-1,jk-1,0], zlneg[jm-1,jk-1,0], tendency_loc_q[jk-1,0], tendency_loc_t[jk-1,0] => zqx[jm-1,jk-1,0], zlneg[jm-1,jk-1,0], tendency_loc_q[jk-1,0], tendency_loc_t[jk-1,0]) L_tidy_clv_3 | for jl = kidia to kfdia:
+            (zqx[0], zlneg[0], tendency_loc_q[0], tendency_loc_t[0], iphase[0] => zqx[0], zlneg[0], tendency_loc_q[0], tendency_loc_t[0]) B_tidy_clv | if (zqx[jm-1,jk-1,jl-1] < yrecldp_rlmin):
+                (=> zlneg[jm-1,jk-1,jl-1]) S_tidy_clv_zlneg | op(tidy_clv_zlneg)
+                (=> tendency_loc_q[jk-1,jl-1]) S_tidy_clv_q | op(tidy_clv_q)
+                (iphase[0], tendency_loc_t[0] => tendency_loc_t[0]) B_tidy_clv_t_phase_1 | if (iphase[jm-1] = 1):
+                    (=> tendency_loc_t[jk-1,jl-1]) S_tidy_clv_t_phase_1 | op(tidy_clv_t_phase_1)
+                (iphase[0], tendency_loc_t[0] => tendency_loc_t[0]) B_tidy_clv_t_phase_2 | if (iphase[jm-1] = 2):
+                    (=> tendency_loc_t[jk-1,jl-1]) S_tidy_clv_t_phase_2 | op(tidy_clv_t_phase_2)
+                (=> zqx[ncldqv-1,jk-1,jl-1], zqx[jm-1,jk-1,jl-1]) S_tidy_clv_zqx | op(tidy_clv_zqx)
 
-    ; 3.4 EROSION
-    (KTYPE[0], PLUDE[0, JK], ZLDIFDT[0] => ZLDIFDT[0]) Loop_34_Erosion_Init| for JL = KIDIA to KFDIA:
-        (KTYPE[JL], PLUDE[JL, JK], ZLDIFDT[JL] => ZLDIFDT[JL]) S34_Init| op(init_erosion_rate)
+; Lines 685-709 (Define Saturation Values: Mixed, Ice, Liquid)
+(ztp1[0,0], pap[0,0] => zfoealfa[0,0], zfoeewmt[0,0], zqsmix[0,0], zfoeew[0,0], zqsice[0,0], zfoeeliqt[0,0], zqsliq[0,0]) L_sat_1 | for jk = 1 to klev:
+    (ztp1[jk-1,0], pap[jk-1,0] => zfoealfa[jk-1,0], zfoeewmt[jk-1,0], zqsmix[jk-1,0], zfoeew[jk-1,0], zqsice[jk-1,0], zfoeeliqt[jk-1,0], zqsliq[jk-1,0]) L_sat_2 | for jl = kidia to kfdia:
+        (ztp1[jk-1,jl-1], pap[jk-1,jl-1] => zfoealfa[jk-1,jl-1], zfoeewmt[jk-1,jl-1], zqsmix[jk-1,jl-1], zfoeew[jk-1,jl-1], zqsice[jk-1,jl-1], zfoeeliqt[jk-1,jl-1], zqsliq[jk-1,jl-1]) S_sat | op(calc_saturation)
 
-    (ZA[0, JK], ZLI[0, JK], ZQSMIX[0, JK], ZQX[0, JK, NCLDQV], ZLDIFDT[0], ZSOLAC[0], ZSOLQA[0, 0, 0], ZAEROS[0], ZE[0] => ZSOLAC[0], ZSOLQA[0, 0, 0], ZAEROS[0], ZE[0]) Loop_34_Erosion_Apply| for JL = KIDIA to KFDIA:
-        (ZLI[JL, JK], ZSOLAC[JL], ZSOLQA[JL, 0, 0], ZAEROS[0], ZE[0] => ZSOLAC[JL], ZSOLQA[JL, 0, 0], ZAEROS[0], ZE[0]) If_Erosion| if ZLI[JL, JK] > ZEPSEC:
-             (ZQSMIX[JL, JK], ZQX[JL, JK, NCLDQV], ZLDIFDT[JL], ZA[JL, JK], ZEVAPLIMMIX[JL], ZLI[JL, JK], ZLICLD[JL], ZLIQFRAC[JL, JK], ZICEFRAC[JL, JK], ZSOLAC[JL], ZSOLQA[JL, NCLDQV, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQI], ZSOLQA[JL, NCLDQI, NCLDQV], ZAEROS[0], ZE[0] => ZSOLAC[JL], ZSOLQA[JL, NCLDQV, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQI], ZSOLQA[JL, NCLDQI, NCLDQV], ZAEROS[0], ZE[0]) S34_Apply| op(apply_erosion)
+; Lines 719-737 (Cloud Fractions)
+(za[0,0], zqx[0,0,0] => za[0,0], zli[0,0], zliqfrac[0,0], zicefrac[0,0]) L_frac_1 | for jk = 1 to klev:
+    (za[jk-1,0], zqx[ncldql-1,jk-1,0], zqx[ncldqi-1,jk-1,0] => za[jk-1,0], zli[jk-1,0], zliqfrac[jk-1,0], zicefrac[jk-1,0]) L_frac_2 | for jl = kidia to kfdia:
+        (za[jk-1,jl-1], zqx[ncldql-1,jk-1,jl-1], zqx[ncldqi-1,jk-1,jl-1] => za[jk-1,jl-1], zli[jk-1,jl-1], zliqfrac[jk-1,jl-1], zicefrac[jk-1,jl-1]) S_frac | op(calc_fractions)
 
-    ; 3.4 CONDENSATION/EVAPORATION
-    (ZTP1[0, JK], PAP[0, JK], PVERVEL[0, JK], PMFU[0, JK], PMFD[0, JK], PHRSW[0, JK], PHRLW[0, JK], ZLDEFR[0], ZQSMIX[0, JK], ZDQS[0], ZDTDP[0], ZDPMXDT[0], ZWTOT[0], ZDTDIAB[0], ZDTFORC[0], ZQOLD[0], ZTOLD[0], ZMFDN[0] => ZTP1[0, JK], ZQSMIX[0, JK], ZDQS[0], ZDTDP[0], ZDPMXDT[0], ZWTOT[0], ZDTDIAB[0], ZDTFORC[0], ZQOLD[0], ZTOLD[0], ZMFDN[0]) Loop_34_Thermo_Init| for JL = KIDIA to KFDIA:
-        (ZTP1[JL, JK], PAP[JL, JK], PVERVEL[JL, JK], PHRSW[JL, JK], PHRLW[JL, JK], ZDTDP[JL], ZDTFORC[JL], ZQOLD[JL], ZTOLD[JL] => ZTP1[JL, JK], ZDTDP[JL], ZDTFORC[JL], ZQOLD[JL], ZTOLD[JL]) S34_ThermoInit| op(init_thermodynamics)
+; ------------------------------------------------------------------
+; 2. CONSTANTS AND PARAMETERS
+; ------------------------------------------------------------------
 
-    (ZTP1[0, JK], PAP[0, JK], ZQSMIX[0, JK], ZQSAT[0], ZCOR[0], ZCOND[0], ZCOND1[0], ZQP[0] => ZTP1[0, JK], ZQSMIX[0, JK], ZQSAT[0], ZCOR[0], ZCOND[0], ZCOND1[0], ZQP[0]) Loop_34_Thermo_Apply| for JL = KIDIA to KFDIA:
-        (ZTP1[JL, JK], PAP[JL, JK], ZQSMIX[JL, JK], ZQSAT[0], ZCOR[0], ZCOND[0], ZCOND1[0], ZQP[0] => ZTP1[JL, JK], ZQSMIX[JL, JK], ZQSAT[0], ZCOR[0], ZCOND[0], ZCOND1[0], ZQP[0]) S34_ThermoApply| op(apply_thermodynamics)
+; Lines 751-753 (Find tropopause level - initialization)
+(paph[0,0] => ztrpaus[0], zpaphd[0]) L_trp_init_1 | for jl = kidia to kfdia:
+    (paph[klev,jl-1] => ztrpaus[jl-1], zpaphd[jl-1]) S_trp_init | op(init_trpaus)
 
-    (ZQSMIX[0, JK], ZQOLD[0], ZTOLD[0], ZDQS[0], ZTP1[0, JK] => ZDQS[0], ZQSMIX[0, JK], ZTP1[0, JK]) Loop_34_Thermo_Final| for JL = KIDIA to KFDIA:
-        (ZQSMIX[JL, JK], ZQOLD[JL], ZTOLD[JL], ZDQS[JL], ZTP1[JL, JK] => ZDQS[JL], ZQSMIX[JL, JK], ZTP1[JL, JK]) S34_ThermoFinal| op(finalize_thermodynamics)
+; Lines 754-758 (Find tropopause level - calculation)
+(pap[0,0], ztp1[0,0] => ztrpaus[0]) L_trp_calc_1 | for jk = 1 to klev - 1:
+    (pap[jk-1,0], ztp1[jk-1,0] => ztrpaus[0]) L_trp_calc_2 | for jl = kidia to kfdia:
+        (pap[jk-1,jl-1], zpaphd[jl-1], ztp1[jk-1,jl-1], ztp1[jk,jl-1] => ztrpaus[jl-1]) S_trp_calc | op(calc_trpaus)
 
-    ; 3.4a EVAPORATION
-    (ZDQS[0], ZA[0, JK], ZLICLD[0], ZEVAPLIMMIX[0], ZQSMIX[0, JK], ZQX[0, JK, NCLDQV], ZSOLQA[0, 0, 0], ZLEVAPL[0], ZLEVAPI[0] => ZSOLQA[0, 0, 0], ZLEVAPL[0], ZLEVAPI[0]) Loop_34a_Evap| for JL = KIDIA to KFDIA:
-        (ZDQS[JL], ZSOLQA[JL, 0, 0], ZLEVAPL[JL], ZLEVAPI[JL] => ZSOLQA[JL, 0, 0], ZLEVAPL[JL], ZLEVAPI[JL]) If_DQS_Pos| if ZDQS[JL] > 0:
-             (ZDQS[JL], ZA[JL, JK], ZLICLD[JL], ZEVAPLIMMIX[JL], ZQSMIX[JL, JK], ZQX[JL, JK, NCLDQV], ZLIQFRAC[JL, JK], ZICEFRAC[JL, JK], ZSOLQA[JL, NCLDQV, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQI], ZSOLQA[JL, NCLDQI, NCLDQV], ZLEVAPL[JL], ZLEVAPI[JL] => ZSOLQA[JL, NCLDQV, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQI], ZSOLQA[JL, NCLDQI, NCLDQV], ZLEVAPL[JL], ZLEVAPI[JL]) S34a_Evap| op(apply_cloud_evaporation)
+; Lines 764-770 (Reset single level variables)
+(=> zanewm1[0], zda[0], zcovpclr[0], zcovpmax[0], zcovptot[0], zcldtopdist[0]) L_reset_locals_1 | for jl = kidia to kfdia:
+    (=> zanewm1[jl-1], zda[jl-1], zcovpclr[jl-1], zcovpmax[jl-1], zcovptot[jl-1], zcldtopdist[jl-1]) S_reset_locals | op(reset_locals)
 
-    ; 3.4b FORMATION
-    (ZDQS[0], ZA[0, JK], ZQSMIX[0, JK], ZQX[0, JK, NCLDQV], ZLCOND1[0], ZTP1[0, JK], ZSOLQA[0, 0, 0], ZQXFG[0, 0] => ZLCOND1[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0]) Loop_34b_Formation_1| for JL = KIDIA to KFDIA:
-         (ZA[JL, JK], ZDQS[JL], ZLCOND1[JL], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0] => ZLCOND1[JL], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0]) If_Existing| if (ZA[JL, JK] > ZEPSEC) and (ZDQS[JL] <= (-RLMIN)):
-              (ZDQS[JL], ZA[JL, JK], ZQSMIX[JL, JK], ZQX[JL, JK, NCLDQV], ZLCOND1[JL] => ZLCOND1[JL]) S34b_CalcZLCOND1| op(calc_zlcond1)
-              (ZTP1[JL, JK], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0] => ZSOLQA[JL, 0, 0], ZQXFG[JL, 0]) If_Phase_Exist| if ZTP1[JL, JK] > RTHOMO:
-                   (ZLCOND1[JL], ZSOLQA[JL, NCLDQL, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQL], ZQXFG[JL, NCLDQL] => ZSOLQA[JL, NCLDQL, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQL], ZQXFG[JL, NCLDQL]) S34b_AddLiq| op(add_liq)
-              else:
-                   (ZLCOND1[JL], ZSOLQA[JL, NCLDQI, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQI], ZQXFG[JL, NCLDQI] => ZSOLQA[JL, NCLDQI, NCLDQV], ZSOLQA[JL, NCLDQV, NCLDQI], ZQXFG[JL, NCLDQI]) S34b_AddIce| op(add_ice)
+; ------------------------------------------------------------------
+; 3. PHYSICS - VERTICAL LOOP
+; ------------------------------------------------------------------
 
-    (ZDQS[0], ZA[0, JK], ZQX[0, JK, NCLDQV], ZQSICE[0, JK], ZTP1[0, JK], ZSOLAC[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0], ZRHC[0], ZSIGK[0], ZQE[0], ZFAC[0], ZACOND[0], ZLCOND2[0], ZZDL[0], ZLCONDLIM[0] => ZSOLAC[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0], ZRHC[0], ZSIGK[0], ZQE[0], ZFAC[0], ZACOND[0], ZLCOND2[0], ZZDL[0], ZLCONDLIM[0]) Loop_34b_Formation_2| for JL = KIDIA to KFDIA:
-         (ZDQS[JL], ZA[JL, JK], ZSOLAC[JL], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0], ZRHC[0], ZSIGK[0], ZQE[0], ZFAC[0], ZACOND[0], ZLCOND2[0], ZZDL[0], ZLCONDLIM[0] => ZSOLAC[JL], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0], ZRHC[0], ZSIGK[0], ZQE[0], ZFAC[0], ZACOND[0], ZLCOND2[0], ZZDL[0], ZLCONDLIM[0]) If_New| if (ZDQS[JL] <= (-RLMIN)) and (ZA[JL, JK] < (1 - ZEPSEC)):
-              ; ... detailed logic omitted for brevity but implied ...
-              (ZDQS[JL], ZA[JL, JK], ZQX[JL, JK, NCLDQV], ZQSICE[JL, JK], ZTP1[JL, JK], ZSOLAC[JL], ZSOLQA[JL, 1:NCLV, 1:NCLV], ZQXFG[JL, 1:NCLV], ZRHC[0], ZSIGK[0], ZQE[0], ZFAC[0], ZACOND[0], ZLCOND2[0], ZZDL[0], ZLCONDLIM[0] => ZSOLAC[JL], ZSOLQA[JL, 1:NCLV, 1:NCLV], ZQXFG[JL, 1:NCLV], ZRHC[0], ZSIGK[0], ZQE[0], ZFAC[0], ZACOND[0], ZLCOND2[0], ZZDL[0], ZLCONDLIM[0]) S34b_New| op(generate_new_clouds)
+; Line 781
+; MAIN OUTER LOOP
+(zqx[0,0,0] => zqxn[0,0]) L_vert | for jk = ncldtop to klev:
 
-    ; 3.7 ICE DEPOSITION
-    (ZA[0, JK-1], ZA[0, JK], ZCLDTOPDIST[0], ZTP1[0, JK], ZQXFG[0, 0], ZICECLD[0], ZSOLQA[0, 0, 0], ZDEPOS[0] => ZCLDTOPDIST[0], ZDEPOS[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0]) Block_37_Deposition| if IDEPICE = 1:
-         (ZA[0, JK-1], ZA[0, JK], ZCLDTOPDIST[0], ZTP1[0, JK], ZQXFG[0, 0], ZICECLD[0], ZSOLQA[0, 0, 0], ZDEPOS[0] => ZCLDTOPDIST[0], ZDEPOS[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0]) Loop_37_Deposition_1| for JL = KIDIA to KFDIA:
-             (ZA[JL, JK-1], ZA[JL, JK], ZCLDTOPDIST[JL] => ZCLDTOPDIST[JL]) S37_CalcDist| op(calc_dist)
-             (ZTP1[JL, JK], ZQXFG[JL, NCLDQL], ZDEPOS[JL], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0] => ZDEPOS[JL], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0]) If_Dep1| if (ZTP1[JL, JK] < RTT) and (ZQXFG[JL, NCLDQL] > RLMIN):
-                  (ZTP1[JL, JK], ZICECLD[JL], ZFOKOOP[JL], PAP[JL, JK], ZQXFG[JL, NCLDQL], ZCLDTOPDIST[JL], ZDEPOS[JL] => ZDEPOS[JL]) S37_CalcDep1| op(calc_dep1)
-                  (ZDEPOS[JL], ZSOLQA[JL, NCLDQI, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQI], ZQXFG[JL, NCLDQI], ZQXFG[JL, NCLDQL] => ZSOLQA[JL, NCLDQI, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQI], ZQXFG[JL, NCLDQI], ZQXFG[JL, NCLDQL]) S37_ApplyDep1| op(apply_dep1)
-    else:
-         (ZA[0, JK-1], ZA[0, JK], ZCLDTOPDIST[0], ZTP1[0, JK], ZQXFG[0, 0], ZICECLD[0], ZSOLQA[0, 0, 0], ZDEPOS[0] => ZCLDTOPDIST[0], ZDEPOS[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0]) Block_37_Deposition_2_Check| if IDEPICE = 2:
-             (ZA[0, JK-1], ZA[0, JK], ZCLDTOPDIST[0], ZTP1[0, JK], ZQXFG[0, 0], ZICECLD[0], ZSOLQA[0, 0, 0], ZDEPOS[0] => ZCLDTOPDIST[0], ZDEPOS[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0]) Loop_37_Deposition_2| for JL = KIDIA to KFDIA:
-                 (ZA[JL, JK-1], ZA[JL, JK], ZCLDTOPDIST[JL] => ZCLDTOPDIST[JL]) S37_CalcDist2| op(calc_dist)
-                 (ZTP1[JL, JK], ZQXFG[JL, NCLDQL], ZDEPOS[JL], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0] => ZDEPOS[JL], ZSOLQA[JL, 0, 0], ZQXFG[JL, 0]) If_Dep2| if (ZTP1[JL, JK] < RTT) and (ZQXFG[JL, NCLDQL] > RLMIN):
-                      (ZTP1[JL, JK], ZICECLD[JL], ZFOKOOP[JL], PAP[JL, JK], ZQXFG[JL, NCLDQL], ZCLDTOPDIST[JL], ZDEPOS[JL] => ZDEPOS[JL]) S37_CalcDep2| op(calc_dep2)
-                      (ZDEPOS[JL], ZSOLQA[JL, NCLDQI, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQI], ZQXFG[JL, NCLDQI], ZQXFG[JL, NCLDQL] => ZSOLQA[JL, NCLDQI, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQI], ZQXFG[JL, NCLDQI], ZQXFG[JL, NCLDQL]) S37_ApplyDep2| op(apply_dep2)
+    ; 3.0 Initialize Variables
+    ; Lines 790-792 (First guess microphysics)
+    (zqx[0,0,0] => zqxfg[0,0]) L_init_fg_1 | for jm = 1 to nclv:
+        (zqx[jm-1,jk-1,0] => zqxfg[jm-1,0]) L_init_fg_2 | for jl = kidia to kfdia:
+            (zqx[jm-1, jk-1, jl-1] => zqxfg[jm-1, jl-1]) S_init_fg | op(init_fg)
 
-    ; 4.0 PRECIPITATION
-    (ZA[0, JK], ZQXFG[0, 0], ZLIQCLD[0], ZICECLD[0], ZLICLD[0] => ZLIQCLD[0], ZICECLD[0], ZLICLD[0]) Loop_40_Precip_Init| for JL = KIDIA to KFDIA:
-        (ZA[JL, JK], ZQXFG[JL, NCLDQL], ZQXFG[JL, NCLDQI], ZLIQCLD[JL], ZICECLD[JL], ZLICLD[JL] => ZLIQCLD[JL], ZICECLD[JL], ZLICLD[JL]) S40_Init| op(revise_in_cloud_condensate)
+    ; Lines 798-821 (Set KLON arrays to zero)
+    (=> zlicld[0]) L_zero_klon_1 | for jl = kidia to kfdia:
+        (=> zlicld[jl-1], zrainaut[jl-1], zrainacc[jl-1], zsnowaut[jl-1], zldefr[jl-1], zacust[jl-1], zqpretot[jl-1], zlfinalsum[jl-1], zlcond1[jl-1], zlcond2[jl-1], zsupsat[jl-1], zlevapl[jl-1], zlevapi[jl-1], zsolab[jl-1], zsolac[jl-1], zicetot[jl-1]) S_zero_klon | op(zero_klon_arrays)
 
-    ; 4.2 SEDIMENTATION
-    (ZPFPLSX[0, JK, 0], PRE_ICE[0, JK], ZQXFG[0, 0], ZSOLQA[0, 0, 0], ZQPRETOT[0], ZFALLSRCE[0, 0], ZFALLSINK[0, 0] => ZFALLSRCE[0, 0], ZSOLQA[0, 0, 0], ZQXFG[0, 0], ZQPRETOT[0], ZFALLSINK[0, 0]) Loop_42_Sedimentation| for JM = 1 to NCLV:
-         (ZPFPLSX[0, JK, JM], PRE_ICE[0, JK], ZQXFG[0, JM], ZSOLQA[0, JM, JM], ZQPRETOT[0], ZFALLSRCE[0, JM], ZFALLSINK[0, JM] => ZFALLSRCE[0, JM], ZSOLQA[0, JM, JM], ZQXFG[0, JM], ZQPRETOT[0], ZFALLSINK[0, JM]) Loop_42_Sed_Inner| for JL = KIDIA to KFDIA:
-             (LLFALL[JM], ZFALLSRCE[JL, JM], ZSOLQA[JL, JM, JM], ZQXFG[JL, JM], ZQPRETOT[JL], ZFALLSINK[JL, JM] => ZFALLSRCE[JL, JM], ZSOLQA[JL, JM, JM], ZQXFG[JL, JM], ZQPRETOT[JL], ZFALLSINK[JL, JM]) If_Sed| if (LLFALL[JM] = 1) or (JM = NCLDQI):
-                  (ZFALLSRCE[JL, JM], ZSOLQA[JL, JM, JM], ZQXFG[JL, JM], ZQPRETOT[JL] => ZFALLSRCE[JL, JM], ZSOLQA[JL, JM, JM], ZQXFG[JL, JM], ZQPRETOT[JL]) If_Src| if JK > NCLDTOP:
-                        (ZPFPLSX[JL, JK, JM], ZDTGDP[JL], ZFALLSRCE[JL, JM], ZSOLQA[JL, JM, JM], ZQXFG[JL, JM], ZQPRETOT[JL] => ZFALLSRCE[JL, JM], ZSOLQA[JL, JM, JM], ZQXFG[JL, JM], ZQPRETOT[JL]) S42_Src| op(calc_sed_source)
-                  (LAERICESED[0], PRE_ICE[JL, JK], ZVQX[JM] => ZVQX[JM]) If_Aero| if (LAERICESED[0] = 1) and (JM = NCLDQI):
-                        (PRE_ICE[JL, JK], ZVQX[JM] => ZVQX[JM]) S42_Aero| op(calc_aero_fall)
-                  (ZVQX[JM], ZRHO[JL], ZDTGDP[JL], ZFALLSINK[JL, JM] => ZFALLSINK[JL, JM]) S42_Sink| op(calc_sed_sink)
+    ; Lines 826-830 (Reset matrix so missing pathways are set)
+    (=> zsolqb[0,0,0], zsolqa[0,0,0]) L_reset_sol_1 | for jm = 1 to nclv:
+        (=> zsolqb[jm-1,0,0], zsolqa[jm-1,0,0]) L_reset_sol_2 | for jn = 1 to nclv:
+            (=> zsolqb[jm-1,jn-1,0], zsolqa[jm-1,jn-1,0]) L_reset_sol_3 | for jl = kidia to kfdia:
+                (=> zsolqb[jm-1, jn-1, jl-1], zsolqa[jm-1, jn-1, jl-1]) S_reset_sol | op(reset_sol_matrix)
 
-    ; Overlap
-    (ZQPRETOT[0], ZCOVPTOT[0], ZA[0, JK], ZA[0, JK-1], ZQXFG[0, 0], ZRAINCLD[0], ZSNOWCLD[0], ZCOVPMAX[0], ZCOVPCLR[0] => ZCOVPTOT[0], ZCOVPCLR[0], ZRAINCLD[0], ZSNOWCLD[0], ZCOVPMAX[0]) Loop_42_Overlap| for JL = KIDIA to KFDIA:
-        (ZQPRETOT[JL], ZCOVPTOT[JL], ZCOVPCLR[JL], ZRAINCLD[JL], ZSNOWCLD[JL], ZCOVPMAX[JL] => ZCOVPTOT[JL], ZCOVPCLR[JL], ZRAINCLD[JL], ZSNOWCLD[JL], ZCOVPMAX[JL]) If_Precip| if ZQPRETOT[JL] > ZEPSEC:
-             (ZCOVPTOT[JL], ZA[JL, JK], ZA[JL, JK-1], ZQXFG[JL, NCLDQR], ZQXFG[JL, NCLDQS], ZCOVPCLR[JL], ZRAINCLD[JL], ZSNOWCLD[JL], ZCOVPMAX[JL] => ZCOVPTOT[JL], ZCOVPCLR[JL], ZRAINCLD[JL], ZSNOWCLD[JL], ZCOVPMAX[JL]) S42_Overlap_Calc| op(calc_overlap)
-        else:
-             (ZRAINCLD[JL], ZSNOWCLD[JL], ZCOVPTOT[JL], ZCOVPCLR[JL], ZCOVPMAX[JL] => ZRAINCLD[JL], ZSNOWCLD[JL], ZCOVPTOT[JL], ZCOVPCLR[JL], ZCOVPMAX[JL]) S42_Overlap_Reset| op(reset_overlap)
+    ; Lines 835-842 (Reset new microphysics variables)
+    (=> zfallsrce[0,0]) L_reset_micro_1 | for jm = 1 to nclv:
+        (=> zfallsrce[jm-1,0]) L_reset_micro_2 | for jl = kidia to kfdia:
+            (=> zfallsrce[jm-1, jl-1], zfallsink[jm-1, jl-1], zconvsrce[jm-1, jl-1], zconvsink[jm-1, jl-1], zpsupsatsrce[jm-1, jl-1], zratio[jm-1, jl-1]) S_reset_micro | op(reset_micro_vars)
 
-    ; 4.3a AUTOCONVERSION SNOW
-    (ZTP1[0, JK], ZICECLD[0], PICRIT_AER[0, JK], PNICE[0, JK], ZSNOWAUT[0], ZSOLQB[0, 0, 0] => ZSNOWAUT[0], ZSOLQB[0, 0, 0]) Loop_43a_SnowAuto| for JL = KIDIA to KFDIA:
-        (ZTP1[JL, JK], ZSNOWAUT[JL], ZSOLQB[JL, 0, 0] => ZSNOWAUT[JL], ZSOLQB[JL, 0, 0]) If_Temp_Snow| if ZTP1[JL, JK] <= RTT:
-             (ZICECLD[JL], ZSNOWAUT[JL], ZSOLQB[JL, NCLDQS, NCLDQI] => ZSNOWAUT[JL], ZSOLQB[JL, NCLDQS, NCLDQI]) If_Ice| if ZICECLD[JL] > ZEPSEC:
-                  (ZTP1[JL, JK], PICRIT_AER[JL, JK], PNICE[JL, JK], ZICECLD[JL], ZSNOWAUT[JL], ZSOLQB[JL, NCLDQS, NCLDQI] => ZSNOWAUT[JL], ZSOLQB[JL, NCLDQS, NCLDQI]) S43a_Snow| op(calc_snow_autoconv)
+    ; Lines 844-896 (Derived Variables)
+    (paph[0,0], pap[0,0], ztp1[0,0], zqsliq[0,0], zqsice[0,0], zqsmix[0,0], zqx[0,0,0], za[0,0], zfoeeliqt[0,0], zfoeew[0,0], zfoeewmt[0,0], zfoealfa[0,0] => zdp[0], zgdp[0], zrho[0], zdtgdp[0], zrdtgdp[0], zdqsmixdt[0], zcorqsliq[0], zcorqsice[0], zcorqsmix[0], zevaplimmix[0], zevaplimliq[0], zevaplimice[0], zliqcld[0], zicecld[0], zlicld[0]) L_derived_vars_1 | for jl = kidia to kfdia:
+        (paph[jk-1:jk,jl-1], pap[jk-1:jk-2,jl-1], ztp1[jk-1,jl-1], zqsliq[jk-1,jl-1], zqsice[jk-1,jl-1], zqsmix[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], zqx[ncldql-1,jk-1,jl-1], zqx[ncldqi-1,jk-1,jl-1], za[jk-1,jl-1], zfoeeliqt[jk-1,jl-1], zfoeew[jk-1,jl-1], zfoeewmt[jk-1,jl-1], zfoealfa[jk-1,jl-1] => zdp[jl-1], zgdp[jl-1], zrho[jl-1], zdtgdp[jl-1], zrdtgdp[jl-1], zdtgdpf[jl-1], zdqsliqdt[jl-1], zcorqsliq[jl-1], zdqsicedt[jl-1], zcorqsice[jl-1], zalfawm[jl-1], zdqsmixdt[jl-1], zcorqsmix[jl-1], zevaplimmix[jl-1], zevaplimliq[jl-1], zevaplimice[jl-1], zliqcld[jl-1], zicecld[jl-1], zlicld[jl-1]) S_derived_vars | op(calc_derived_variables)
 
-    ; 4.3b AUTOCONVERSION WARM
-    (ZLIQCLD[0], PLCRIT_AER[0, JK], PCCN[0, JK], PLSM[0], ZPFPLSX[0, JK, 0], ZCOVPTOT[0], ZA[0, JK], ZRAINCLD[0], ZQXFG[0, 0], ZTP1[0, JK], ZRAINAUT[0], ZRAINACC[0], ZSOLQB[0, 0, 0], ZSOLQA[0, 0, 0] => ZRAINAUT[0], ZRAINACC[0], ZSOLQB[0, 0, 0], ZSOLQA[0, 0, 0]) Loop_43b_WarmAuto| for JL = KIDIA to KFDIA:
-        (ZLIQCLD[JL], ZRAINAUT[JL], ZRAINACC[JL], ZSOLQB[JL, 0, 0], ZSOLQA[JL, 0, 0] => ZRAINAUT[JL], ZRAINACC[JL], ZSOLQB[JL, 0, 0], ZSOLQA[JL, 0, 0]) If_Liq| if ZLIQCLD[JL] > ZEPSEC:
-             (PLCRIT_AER[JL, JK], PCCN[JL, JK], PLSM[JL], ZPFPLSX[JL, JK, NCLDQS], ZPFPLSX[JL, JK, NCLDQR], ZCOVPTOT[JL], ZA[JL, JK], ZRAINCLD[JL], ZQXFG[JL, NCLDQL], ZRAINAUT[JL], ZRAINACC[JL], ZSOLQB[JL, 0, 0], ZSOLQA[JL, 0, 0] => ZRAINAUT[JL], ZRAINACC[JL], ZSOLQB[JL, 0, 0], ZSOLQA[JL, 0, 0]) If_WarmRain| if IWARMRAIN = 1:
-                  (PLCRIT_AER[JL, JK], PCCN[JL, JK], PLSM[JL], ZPFPLSX[JL, JK, NCLDQS], ZPFPLSX[JL, JK, NCLDQR], ZCOVPTOT[JL], ZA[JL, JK], ZLIQCLD[JL], ZRAINAUT[JL] => ZRAINAUT[JL]) S43b_Warm1| op(calc_warm_autoconv_1)
-                  (ZTP1[JL, JK], ZRAINAUT[JL], ZSOLQB[JL, NCLDQS, NCLDQL], ZSOLQB[JL, NCLDQR, NCLDQL] => ZSOLQB[JL, NCLDQS, NCLDQL], ZSOLQB[JL, NCLDQR, NCLDQL]) If_Freeze1| if ZTP1[JL, JK] <= RTT:
-                       (ZRAINAUT[JL], ZSOLQB[JL, NCLDQS, NCLDQL] => ZSOLQB[JL, NCLDQS, NCLDQL]) S43b_Frz1| op(add_snow_1)
-                  else:
-                       (ZRAINAUT[JL], ZSOLQB[JL, NCLDQR, NCLDQL] => ZSOLQB[JL, NCLDQR, NCLDQL]) S43b_Rain1| op(add_rain_1)
-             else:
-                  (PLSM[JL], ZLIQCLD[JL], ZA[JL, JK], ZRAINCLD[JL], ZQXFG[JL, NCLDQL], ZRAINAUT[JL], ZRAINACC[JL] => ZRAINAUT[JL], ZRAINACC[JL]) If_WarmRain2| if IWARMRAIN = 2:
-                        (PLSM[JL], ZLIQCLD[JL], ZA[JL, JK], ZRAINCLD[JL], ZQXFG[JL, NCLDQL], ZRAINAUT[JL], ZRAINACC[JL] => ZRAINAUT[JL], ZRAINACC[JL]) S43b_Warm2| op(calc_warm_autoconv_2)
-                        (ZTP1[JL, JK], ZRAINAUT[JL], ZRAINACC[JL], ZSOLQA[JL, NCLDQS, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQS], ZSOLQA[JL, NCLDQR, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQR] => ZSOLQA[JL, NCLDQS, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQS], ZSOLQA[JL, NCLDQR, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQR]) If_Freeze2| if ZTP1[JL, JK] <= RTT:
-                             (ZRAINAUT[JL], ZRAINACC[JL], ZSOLQA[JL, NCLDQS, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQS] => ZSOLQA[JL, NCLDQS, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQS]) S43b_Frz2| op(add_snow_2)
-                        else:
-                             (ZRAINAUT[JL], ZRAINACC[JL], ZSOLQA[JL, NCLDQR, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQR] => ZSOLQA[JL, NCLDQR, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQR]) S43b_Rain2| op(add_rain_2)
+    ; Lines 902-910 (Evaporate very small amounts of liquid and ice)
+    (zqx[0,0,0] => zsolqa[0,0,0]) L_evap_small_amounts_1 | for jl = kidia to kfdia:
+        (zqx[ncldql-1,jk-1,jl-1], zqx[ncldqi-1,jk-1,jl-1] => zsolqa[ncldql-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldql-1,jl-1], zsolqa[ncldqi-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldqi-1,jl-1]) S_evap_small_amounts | op(evap_small_liq_ice)
 
-    ; 4.3c RIMING
-    (ZTP1[0, JK], ZLIQCLD[0], ZSNOWCLD[0], ZCOVPTOT[0], ZSNOWRIME[0], ZSOLQB[0, 0, 0] => ZSNOWRIME[0], ZSOLQB[0, 0, 0]) Block_43c_Riming| if IWARMRAIN > 1:
-         (ZTP1[0, JK], ZLIQCLD[0], ZSNOWCLD[0], ZCOVPTOT[0], ZSNOWRIME[0], ZSOLQB[0, 0, 0] => ZSNOWRIME[0], ZSOLQB[0, 0, 0]) Loop_43c_Riming| for JL = KIDIA to KFDIA:
-             (ZTP1[JL, JK], ZLIQCLD[JL], ZSNOWRIME[JL], ZSOLQB[JL, 0, 0] => ZSNOWRIME[JL], ZSOLQB[JL, 0, 0]) If_Riming| if (ZTP1[JL, JK] <= RTT) and (ZLIQCLD[JL] > ZEPSEC):
-                  (ZSNOWCLD[JL], ZCOVPTOT[JL], ZSNOWRIME[JL], ZSOLQB[JL, NCLDQS, NCLDQL] => ZSNOWRIME[JL], ZSOLQB[JL, NCLDQS, NCLDQL]) If_SnowRime| if (ZSNOWCLD[JL] > ZEPSEC) and ((ZCOVPTOT[JL]*100) > 1):
-                       (ZSNOWCLD[JL], ZCOVPTOT[JL], ZRHO[JL], ZSNOWRIME[JL] => ZSNOWRIME[JL]) S43c_CalcRime| op(calc_riming)
-                       (ZSNOWRIME[JL], ZSOLQB[JL, NCLDQS, NCLDQL] => ZSOLQB[JL, NCLDQS, NCLDQL]) S43c_ApplyRime| op(apply_riming)
+    ; 3.1 Ice Supersaturation Adjustment (inside L_vert)
+    ; Lines 927-933 (Supersaturation limit from Koop)
+    (ztp1[0,0] => zfokoop[0]) L_koop_limit_1 | for jl = kidia to kfdia:
+        (ztp1[jk-1,jl-1] => zfokoop[jl-1]) S_koop_limit | op(calc_koop_limit)
 
-    ; 4.4a MELTING
-    (ZQXFG[0, 0], ZTP1[0, JK], ZQSICE[0, JK], ZQX[0, JK, NCLDQV], PAP[0, JK], ZICETOT[0], ZMELTMAX[0] => ZICETOT[0], ZMELTMAX[0]) Loop_44a_Melting_Init| for JL = KIDIA to KFDIA:
-        (ZQXFG[JL, NCLDQI], ZQXFG[JL, NCLDQS], ZICETOT[JL] => ZICETOT[JL]) S44a_IceTot| op(calc_icetot)
-        (ZICETOT[JL], ZTP1[JL, JK], ZMELTMAX[JL] => ZMELTMAX[JL]) If_MeltMax| if (ZICETOT[JL] > ZEPSEC) and (ZTP1[JL, JK] > RTT):
-             (ZQSICE[JL, JK], ZQX[JL, JK, NCLDQV], ZTP1[JL, JK], PAP[JL, JK], ZMELTMAX[JL] => ZMELTMAX[JL]) S44a_MeltMax| op(calc_meltmax)
+    ; Lines 934-1005 (Calculate supersaturation and conversion)
+    (ztp1[0,0], za[0,0], zfokoop[0], zqx[0,0,0], zqsice[0,0], zcorqsice[0], psupsat[0,0] => zsupsat[0], zsolac[0], zsolqa[0,0,0], zqxfg[0,0], zpsupsatsrce[0,0]) L_calc_supsat_1 | for jl = kidia to kfdia:
+        (ztp1[jk-1,jl-1], za[jk-1,jl-1], zfokoop[jl-1], zqx[ncldqv-1,jk-1,jl-1], zqsice[jk-1,jl-1], zcorqsice[jl-1], psupsat[jk-1,jl-1] => zsupsat[jl-1], zsolac[jl-1], zsolqa[ncldqv-1,ncldql-1,jl-1], zsolqa[ncldql-1,ncldqv-1,jl-1], zqxfg[ncldql-1,jl-1], zsolqa[ncldqv-1,ncldqi-1,jl-1], zsolqa[ncldqi-1,ncldqv-1,jl-1], zqxfg[ncldqi-1,jl-1], zpsupsatsrce[ncldql-1,jl-1], zpsupsatsrce[ncldqi-1,jl-1]) S_calc_supsat | op(calc_supsat_and_conversion)
 
-    (ZQXFG[0, 0], ZICETOT[0], ZMELTMAX[0], ZSOLQA[0, 0, 0] => ZQXFG[0, 0], ZSOLQA[0, 0, 0]) Loop_44a_Melting_Apply| for JM = 1 to NCLV:
-         (IPHASE[JM], IMELT[JM], ZQXFG[0, JM], ZICETOT[0], ZMELTMAX[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0] => ZQXFG[0, 0], ZSOLQA[0, 0, 0]) If_PhaseMelt| if IPHASE[JM] = 2:
-             (IMELT[JM], ZQXFG[0, JM], ZICETOT[0], ZMELTMAX[0], ZSOLQA[0, 0, 0], ZQXFG[0, 0] => ZQXFG[0, 0], ZSOLQA[0, 0, 0]) Loop_44a_Melting_Inner| for JL = KIDIA to KFDIA:
-                 (ZMELTMAX[JL], ZICETOT[JL], ZQXFG[JL, JM], ZQXFG[JL, IMELT[JM]], ZSOLQA[JL, IMELT[JM], JM], ZSOLQA[JL, JM, IMELT[JM]] => ZQXFG[JL, JM], ZQXFG[JL, IMELT[JM]], ZSOLQA[JL, IMELT[JM], JM], ZSOLQA[JL, JM, IMELT[JM]]) If_DoMelt| if (ZMELTMAX[JL] > ZEPSEC) and (ZICETOT[JL] > ZEPSEC):
-                      (ZQXFG[JL, JM], ZICETOT[JL], ZMELTMAX[JL], ZQXFG[JL, IMELT[JM]], ZSOLQA[JL, IMELT[JM], JM], ZSOLQA[JL, JM, IMELT[JM]] => ZQXFG[JL, JM], ZQXFG[JL, IMELT[JM]], ZSOLQA[JL, IMELT[JM], JM], ZSOLQA[JL, JM, IMELT[JM]]) S44a_Apply| op(apply_melting)
+    ; 3.2 Detrainment from Convection (inside L_vert)
+    ; Lines 1020-1043
+    (plude[0], zdtgdp[0], ldcum[0], plu[0], zfoealfa[0], psnde[0] => plude[0], zsolac[0], zconvsrce[0], zsolqa[0]) B_detrain | if ((jk < klev) and (jk >= ncldtop)):
+        (plude[0,0], zdtgdp[0], ldcum[0], plu[0,0], zfoealfa[0,0], psnde[0,0] => plude[0,0], zsolac[0], zconvsrce[0,0], zsolqa[0,0,0]) L_detrain_1 | for jl = kidia to kfdia:
+            (plude[jk-1,jl-1], zdtgdp[jl-1], ldcum[jl-1], plu[jk,jl-1], zfoealfa[jk-1,jl-1], psnde[jk-1,jl-1] => plude[jk-1,jl-1], zsolac[jl-1], zconvsrce[ncldql-1,jl-1], zconvsrce[ncldqi-1,jl-1], zsolqa[ncldql-1,ncldql-1,jl-1], zsolqa[ncldqi-1,ncldqi-1,jl-1], zsolqa[ncldqs-1,ncldqs-1,jl-1]) S_detrain | op(detrainment_convection)
 
-    ; 4.4b FREEZING RAIN
-    (ZQX[0, JK, NCLDQR], ZTP1[0, JK], ZTP1[0, JK-1], ZQX[0, JK, NCLDQS], ZQPRETOT[0], PRAINFRAC_TOPRFZ[0], LLRAINLIQ[0], ZFRZMAX[0], ZSOLQA[0, 0, 0] => ZQPRETOT[0], PRAINFRAC_TOPRFZ[0], LLRAINLIQ[0], ZFRZMAX[0], ZSOLQA[0, 0, 0]) Loop_44b_FreezingRain| for JL = KIDIA to KFDIA:
-        (ZQX[JL, JK, NCLDQR], ZQPRETOT[JL], PRAINFRAC_TOPRFZ[JL], LLRAINLIQ[JL], ZFRZMAX[JL], ZSOLQA[JL, 0, 0] => ZQPRETOT[JL], PRAINFRAC_TOPRFZ[JL], LLRAINLIQ[JL], ZFRZMAX[JL], ZSOLQA[JL, 0, 0]) If_Rain| if ZQX[JL, JK, NCLDQR] > ZEPSEC:
-             (ZTP1[JL, JK], ZTP1[JL, JK-1], ZQPRETOT[JL], PRAINFRAC_TOPRFZ[JL], LLRAINLIQ[JL] => ZQPRETOT[JL], PRAINFRAC_TOPRFZ[JL], LLRAINLIQ[JL]) If_TopFrz| if (ZTP1[JL, JK] <= RTT) and (ZTP1[JL, JK-1] > RTT):
-                  (ZQX[JL, JK, NCLDQS], ZQX[JL, JK, NCLDQR], ZQPRETOT[JL], PRAINFRAC_TOPRFZ[JL], LLRAINLIQ[JL] => ZQPRETOT[JL], PRAINFRAC_TOPRFZ[JL], LLRAINLIQ[JL]) S44b_FrzLayer| op(calc_top_frz_layer)
-             (ZTP1[JL, JK], ZFRZMAX[JL], ZSOLQA[JL, NCLDQS, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQS] => ZFRZMAX[JL], ZSOLQA[JL, NCLDQS, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQS]) If_Frz| if ZTP1[JL, JK] < RTT:
-                  (LLRAINLIQ[JL], ZQX[JL, JK, NCLDQR], ZRHO[JL], ZTP1[JL, JK], ZFRZMAX[JL] => ZFRZMAX[JL]) S44b_CalcFrz| op(calc_rain_freezing_rate)
-                  (ZFRZMAX[JL], ZSOLQA[JL, NCLDQS, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQS] => ZSOLQA[JL, NCLDQS, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQS]) If_DoFrz| if ZFRZMAX[JL] > ZEPSEC:
-                       (ZFRZMAX[JL], ZQX[JL, JK, NCLDQR], ZSOLQA[JL, NCLDQS, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQS] => ZSOLQA[JL, NCLDQS, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQS]) S44b_ApplyFrz| op(apply_rain_freezing)
+    ; 3.3 Subsidence (inside L_vert)
+    ; Lines 1061-1102 (Source/Evaporation)
+    (pmfu[0], pmfd[0], zdtgdp[0], zanewm1[0], zqxnm1[0], iphase[0], ztp1[0], paph[0], pap[0], zdqsmixdt[0], llfall[0], zevaplimmix[0] => zmf[0], zacust[0], zlcust[0], zconvsrce[0], zdqs[0], zlfinalsum[0], zsolac[0], zsolqa[0]) B_subsid_source | if (jk > ncldtop):
+        (pmfu[0,0], pmfd[0,0], zdtgdp[0], zanewm1[0] => zmf[0], zacust[0]) L_subsid_source_1 | for jl = kidia to kfdia:
+            (pmfu[jk-1,jl-1], pmfd[jk-1,jl-1], zdtgdp[jl-1], zanewm1[jl-1] => zmf[jl-1], zacust[jl-1]) S_subsid_source_mf | op(calc_subsid_mf)
+        (zmf[0], zqxnm1[0,0], iphase[0], zconvsrce[0,0] => zlcust[0,0], zconvsrce[0,0]) L_subsid_source_2 | for jm = 1 to nclv:
+            (zmf[0], zqxnm1[0], iphase[0], zconvsrce[0], zlcust[0], llfall[0] => zlcust[0], zconvsrce[0]) B_subsid_source_jm | if (not (llfall[jm-1] = 1)) and (iphase[jm-1] > 0):
+                (zmf[0], zqxnm1[jm-1,0], zconvsrce[jm-1,0] => zlcust[jm-1,0], zconvsrce[jm-1,0]) L_subsid_source_3 | for jl = kidia to kfdia:
+                    (zmf[jl-1], zqxnm1[jm-1,jl-1], zconvsrce[jm-1,jl-1] => zlcust[jm-1,jl-1], zconvsrce[jm-1,jl-1]) S_subsid_source_lcust | op(calc_subsid_lcust)
+        (ztp1[0,0], paph[0,0], pap[0,0], zanewm1[0], zdqsmixdt[0] => zdqs[0]) L_subsid_source_4 | for jl = kidia to kfdia:
+            (ztp1[jk-2:jk-1,jl-1], paph[jk-1,jl-1], pap[jk-2:jk-1,jl-1], zanewm1[jl-1], zdqsmixdt[jl-1] => zdqs[jl-1]) S_subsid_source_dqs | op(calc_subsid_dqs)
+        (zlcust[0,0], zdqs[0], zevaplimmix[0], zlfinalsum[0], iphase[0] => zlfinalsum[0], zsolqa[0,0,0]) L_subsid_source_5 | for jm = 1 to nclv:
+            (zlcust[0], zdqs[0], zevaplimmix[0], zlfinalsum[0], iphase[0], zsolqa[0], llfall[0] => zlfinalsum[0], zsolqa[0]) B_subsid_source_jm_2 | if (not (llfall[jm-1] = 1)) and (iphase[jm-1] > 0):
+                (zlcust[jm-1,0], zdqs[0], zevaplimmix[0], zlfinalsum[0] => zlfinalsum[0], zsolqa[0,0,0]) L_subsid_source_6 | for jl = kidia to kfdia:
+                    (zlcust[jm-1,jl-1], zdqs[jl-1], zevaplimmix[jl-1], zlfinalsum[jl-1] => zlfinalsum[jl-1], zsolqa[jm-1,jm-1,jl-1], zsolqa[jm-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,jm-1,jl-1]) S_subsid_source_evap | op(calc_subsid_evap)
+        (zlfinalsum[0], zsolac[0] => zacust[0], zsolac[0]) L_subsid_source_7 | for jl = kidia to kfdia:
+            (zlfinalsum[jl-1], zsolac[jl-1] => zacust[jl-1], zsolac[jl-1]) S_subsid_source_reset | op(reset_cloud_contrib)
 
-    ; 4.4c FREEZING LIQUID
-    (ZTP1[0, JK], ZFRZMAX[0] => ZFRZMAX[0]) Loop_44c_FreezingLiq_Init| for JL = KIDIA to KFDIA:
-        (ZTP1[JL, JK], ZFRZMAX[JL] => ZFRZMAX[JL]) S44c_Init| op(init_freezing_liq)
+    ; Lines 1111-1123 (Sink to Layer Below)
+    (pmfu[0,0], pmfd[0,0], zdtgdp[0] => zsolab[0], zsolqb[0,0,0], zconvsink[0,0]) L_subsid_sink_1 | for jl = kidia to kfdia:
+        (pmfu[0], pmfd[0], zdtgdp[0] => zsolab[0], zsolqb[0], zconvsink[0]) B_subsid_sink | if (jk < klev):
+            (pmfu[jk,jl-1], pmfd[jk,jl-1], zdtgdp[jl-1] => zsolab[jl-1], zsolqb[ncldql-1,ncldql-1,jl-1], zsolqb[ncldqi-1,ncldqi-1,jl-1], zconvsink[ncldql-1,jl-1], zconvsink[ncldqi-1,jl-1]) S_subsid_sink | op(calc_subsid_sink)
 
-    (ZFRZMAX[0], ZQXFG[0, 0], ZSOLQA[0, 0, 0] => ZSOLQA[0, 0, 0]) Loop_44c_FreezingLiq_Apply| for JL = KIDIA to KFDIA:
-        (ZFRZMAX[JL], ZQXFG[JL, NCLDQL], ZSOLQA[JL, NCLDQI, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQI] => ZSOLQA[JL, NCLDQI, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQI]) If_LiqFrz| if (ZFRZMAX[JL] > ZEPSEC) and (ZQXFG[JL, NCLDQL] > ZEPSEC):
-             (ZFRZMAX[JL], ZQXFG[JL, NCLDQL], ZSOLQA[JL, NCLDQI, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQI] => ZSOLQA[JL, NCLDQI, NCLDQL], ZSOLQA[JL, NCLDQL, NCLDQI]) S44c_Apply| op(apply_freezing_liq)
+    ; 3.4 Erosion of Clouds (inside L_vert)
+    ; Lines 1138-1142 (Define turbulent erosion rate)
+    (ktype[0], plude[0,0] => zldifdt[0]) L_erosion_rate_1 | for jl = kidia to kfdia:
+        (ktype[jl-1], plude[jk-1,jl-1] => zldifdt[jl-1]) S_erosion_rate | op(calc_erosion_rate)
 
-    ; 4.5 EVAPORATION RAIN
-    (ZCOVPMAX[0], ZA[0, JK], ZQX[0, JK, NCLDQV], ZQSLIQ[0, JK], ZCOVPCLR[0], ZQXFG[0, 0], ZCOVPTOT[0], ZSOLQA[0, 0, 0], ZEVAP[0], PAP[0, JK], PAPH[0, JK+1], ZDTGDP[0], ZTP1[0, JK] => ZEVAP[0], ZSOLQA[0, 0, 0], ZCOVPTOT[0], ZQXFG[0, 0]) Block_45_Rain| if IEVAPRAIN = 1:
-         (ZCOVPMAX[0], ZA[0, JK], ZQX[0, JK, NCLDQV], ZQSLIQ[0, JK], ZCOVPCLR[0], ZQXFG[0, 0], ZCOVPTOT[0], ZSOLQA[0, 0, 0], ZEVAP[0], PAP[0, JK], PAPH[0, JK+1], ZDTGDP[0] => ZEVAP[0], ZSOLQA[0, 0, 0], ZCOVPTOT[0], ZQXFG[0, 0]) Loop_45_Rain_1| for JL = KIDIA to KFDIA:
-             (ZCOVPMAX[JL], ZA[JL, JK], ZQX[JL, JK, NCLDQV], ZQSLIQ[JL, JK], ZCOVPCLR[JL], ZQXFG[JL, NCLDQR], ZEVAP[JL], ZSOLQA[JL, NCLDQV, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQV], ZCOVPTOT[JL] => ZEVAP[JL], ZSOLQA[JL, NCLDQV, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQV], ZCOVPTOT[JL], ZQXFG[JL, NCLDQR]) S45_Rain1| op(evap_rain_sundquist)
-    else:
-         (ZCOVPMAX[0], ZA[0, JK], ZQX[0, JK, NCLDQV], ZQSLIQ[0, JK], ZCOVPCLR[0], ZQXFG[0, 0], ZCOVPTOT[0], ZSOLQA[0, 0, 0], ZEVAP[0], PAP[0, JK], ZTP1[0, JK] => ZEVAP[0], ZSOLQA[0, 0, 0], ZCOVPTOT[0], ZQXFG[0, 0]) Block_45_Rain_2_Check| if IEVAPRAIN = 2:
-             (ZCOVPMAX[0], ZA[0, JK], ZQX[0, JK, NCLDQV], ZQSLIQ[0, JK], ZCOVPCLR[0], ZQXFG[0, 0], ZCOVPTOT[0], ZSOLQA[0, 0, 0], ZEVAP[0], PAP[0, JK], ZTP1[0, JK] => ZEVAP[0], ZSOLQA[0, 0, 0], ZCOVPTOT[0], ZQXFG[0, 0]) Loop_45_Rain_2| for JL = KIDIA to KFDIA:
-                 (ZCOVPMAX[JL], ZA[JL, JK], ZQX[JL, JK, NCLDQV], ZQSLIQ[JL, JK], ZCOVPCLR[JL], ZQXFG[JL, NCLDQR], ZEVAP[JL], ZSOLQA[JL, NCLDQV, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQV], ZCOVPTOT[JL] => ZEVAP[JL], ZSOLQA[JL, NCLDQV, NCLDQR], ZSOLQA[JL, NCLDQR, NCLDQV], ZCOVPTOT[JL], ZQXFG[JL, NCLDQR]) S45_Rain2| op(evap_rain_abel_boutle)
+    ; Lines 1147-1165 (Apply erosion)
+    (zli[0,0], zldifdt[0], zqsmix[0,0], zqx[0,0,0], za[0,0], zevaplimmix[0], zlicld[0], zliqfrac[0,0], zicefrac[0,0] => zsolac[0], zsolqa[0,0,0]) L_apply_erosion_1 | for jl = kidia to kfdia:
+        (zli[jk-1,jl-1], zldifdt[jl-1], zqsmix[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], za[jk-1,jl-1], zevaplimmix[jl-1], zlicld[jl-1], zliqfrac[jk-1,jl-1], zicefrac[jk-1,jl-1] => zsolac[jl-1], zsolqa[ncldql-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldql-1,jl-1], zsolqa[ncldqi-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldqi-1,jl-1]) S_apply_erosion | op(apply_erosion)
 
-    ; 4.5 EVAPORATION SNOW
-    (ZCOVPMAX[0], ZA[0, JK], ZQX[0, JK, NCLDQV], ZQSICE[0, JK], ZCOVPCLR[0], ZQXFG[0, 0], ZCOVPTOT[0], ZSOLQA[0, 0, 0], ZEVAP[0], PAP[0, JK], PAPH[0, JK+1], ZDTGDP[0], ZTP1[0, JK], ZQX[0, JK, NCLDQS] => ZEVAP[0], ZSOLQA[0, 0, 0], ZCOVPTOT[0], ZQXFG[0, 0]) Block_45_Snow| if IEVAPSNOW = 1:
-         (ZCOVPMAX[0], ZA[0, JK], ZQX[0, JK, NCLDQV], ZQSICE[0, JK], ZCOVPCLR[0], ZQXFG[0, 0], ZCOVPTOT[0], ZSOLQA[0, 0, 0], ZEVAP[0], PAP[0, JK], PAPH[0, JK+1], ZDTGDP[0] => ZEVAP[0], ZSOLQA[0, 0, 0], ZCOVPTOT[0], ZQXFG[0, 0]) Loop_45_Snow_1| for JL = KIDIA to KFDIA:
-             (ZCOVPMAX[JL], ZA[JL, JK], ZQX[JL, JK, NCLDQV], ZQSICE[JL, JK], ZCOVPCLR[JL], ZQXFG[JL, NCLDQS], ZEVAP[JL], ZSOLQA[JL, NCLDQV, NCLDQS], ZSOLQA[JL, NCLDQS, NCLDQV], ZCOVPTOT[JL] => ZEVAP[JL], ZSOLQA[JL, NCLDQV, NCLDQS], ZSOLQA[JL, NCLDQS, NCLDQV], ZCOVPTOT[JL], ZQXFG[JL, NCLDQS]) S45_Snow1| op(evap_snow_sundquist)
-    else:
-         (ZCOVPMAX[0], ZA[0, JK], ZQX[0, JK, NCLDQV], ZQSICE[0, JK], ZCOVPCLR[0], ZQXFG[0, 0], ZCOVPTOT[0], ZSOLQA[0, 0, 0], ZEVAP[0], PAP[0, JK], ZTP1[0, JK], ZQX[0, JK, NCLDQS] => ZEVAP[0], ZSOLQA[0, 0, 0], ZCOVPTOT[0], ZQXFG[0, 0]) Block_45_Snow_2_Check| if IEVAPSNOW = 2:
-             (ZCOVPMAX[0], ZA[0, JK], ZQX[0, JK, NCLDQV], ZQSICE[0, JK], ZCOVPCLR[0], ZQXFG[0, 0], ZCOVPTOT[0], ZSOLQA[0, 0, 0], ZEVAP[0], PAP[0, JK], ZTP1[0, JK], ZQX[0, JK, NCLDQS] => ZEVAP[0], ZSOLQA[0, 0, 0], ZCOVPTOT[0], ZQXFG[0, 0]) Loop_45_Snow_2| for JL = KIDIA to KFDIA:
-                 (ZCOVPMAX[JL], ZA[JL, JK], ZQX[JL, JK, NCLDQV], ZQSICE[JL, JK], ZCOVPCLR[JL], ZQX[JL, JK, NCLDQS], ZEVAP[JL], ZSOLQA[JL, NCLDQV, NCLDQS], ZSOLQA[JL, NCLDQS, NCLDQV], ZCOVPTOT[JL], ZQXFG[JL, NCLDQS] => ZEVAP[JL], ZSOLQA[JL, NCLDQV, NCLDQS], ZSOLQA[JL, NCLDQS, NCLDQV], ZCOVPTOT[JL], ZQXFG[JL, NCLDQS]) S45_Snow2| op(evap_snow_new)
+    ; 3.4 Condensation/Evaporation (dqs/dt) (inside L_vert)
+    ; Lines 1186-1204 (Calculate dqs/dt forcing)
+    (ztp1[0,0], pap[0,0], zdp[0], pmfu[0,0], pmfd[0,0], pvervel[0,0], phrsw[0,0], phrlw[0,0], zldefr[0], zqsmix[0,0] => ztp1[0,0], zqold[0], ztold[0], llflag[0]) L_dqsdt_forcing_1 | for jl = kidia to kfdia:
+        (ztp1[jk-1,jl-1], pap[jk-1,jl-1], zdp[jl-1], pmfu[jk-1,jl-1], pmfu[jk,jl-1], pmfd[jk-1,jl-1], pmfd[jk,jl-1], pvervel[jk-1,jl-1], phrsw[jk-1,jl-1], phrlw[jk-1,jl-1], zldefr[jl-1], zqsmix[jk-1,jl-1] => ztp1[jk-1,jl-1], zqold[jl-1], ztold[jl-1], llflag[jl-1]) S_dqsdt_forcing | op(calc_dqsdt_forcing)
 
-    ; Clean up small precip
-    (ZQXFG[0, 0], ZSOLQA[0, 0, 0] => ZSOLQA[0, 0, 0]) Loop_45_Cleanup| for JM = 1 to NCLV:
-         (LLFALL[JM], ZQXFG[0, JM], ZSOLQA[0, 0, 0] => ZSOLQA[0, 0, 0]) If_Fall| if LLFALL[JM] = 1:
-             (ZQXFG[0, JM], ZSOLQA[0, 0, 0] => ZSOLQA[0, 0, 0]) Loop_45_Cleanup_Inner| for JL = KIDIA to KFDIA:
-                 (ZQXFG[JL, JM], ZSOLQA[JL, NCLDQV, JM], ZSOLQA[JL, JM, NCLDQV] => ZSOLQA[JL, NCLDQV, JM], ZSOLQA[JL, JM, NCLDQV]) If_Small| if ZQXFG[JL, JM] < RLMIN:
-                      (ZQXFG[JL, JM], ZSOLQA[JL, NCLDQV, JM], ZSOLQA[JL, JM, NCLDQV] => ZSOLQA[JL, NCLDQV, JM], ZSOLQA[JL, JM, NCLDQV]) S45_Cleanup| op(clean_small_precip)
+    ; Lines 1207-1222 (Adjust T and Q for saturation)
+    (ztp1[0,0], pap[0,0], zqsmix[0,0] => ztp1[0,0], zqsmix[0,0]) L_adjust_sat_1 | for jl = kidia to kfdia:
+        (ztp1[jk-1,jl-1], pap[jk-1,jl-1], zqsmix[jk-1,jl-1] => ztp1[jk-1,jl-1], zqsmix[jk-1,jl-1]) S_adjust_sat | op(adjust_t_q_saturation)
 
-    ; 5.1 SOLVER CLOUD COVER
-    (ZA[0, JK], ZSOLAC[0], ZSOLAB[0], ZANEW[0], ZDA[0], ZANEWM1[0], ZAORIG[0, JK] => ZANEW[0], ZDA[0], ZANEWM1[0]) Loop_51_CloudCover| for JL = KIDIA to KFDIA:
-        (ZA[JL, JK], ZSOLAC[JL], ZSOLAB[JL], ZAORIG[JL, JK], ZANEW[0], ZDA[JL], ZANEWM1[JL] => ZANEW[0], ZDA[JL], ZANEWM1[JL]) S51_Solve| op(solve_cloud_cover)
+    ; Lines 1224-1227 (Calculate zdqs and reset)
+    (zqsmix[0,0], zqold[0], ztp1[0,0], ztold[0] => zdqs[0], zqsmix[0,0], ztp1[0,0]) L_calc_zdqs_reset_1 | for jl = kidia to kfdia:
+        (zqsmix[jk-1,jl-1], zqold[jl-1], ztp1[jk-1,jl-1], ztold[jl-1] => zdqs[jl-1], zqsmix[jk-1,jl-1], ztp1[jk-1,jl-1]) S_calc_zdqs_reset | op(calc_zdqs_and_reset)
 
-    ; 5.2 SOLVER MICROPHYSICS
-    ; Truncate explicit sinks
-    (ZSOLQA[0, 0, 0], ZSINKSUM[0, 0] => ZSINKSUM[0, 0]) Loop_52_Truncate_Init| for JM = 1 to NCLV:
-         (ZSOLQA[0, 0, 0], ZSINKSUM[0, 0] => ZSINKSUM[0, 0]) Loop_52_Truncate_Reset_Sum| for JL = KIDIA to KFDIA:
-              (ZSOLQA[JL, 0, 0], ZSINKSUM[JL, JM] => ZSINKSUM[JL, JM]) S52_Trunc_Reset| op(reset_sinksum)
+    ; 3.4a Evaporation (zdqs > 0) (inside L_vert)
+    ; Lines 1235-1254
+    (zdqs[0], za[0,0], zlicld[0], zevaplimmix[0], zqsmix[0,0], zqx[0,0,0], zliqfrac[0,0], zicefrac[0,0] => zlevapl[0], zlevapi[0], zsolqa[0,0,0]) L_evap_clouds_1 | for jl = kidia to kfdia:
+        (zdqs[jl-1], za[jk-1,jl-1], zlicld[jl-1], zevaplimmix[jl-1], zqsmix[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], zliqfrac[jk-1,jl-1], zicefrac[jk-1,jl-1] => zlevapl[jl-1], zlevapi[jl-1], zsolqa[ncldql-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldql-1,jl-1], zsolqa[ncldqi-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldqi-1,jl-1]) S_evap_clouds | op(evaporate_clouds)
 
-    ; Collect sink terms
-    (ZSOLQA[0, 0, 0], ZSINKSUM[0, 0] => ZSINKSUM[0, 0]) Loop_52_CollectSinks| for JM = 1 to NCLV:
-         (ZSOLQA[0, 0, 0], ZSINKSUM[0, 0] => ZSINKSUM[0, 0]) Loop_52_CollectSinks_Inner| for JN = 1 to NCLV:
-              (ZSOLQA[0, 0, 0], ZSINKSUM[0, 0] => ZSINKSUM[0, 0]) Loop_52_CollectSinks_JL| for JL = KIDIA to KFDIA:
-                   (ZSOLQA[JL, JM, JN], ZSINKSUM[JL, JM] => ZSINKSUM[JL, JM]) S52_Collect| op(collect_sinks)
+    ; 3.4b Formation (zdqs < 0) (inside L_vert)
+    ; Lines 1262-1292 (Increase existing clouds)
+    (za[0,0], zdqs[0], zqx[0,0,0], zqsmix[0,0], ztp1[0,0] => zlcond1[0], zsolqa[0,0,0], zqxfg[0,0]) L_form_existing_1 | for jl = kidia to kfdia:
+        (za[jk-1,jl-1], zdqs[jl-1], zqx[ncldqv-1,jk-1,jl-1], zqsmix[jk-1,jl-1], ztp1[jk-1,jl-1] => zlcond1[jl-1], zsolqa[ncldqv-1,ncldql-1,jl-1], zsolqa[ncldql-1,ncldqv-1,jl-1], zqxfg[ncldql-1,jl-1], zsolqa[ncldqv-1,ncldqi-1,jl-1], zsolqa[ncldqi-1,ncldqv-1,jl-1], zqxfg[ncldqi-1,jl-1]) S_form_existing | op(increase_existing_clouds)
 
-    ; Calculate overshoot
-    (ZQX[0, JK, 0], ZSINKSUM[0, 0], ZRATIO[0, 0] => ZRATIO[0, 0]) Loop_52_Overshoot| for JM = 1 to NCLV:
-         (ZQX[0, JK, 0], ZSINKSUM[0, 0], ZRATIO[0, 0] => ZRATIO[0, 0]) Loop_52_Overshoot_JL| for JL = KIDIA to KFDIA:
-              (ZQX[JL, JK, JM], ZSINKSUM[JL, JM], ZRATIO[JL, JM] => ZRATIO[JL, JM]) S52_Overshoot| op(calc_overshoot)
+    ; Lines 1296-1383 (Generation of new clouds)
+    (zdqs[0], za[0,0], pap[0,0], paph[0,0], zqx[0,0,0], zqsice[0,0], zli[0,0], ztp1[0,0], zfokoop[0], zsolac[0] => zlcond2[0], zsolac[0], zsolqa[0,0,0], zqxfg[0,0]) L_form_new_1 | for jl = kidia to kfdia:
+        (zdqs[jl-1], za[jk-1,jl-1], pap[jk-1,jl-1], paph[klev,jl-1], zqx[ncldqv-1,jk-1,jl-1], zqsice[jk-1,jl-1], zli[jk-1,jl-1], ztp1[jk-1,jl-1], zfokoop[jl-1], zsolac[jl-1] => zlcond2[jl-1], zsolac[jl-1], zsolqa[ncldqv-1,ncldql-1,jl-1], zsolqa[ncldql-1,ncldqv-1,jl-1], zqxfg[ncldql-1,jl-1], zsolqa[ncldqv-1,ncldqi-1,jl-1], zsolqa[ncldqi-1,ncldqv-1,jl-1], zqxfg[ncldqi-1,jl-1]) S_form_new | op(generate_new_clouds)
 
-    ; Sort (simplified logic as op for brevity, sorting is complex in pcode without detailed array indexing support for indirections)
-    (IORDER[0, 0], LLINDEX1[0, 0], ZRATIO[0, 0], ZMIN[0] => IORDER[0, 0]) Loop_52_Sort| for JL = KIDIA to KFDIA:
-         (IORDER[JL, 1:NCLV], LLINDEX1[JL, 1:NCLV], ZRATIO[JL, 1:NCLV], ZMIN[JL] => IORDER[JL, 1:NCLV]) Block_52_Sort| op(sort_species)
+    ; 3.7 Ice Deposition (inside L_vert)
+    ; Lines 1404-1481 (Rotstayn et al. 2001, idepice=1)
+    (za[0,0], zdp[0], zrho[0], ztp1[0,0], zqx[0,0,0], zicecld[0], pap[0,0], zfokoop[0], zicenuclei[0], zcldtopdist[0], zqxfg[0,0] => zcldtopdist[0], zicenuclei[0], zsolqa[0,0,0], zqxfg[0,0]) B_ice_dep_rotstayn | if (idepice = 1):
+        (za[0,0], zdp[0], zrho[0], ztp1[0,0], zqx[0,0,0], zicecld[0], pap[0,0], zfokoop[0], zicenuclei[0], zcldtopdist[0], zqxfg[0,0] => zcldtopdist[0], zicenuclei[0], zsolqa[0,0,0], zqxfg[0,0]) L_ice_dep_rotstayn_1 | for jl = kidia to kfdia:
+            (za[jk-2:jk-1,jl-1], zdp[jl-1], zrho[jl-1], ztp1[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], zicecld[jl-1], pap[jk-1,jl-1], zfokoop[jl-1], zicenuclei[jl-1], zcldtopdist[jl-1], zqxfg[ncldql-1,jl-1], zqxfg[ncldqi-1,jl-1] => zcldtopdist[jl-1], zicenuclei[jl-1], zsolqa[ncldql-1,ncldqi-1,jl-1], zsolqa[ncldqi-1,ncldql-1,jl-1], zqxfg[ncldqi-1,jl-1], zqxfg[ncldql-1,jl-1]) S_ice_dep_rotstayn | op(rotstayn_ice_deposition)
 
-    ; Scale (simplified logic as op)
-    (ZSINKSUM[0, 0], ZSOLQA[0, 0, 0], IORDER[0, 0], LLINDEX3[0, 0, 0], ZQX[0, JK, 0], ZRATIO[0, 0] => ZSOLQA[0, 0, 0]) Loop_52_Scale| for JL = KIDIA to KFDIA:
-         (ZSINKSUM[JL, 1:NCLV], ZSOLQA[JL, 1:NCLV, 1:NCLV], IORDER[JL, 1:NCLV], LLINDEX3[JL, 1:NCLV, 1:NCLV], ZQX[JL, JK, 1:NCLV], ZRATIO[JL, 1:NCLV] => ZSOLQA[JL, 1:NCLV, 1:NCLV]) Block_52_Scale| op(scale_sinks)
+    ; Lines 1489-1562 (Ice deposition assuming ice PSD, idepice=2)
+    (za[0,0], zdp[0], zrho[0], ztp1[0,0], zqx[0,0,0], zicecld[0], pap[0,0], zfokoop[0], zicenuclei[0], zcldtopdist[0], zqxfg[0,0] => zcldtopdist[0], zicenuclei[0], zsolqa[0,0,0], zqxfg[0,0]) B_ice_dep_psd | if (idepice = 2):
+        (za[0,0], zdp[0], zrho[0], ztp1[0,0], zqx[0,0,0], zicecld[0], pap[0,0], zfokoop[0], zicenuclei[0], zcldtopdist[0], zqxfg[0,0] => zcldtopdist[0], zicenuclei[0], zsolqa[0,0,0], zqxfg[0,0]) L_ice_dep_psd_1 | for jl = kidia to kfdia:
+            (za[jk-2:jk-1,jl-1], zdp[jl-1], zrho[jl-1], ztp1[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], zicecld[jl-1], pap[jk-1,jl-1], zfokoop[jl-1], zicenuclei[jl-1], zcldtopdist[jl-1], zqxfg[ncldql-1,jl-1], zqxfg[ncldqi-1,jl-1] => zcldtopdist[jl-1], zicenuclei[jl-1], zsolqa[ncldql-1,ncldqi-1,jl-1], zsolqa[ncldqi-1,ncldql-1,jl-1], zqxfg[ncldqi-1,jl-1], zqxfg[ncldql-1,jl-1]) S_ice_dep_psd | op(ice_deposition_psd)
 
-    ; Solver (LHS/RHS/LU/Backsub)
-    (ZFALLSINK[0, 0], ZSOLQB[0, 0, 0], ZQLHS[0, 0, 0] => ZQLHS[0, 0, 0]) Loop_52_Solver_LHS| for JM = 1 to NCLV:
-         (ZFALLSINK[0, 0], ZSOLQB[0, 0, 0], ZQLHS[0, 0, 0] => ZQLHS[0, 0, 0]) Loop_52_Solver_LHS_Inner| for JN = 1 to NCLV:
-              (ZFALLSINK[0, 0], ZSOLQB[0, 0, 0], ZQLHS[0, 0, 0] => ZQLHS[0, 0, 0]) Loop_52_Solver_LHS_JL| for JL = KIDIA to KFDIA:
-                   (ZFALLSINK[JL, JM], ZSOLQB[JL, 0, JN], ZQLHS[JL, JN, JM] => ZQLHS[JL, JN, JM]) S52_LHS| op(set_lhs)
-    (ZSOLQA[0, 0, 0], ZQX[0, 0, 0], ZEXPLICIT[0], ZQXN[0, 0] => ZQXN[0, 0]) Loop_52_Solver_RHS| for JM = 1 to NCLV:
-         (ZSOLQA[0, 0, 0], ZQX[0, 0, 0], ZEXPLICIT[0], ZQXN[0, 0] => ZQXN[0, 0]) Loop_52_Solver_RHS_JL| for JL = KIDIA to KFDIA:
-              (ZSOLQA[JL, JM, 1:NCLV], ZQX[JL, JK, JM], ZQXN[JL, JM] => ZQXN[JL, JM]) S52_RHS| op(set_rhs)
+; 4. Precipitation Processes (inside L_vert)
 
-    (ZQLHS[0, 0, 0] => ZQLHS[0, 0, 0]) Loop_52_LU| for JL = KIDIA to KFDIA:
-         (ZQLHS[JL, 1:NCLV, 1:NCLV] => ZQLHS[JL, 1:NCLV, 1:NCLV]) Block_52_LU| op(lu_decomposition)
-    (ZQXN[0, 0], ZQLHS[0, 0, 0] => ZQXN[0, 0]) Loop_52_Backsub| for JL = KIDIA to KFDIA:
-         (ZQXN[JL, 1:NCLV], ZQLHS[JL, 1:NCLV, 1:NCLV] => ZQXN[JL, 1:NCLV]) Block_52_Backsub| op(back_substitution)
+    ; Lines 1573-1577 (Revise in-cloud condensate amount)
+    (za[0,0], zqxfg[0,0] => zliqcld[0], zicecld[0], zlicld[0]) L_revise_cond_1 | for jl = kidia to kfdia:
+        (za[jk-1,jl-1], zqxfg[ncldql-1,jl-1], zqxfg[ncldqi-1,jl-1] => zliqcld[jl-1], zicecld[jl-1], zlicld[jl-1]) S_revise_cond | op(revise_condensate)
 
-    (ZQXN[0, 0] => ZQXN[0, 0]) Loop_52_Solver_Cleanup| for JN = 1 to NCLV-1:
-         (ZQXN[0, 0] => ZQXN[0, 0]) Loop_52_Solver_Cleanup_JL| for JL = KIDIA to KFDIA:
-              (ZQXN[JL, JN], ZQXN[JL, NCLDQV] => ZQXN[JL, NCLDQV], ZQXN[JL, JN]) If_SmallVal| if ZQXN[JL, JN] < ZEPSEC:
-                   (ZQXN[JL, JN], ZQXN[JL, NCLDQV] => ZQXN[JL, NCLDQV], ZQXN[JL, JN]) S52_Cleanup| op(clean_small_values)
+    ; 4.2 Sedimentation (inside L_vert)
+    ; Lines 1586-1616
+    (llfall[0], iphase[0], zpfplsx[0,0,0], zdtgdp[0], pre_ice[0,0], zrho[0] => zvqx[0], zfallsink[0], zfallsrce[0], zsolqa[0,0,0], zqxfg[0,0], zqpretot[0]) L_sedimentation_1 | for jm = 1 to nclv:
+        (llfall[0], iphase[0], zvqx[0], zfallsink[0], zfallsrce[0], zsolqa[0], zqxfg[0], zqpretot[0], zpfplsx[0], zdtgdp[0], pre_ice[0], zrho[0] => zvqx[0], zfallsink[0], zfallsrce[0], zsolqa[0], zqxfg[0], zqpretot[0]) B_sedimentation_jm | if ((llfall[jm-1] = 1) or (jm = ncldqi)):
+            (zpfplsx[jm-1,0,0], zdtgdp[0], pre_ice[0,0], zrho[0] => zvqx[jm-1], zfallsink[jm-1], zfallsrce[jm-1], zsolqa[0,0,0], zqxfg[0,0], zqpretot[0]) L_sedimentation_2 | for jl = kidia to kfdia:
+                (zpfplsx[jm-1,jk-1,jl-1], zdtgdp[jl-1], pre_ice[jk-1,jl-1], zrho[jl-1], zfallsrce[jm-1,jl-1], zsolqa[jm-1,jm-1,jl-1], zqxfg[jm-1,jl-1], zqpretot[jl-1] => zfallsrce[jm-1,jl-1], zsolqa[jm-1,jm-1,jl-1], zqxfg[jm-1,jl-1], zqpretot[jl-1]) S_sedimentation_src | op(sedimentation_source)
+                (pre_ice[jk-1,jl-1], zvqx[jm-1], zrho[jl-1] => zvqx[jm-1], zfallsink[jm-1,jl-1]) S_sedimentation_sink | op(sedimentation_sink)
 
-    (ZQXN[0, 0], ZQXNM1[0, 0], ZQXN2D[0, JK, 0] => ZQXNM1[0, 0], ZQXN2D[0, JK, 0]) Loop_52_Solver_NextLevel| for JM = 1 to NCLV:
-         (ZQXN[0, 0], ZQXNM1[0, 0], ZQXN2D[0, JK, 0] => ZQXNM1[0, 0], ZQXN2D[0, JK, 0]) Loop_52_Solver_NextLevel_JL| for JL = KIDIA to KFDIA:
-              (ZQXN[JL, JM], ZQXNM1[JL, JM], ZQXN2D[JL, JK, JM] => ZQXNM1[JL, JM], ZQXN2D[JL, JK, JM]) S52_NextLevel| op(store_next_level_vars)
+    ; Lines 1637-1650 (Precip cover overlap using MAX-RAN Overlap)
+    (zqpretot[0], za[0,0] => zcovptot[0], zcovpclr[0], zraincld[0], zsnowcld[0], zcovpmax[0]) L_precip_overlap_1 | for jl = kidia to kfdia:
+        (zqpretot[jl-1], za[jk-1:jk-2,jl-1] => zcovptot[jl-1], zcovpclr[jl-1], zraincld[jl-1], zsnowcld[jl-1], zcovpmax[jl-1]) S_precip_overlap | op(calc_precip_overlap)
 
-    ; 5.3 PRECIP FLUX
-    (ZFALLSINK[0, 0], ZQXN[0, 0], ZRDTGDP[0], ZPFPLSX[0, JK+1, 0] => ZPFPLSX[0, JK+1, 0]) Loop_53_Flux| for JM = 1 to NCLV:
-         (ZFALLSINK[0, 0], ZQXN[0, 0], ZRDTGDP[0], ZPFPLSX[0, JK+1, 0] => ZPFPLSX[0, JK+1, 0]) Loop_53_Flux_JL| for JL = KIDIA to KFDIA:
-              (ZFALLSINK[JL, JM], ZQXN[JL, JM], ZRDTGDP[JL], ZPFPLSX[JL, JK+1, JM] => ZPFPLSX[JL, JK+1, JM]) S53_Flux| op(calc_precip_flux)
+    ; 4.3a Autoconversion to Snow (inside L_vert)
+    ; Lines 1655-1673
+    (ztp1[0,0], zicecld[0], picrit_aer[0,0], pnice[0,0] => zsnowaut[0], zsolqb[0,0,0]) L_autoconv_snow_1 | for jl = kidia to kfdia:
+        (ztp1[jk-1,jl-1], zicecld[jl-1], picrit_aer[jk-1,jl-1], pnice[jk-1,jl-1] => zsnowaut[jl-1], zsolqb[ncldqi-1,ncldqs-1,jl-1]) S_autoconv_snow | op(autoconversion_snow)
 
-    (ZPFPLSX[0, JK+1, 0], ZQPRETOT[0] => ZQPRETOT[0]) Loop_53_TotalPrecip| for JL = KIDIA to KFDIA:
-         (ZPFPLSX[JL, JK+1, NCLDQS], ZPFPLSX[JL, JK+1, NCLDQR], ZQPRETOT[JL] => ZQPRETOT[JL]) S53_Total| op(calc_total_precip)
-    (ZQPRETOT[0], ZCOVPTOT[0] => ZCOVPTOT[0]) Loop_53_ZeroCover| for JL = KIDIA to KFDIA:
-         (ZQPRETOT[JL], ZCOVPTOT[JL] => ZCOVPTOT[JL]) If_ZeroPrecip| if ZQPRETOT[JL] < ZEPSEC:
-              (ZCOVPTOT[JL] => ZCOVPTOT[JL]) S53_Zero| op(zero_cover)
+    ; 4.3b Autoconversion Warm Clouds (inside L_vert)
+    ; Lines 1682-1780
+    (zliqcld[0], plsm[0], plcrit_aer[0,0], pccn[0,0], zpfplsx[0,0,0], zcovptot[0], za[0,0], ztp1[0,0] => zrainaut[0], zrainacc[0], zsolqb[0,0,0], zsolqa[0,0,0]) L_autoconv_warm_1 | for jl = kidia to kfdia:
+        (zliqcld[jl-1], plsm[jl-1], plcrit_aer[jk-1,jl-1], pccn[jk-1,jl-1], zpfplsx[ncldqs-1,jk-1,jl-1], zpfplsx[ncldqr-1,jk-1,jl-1], zcovptot[jl-1], za[jk-1,jl-1], ztp1[jk-1,jl-1] => zrainaut[jl-1], zrainacc[jl-1], zsolqb[ncldql-1,ncldqs-1,jl-1], zsolqb[ncldql-1,ncldqr-1,jl-1], zsolqa[ncldql-1,ncldqs-1,jl-1], zsolqa[ncldqs-1,ncldql-1,jl-1], zsolqa[ncldql-1,ncldqr-1,jl-1], zsolqa[ncldqr-1,ncldql-1,jl-1]) S_autoconv_warm | op(autoconversion_warm_clouds)
 
-    ; 6.0 TENDENCIES
-    (ZPSUPSATSRCE[0, 0], ZCONVSRCE[0, 0], ZFALLSRCE[0, 0], ZFALLSINK[0, 0], ZCONVSINK[0, 0], ZQXN[0, 0], ZFLUXQ[0, 0], IPHASE[0], tendency_loc_T[0, JK], ZQX[0, JK, 0], tendency_loc_cld[0, JK, 0], ZQX0[0, JK, 0] => ZFLUXQ[0, 0], tendency_loc_T[0, JK], tendency_loc_cld[0, JK, 0]) Loop_60_Tendencies| for JM = 1 to NCLV-1:
-         (ZPSUPSATSRCE[0, 0], ZCONVSRCE[0, 0], ZFALLSRCE[0, 0], ZFALLSINK[0, 0], ZCONVSINK[0, 0], ZQXN[0, 0], ZFLUXQ[0, 0] => ZFLUXQ[0, 0]) Loop_60_Tendencies_Flux| for JL = KIDIA to KFDIA:
-             (ZPSUPSATSRCE[JL, JM], ZCONVSRCE[JL, JM], ZFALLSRCE[JL, JM], ZFALLSINK[JL, JM], ZCONVSINK[JL, JM], ZQXN[JL, JM], ZFLUXQ[JL, JM] => ZFLUXQ[JL, JM]) S60_Flux| op(calc_fluxq)
+    ; Riming (inside L_vert)
+    ; Lines 1792-1812
+    (ztp1[0], zliqcld[0], zrho[0], zsnowcld[0], zcovptot[0] => zsnowrime[0], zsolqb[0]) B_riming_active | if (iwarmrain = 2):
+        (ztp1[0,0], zliqcld[0], zrho[0], zsnowcld[0], zcovptot[0] => zsnowrime[0], zsolqb[0,0,0]) L_riming_1 | for jl = kidia to kfdia:
+            (ztp1[jk-1,jl-1], zliqcld[jl-1], zrho[jl-1], zsnowcld[jl-1], zcovptot[jl-1] => zsnowrime[jl-1], zsolqb[ncldql-1,ncldqs-1,jl-1]) S_riming | op(riming_process)
 
-         (IPHASE[0], tendency_loc_T[0, JK], ZQXN[0, 0], ZQX[0, JK, 0], ZFLUXQ[0, 0] => tendency_loc_T[0, JK]) Block_60_Temp_Liq| if IPHASE[JM] = 1:
-             (tendency_loc_T[0, JK], ZQXN[0, 0], ZQX[0, JK, 0], ZFLUXQ[0, 0] => tendency_loc_T[0, JK]) Loop_60_Temp_Liq| for JL = KIDIA to KFDIA:
-                 (tendency_loc_T[JL, JK], ZQXN[JL, JM], ZQX[JL, JK, JM], ZFLUXQ[JL, JM] => tendency_loc_T[JL, JK]) S60_Liq| op(update_temp_liq)
-         
-         (IPHASE[0], tendency_loc_T[0, JK], ZQXN[0, 0], ZQX[0, JK, 0], ZFLUXQ[0, 0] => tendency_loc_T[0, JK]) Block_60_Temp_Ice| if IPHASE[JM] = 2:
-             (tendency_loc_T[0, JK], ZQXN[0, 0], ZQX[0, JK, 0], ZFLUXQ[0, 0] => tendency_loc_T[0, JK]) Loop_60_Temp_Ice| for JL = KIDIA to KFDIA:
-                 (tendency_loc_T[JL, JK], ZQXN[JL, JM], ZQX[JL, JK, JM], ZFLUXQ[JL, JM] => tendency_loc_T[JL, JK]) S60_Ice| op(update_temp_ice)
+    ; 4.4a Melting of Snow and Ice (inside L_vert)
+    ; Lines 1843-1863
+    (zqxfg[0,0], ztp1[0,0], zqsice[0,0], zqx[0,0,0], pap[0,0] => zicetot[0], zmeltmax[0]) L_melting_pre_1 | for jl = kidia to kfdia:
+        (zqxfg[ncldqi-1,jl-1], zqxfg[ncldqs-1,jl-1], ztp1[jk-1,jl-1], zqsice[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], pap[jk-1,jl-1] => zicetot[jl-1], zmeltmax[jl-1]) S_melting_pre | op(calc_melting_pre)
 
-         (tendency_loc_cld[0, JK, 0], ZQXN[0, 0], ZQX0[0, JK, 0] => tendency_loc_cld[0, JK, 0]) Loop_60_Tendencies_Cld| for JL = KIDIA to KFDIA:
-             (tendency_loc_cld[JL, JK, JM], ZQXN[JL, JM], ZQX0[JL, JK, JM] => tendency_loc_cld[JL, JK, JM]) S60_Cld| op(update_cld_tendency)
+    ; Lines 1866-1880
+    (zicetot[0], zmeltmax[0], iphase[0], imelt[0], zqxfg[0,0] => zqxfg[0,0], zsolqa[0,0,0]) L_melting_apply_1 | for jm = 1 to nclv:
+        (zicetot[0], zmeltmax[0], iphase[0], imelt[0], zqxfg[0] => zqxfg[0], zsolqa[0]) B_melting_apply | if (iphase[jm-1] = 2):
+            (zicetot[0], zmeltmax[0], imelt[jm-1], zqxfg[jm-1,0] => zqxfg[jm-1,0], zsolqa[0,0,0]) L_melting_apply_2 | for jl = kidia to kfdia:
+                (zicetot[jl-1], zmeltmax[jl-1], imelt[jm-1], zqxfg[jm-1,jl-1] => zqxfg[jm-1,jl-1], zqxfg[imelt[jm-1]-1,jl-1], zsolqa[jm-1,imelt[jm-1]-1,jl-1], zsolqa[imelt[jm-1]-1,jm-1,jl-1]) S_melting_apply | op(apply_melting)
 
-    (tendency_loc_q[0, JK], ZQXN[0, 0], ZQX[0, JK, 0], tendency_loc_a[0, JK], ZDA[0] => tendency_loc_q[0, JK], tendency_loc_a[0, JK]) Loop_60_Tendencies_Hum| for JL = KIDIA to KFDIA:
-         (tendency_loc_q[JL, JK], ZQXN[JL, NCLDQV], ZQX[JL, JK, NCLDQV] => tendency_loc_q[JL, JK]) S60_Hum| op(update_hum_tendency)
-         (tendency_loc_a[JL, JK], ZDA[JL] => tendency_loc_a[JL, JK]) S60_CloudCover| op(update_cloud_cover_tendency)
+    ; 4.4b Freezing of Rain (inside L_vert)
+    ; Lines 1885-1930
+    (zqx[0,0,0], ztp1[0,0], zrho[0], zqpretot[0], prainfrac_toprfz[0], llrainliq[0] => zfrzmax[0], zsolqa[0,0,0]) L_freezing_rain_1 | for jl = kidia to kfdia:
+        (zqx[ncldqr-1,jk-1,jl-1], zqx[ncldqs-1,jk-1,jl-1], ztp1[jk-1:jk-2,jl-1], zrho[jl-1], zqpretot[jl-1], prainfrac_toprfz[jl-1], llrainliq[jl-1] => zfrzmax[jl-1], zsolqa[ncldqr-1,ncldqs-1,jl-1], zsolqa[ncldqs-1,ncldqr-1,jl-1]) S_freezing_rain | op(freezing_rain)
 
-    (ZCOVPTOT[0], PCOVPTOT[0, JK] => PCOVPTOT[0, JK]) Loop_60_PCOVPTOT| for JL = KIDIA to KFDIA:
-         (ZCOVPTOT[JL], PCOVPTOT[JL, JK] => PCOVPTOT[JL, JK]) S60_PCOVPTOT| op(store_pcovptot)
+    ; 4.4c Freezing of Liquid (inside L_vert)
+    ; Lines 1937-1939
+    (ztp1[0,0] => zfrzmax[0]) L_frz_liquid_pre_1 | for jl = kidia to kfdia:
+        (ztp1[jk-1,jl-1] => zfrzmax[jl-1]) S_frz_liquid_pre | op(calc_frz_liquid_pre)
 
-; 8.0 FLUX/DIAGNOSTICS COMPUTATIONS (Post-loop)
-(ZPFPLSX[1:KLON, 1:KLEV+1, 1:NCLV], PFPLSL[1:KLON, 1:KLEV+1], PFPLSN[1:KLON, 1:KLEV+1] => PFPLSL[1:KLON, 1:KLEV+1], PFPLSN[1:KLON, 1:KLEV+1]) S80_PostLoopFluxCopy| op(copy_zpfplsx_to_pfpl_fluxes)
-(PFSQLF[1:KLON, 1:KLEV+1], PFSQIF[1:KLON, 1:KLEV+1], PFCQNNG[1:KLON, 1:KLEV+1], PFCQLNG[1:KLON, 1:KLEV+1], PFSQRF[1:KLON, 1:KLEV+1], PFSQSF[1:KLON, 1:KLEV+1], PFCQRNG[1:KLON, 1:KLEV+1], PFCQSNG[1:KLON, 1:KLEV+1], PFSQLTUR[1:KLON, 1:KLEV+1], PFSQITUR[1:KLON, 1:KLEV+1] => PFSQLF[1:KLON, 1:KLEV+1], PFSQIF[1:KLON, 1:KLEV+1], PFCQNNG[1:KLON, 1:KLEV+1], PFCQLNG[1:KLON, 1:KLEV+1], PFSQRF[1:KLON, 1:KLEV+1], PFSQSF[1:KLON, 1:KLEV+1], PFCQRNG[1:KLON, 1:KLEV+1], PFCQSNG[1:KLON, 1:KLEV+1], PFSQLTUR[1:KLON, 1:KLEV+1], PFSQITUR[1:KLON, 1:KLEV+1]) S80_InitZeroFluxes| op(initialize_zero_flux_arrays)
+    ; Lines 1943-1947
+    (zfrzmax[0], zqxfg[0,0] => zqxfg[0,0], zsolqa[0,0,0]) L_frz_liquid_apply_1 | for jl = kidia to kfdia:
+        (zfrzmax[jl-1], zqxfg[ncldql-1,jl-1] => zqxfg[ncldql-1,jl-1], zqxfg[imelt[ncldql-1]-1,jl-1], zsolqa[ncldql-1,imelt[ncldql-1]-1,jl-1], zsolqa[imelt[ncldql-1]-1,ncldql-1,jl-1]) S_frz_liquid_apply | op(apply_frz_liquid)
 
-(PFSQLF[1:KLON, 1:KLEV+1], PFSQIF[1:KLON, 1:KLEV+1], PFCQNNG[1:KLON, 1:KLEV+1], PFCQLNG[1:KLON, 1:KLEV+1], PFSQRF[1:KLON, 1:KLEV+1], PFSQSF[1:KLON, 1:KLEV+1], PFCQRNG[1:KLON, 1:KLEV+1], PFCQSNG[1:KLON, 1:KLEV+1], PFSQLTUR[1:KLON, 1:KLEV+1], PFSQITUR[1:KLON, 1:KLEV+1], PAPH[1:KLON, 1:KLEV+1], ZQXN2D[1:KLON, 1:KLEV, 1:NCLV], ZQX0[1:KLON, 1:KLEV, 1:NCLV], PVFL[1:KLON, 1:KLEV], PVFI[1:KLON, 1:KLEV], PLUDE[1:KLON, 1:KLEV] => PFSQLF[1:KLON, 1:KLEV+1], PFSQIF[1:KLON, 1:KLEV+1], PFCQNNG[1:KLON, 1:KLEV+1], PFCQLNG[1:KLON, 1:KLEV+1], PFSQRF[1:KLON, 1:KLEV+1], PFSQSF[1:KLON, 1:KLEV+1], PFCQRNG[1:KLON, 1:KLEV+1], PFCQSNG[1:KLON, 1:KLEV+1], PFSQLTUR[1:KLON, 1:KLEV+1], PFSQITUR[1:KLON, 1:KLEV+1]) S80_CalcFluxes| for JK = 1 to KLEV:
-    ( => ) S80_CalcFluxes_k| op(calculate_fluxes_for_level_k)
+    ; 4.5 Evaporation of Rain/Snow (inside L_vert)
+    ; Lines 1956-2009 (Rain evaporation scheme from Sundquist, ievaprain=1)
+    (zcovpmax[0], za[0], zqx[0], zqsliq[0], zcovpclr[0], zqxfg[0], zcovptot[0], zdtgdp[0], pap[0], paph[0], zcorqsliq[0] => zsolqa[0], zcovptot[0], zqxfg[0]) B_evap_rain_sund | if (ievaprain = 1):
+        (zcovpmax[0], za[0,0], zqx[0,0,0], zqsliq[0,0], zcovpclr[0], zqxfg[0,0], zcovptot[0], zdtgdp[0], pap[0,0], paph[0,0], zcorqsliq[0] => zsolqa[0,0,0], zcovptot[0], zqxfg[0,0]) L_evap_rain_sund_1 | for jl = kidia to kfdia:
+            (zcovpmax[jl-1], za[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], zqsliq[jk-1,jl-1], zcovpclr[jl-1], zqxfg[ncldqr-1,jl-1], zcovptot[jl-1], zdtgdp[jl-1], pap[jk-1,jl-1], paph[klev,jl-1], zcorqsliq[jl-1] => zsolqa[ncldqr-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldqr-1,jl-1], zcovptot[jl-1], zqxfg[ncldqr-1,jl-1]) S_evap_rain_sund | op(evaporate_rain_sundquist)
 
-(PFPLSL[1:KLON, 1:KLEV+1], PFPLSN[1:KLON, 1:KLEV+1], PFHPSL[1:KLON, 1:KLEV+1], PFHPSN[1:KLON, 1:KLEV+1] => PFHPSL[1:KLON, 1:KLEV+1], PFHPSN[1:KLON, 1:KLEV+1]) S80_EnthalpyFluxes| op(calc_enthalpy_fluxes)
+    ; Lines 2016-2095 (Rain evaporation scheme based on Abel and Boutle, ievaprain=2)
+    (zcovpmax[0], za[0], zqx[0], zqsliq[0], zcovpclr[0], zqxfg[0], zcovptot[0], zdtgdp[0], pap[0], ztp1[0], zrho[0] => zsolqa[0], zcovptot[0], zqxfg[0]) B_evap_rain_abel | if (ievaprain = 2):
+        (zcovpmax[0], za[0,0], zqx[0,0,0], zqsliq[0,0], zcovpclr[0], zqxfg[0,0], zcovptot[0], zdtgdp[0], pap[0,0], ztp1[0,0], zrho[0] => zsolqa[0,0,0], zcovptot[0], zqxfg[0,0]) L_evap_rain_abel_1 | for jl = kidia to kfdia:
+            (zcovpmax[jl-1], za[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], zqsliq[jk-1,jl-1], zcovpclr[jl-1], zqxfg[ncldqr-1,jl-1], zcovptot[jl-1], zdtgdp[jl-1], pap[jk-1,jl-1], ztp1[jk-1,jl-1], zrho[jl-1] => zsolqa[ncldqr-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldqr-1,jl-1], zcovptot[jl-1], zqxfg[ncldqr-1,jl-1]) S_evap_rain_abel | op(evaporate_rain_abel)
+
+    ; Lines 2104-2154 (Snow evaporation, ievapsnow=1)
+    (zcovpmax[0], za[0], zqx[0], zqsice[0], zcovpclr[0], zqxfg[0], zcovptot[0], zdtgdp[0], pap[0], paph[0] => zsolqa[0], zcovptot[0], zqxfg[0]) B_evap_snow_1 | if (ievapsnow = 1):
+        (zcovpmax[0], za[0,0], zqx[0,0,0], zqsice[0,0], zcovpclr[0], zqxfg[0,0], zcovptot[0], zdtgdp[0], pap[0,0], paph[0,0] => zsolqa[0,0,0], zcovptot[0], zqxfg[0,0]) L_evap_snow_1 | for jl = kidia to kfdia:
+            (zcovpmax[jl-1], za[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], zqsice[jk-1,jl-1], zcovpclr[jl-1], zqxfg[ncldqs-1,jl-1], zcovptot[jl-1], zdtgdp[jl-1], pap[jk-1,jl-1], paph[klev,jl-1] => zsolqa[ncldqs-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldqs-1,jl-1], zcovptot[jl-1], zqxfg[ncldqs-1,jl-1]) S_evap_snow_1 | op(evaporate_snow_sundquist)
+
+    ; Lines 2157-2217 (Snow evaporation, ievapsnow=2)
+    (zcovpmax[0], za[0], zqx[0], zqsice[0], zcovpclr[0], zcovptot[0], pap[0], ztp1[0], zrho[0] => zsolqa[0], zcovptot[0], zqxfg[0]) B_evap_snow_2 | if (ievapsnow = 2):
+        (zcovpmax[0], za[0,0], zqx[0,0,0], zqsice[0,0], zcovpclr[0], zcovptot[0], pap[0,0], ztp1[0,0], zrho[0] => zsolqa[0,0,0], zcovptot[0], zqxfg[0,0]) L_evap_snow_2 | for jl = kidia to kfdia:
+            (zcovpmax[jl-1], za[jk-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], zqsice[jk-1,jl-1], zcovpclr[jl-1], zqx[ncldqs-1,jk-1,jl-1], zcovptot[jl-1], pap[jk-1,jl-1], ztp1[jk-1,jl-1], zrho[jl-1] => zsolqa[ncldqs-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,ncldqs-1,jl-1], zcovptot[jl-1], zqxfg[ncldqs-1,jl-1]) S_evap_snow_2 | op(evaporate_snow_psd)
+
+    ; Lines 2225-2230 (Evaporate small precipitation amounts)
+    (llfall[0], zqxfg[0,0] => zsolqa[0,0,0]) L_evap_small_precip_1 | for jm = 1 to nclv:
+        (llfall[0], zqxfg[0] => zsolqa[0]) B_evap_small_precip | if (llfall[jm-1] = 1):
+            (zqxfg[jm-1,0] => zsolqa[0,0,0]) L_evap_small_precip_2 | for jl = kidia to kfdia:
+                (zqxfg[jm-1,jl-1] => zsolqa[jm-1,ncldqv-1,jl-1], zsolqa[ncldqv-1,jm-1,jl-1]) S_evap_small_precip | op(evap_small_precip)
+
+; 5. Solvers for A and L (inside L_vert)
+
+    ; 5.1 Cloud Cover Solver (inside L_vert)
+    ; Lines 2241-2250
+    (za[0,0], zsolac[0], zsolab[0], zaorig[0,0] => zanewm1[0], zda[0]) L_solver_cc_1 | for jl = kidia to kfdia:
+        (za[jk-1,jl-1], zsolac[jl-1], zsolab[jl-1], zaorig[jk-1,jl-1] => zanewm1[jl-1], zda[jl-1]) S_solver_cc | op(solve_cloud_cover)
+
+    ; 5.2 Microphysics Solver (inside L_vert)
+    ; Lines 2262-2267 (Truncate explicit sinks - init llindex3 and zsinksum)
+    (=> llindex3[0,0,0], zsinksum[0,0]) L_micro_init_1 | for jm = 1 to nclv:
+        (=> llindex3[jm-1,0,0], zsinksum[jm-1,0]) L_micro_init_2 | for jn = 1 to nclv:
+            (=> llindex3[jm-1,jn-1,0]) L_micro_init_3 | for jl = kidia to kfdia:
+                (=> llindex3[jm-1, jn-1, jl-1]) S_micro_init_llindex3 | op(init_llindex3)
+        (=> zsinksum[jm-1,0]) L_micro_init_4 | for jl = kidia to kfdia:
+            (=> zsinksum[jm-1,jl-1]) S_micro_init_zsinksum | op(init_zsinksum)
+
+    ; Lines 2272-2275 (Collect sink terms and mark)
+    (zsolqa[0,0,0] => zsinksum[0,0]) L_micro_collect_sink_1 | for jm = 1 to nclv:
+        (zsolqa[0,0,0] => zsinksum[jm-1,0]) L_micro_collect_sink_2 | for jn = 1 to nclv:
+            (zsolqa[jn-1,jm-1,0] => zsinksum[jm-1,0]) L_micro_collect_sink_3 | for jl = kidia to kfdia:
+                (zsolqa[jn-1, jm-1, jl-1], zsinksum[jm-1, jl-1] => zsinksum[jm-1, jl-1]) S_micro_collect_sink | op(collect_sink_terms)
+
+    ; Lines 2280-2284 (Calculate overshoot and scaling factor)
+    (zqx[0,0,0], zsinksum[0,0] => zratio[0,0]) L_micro_scale_factor_1 | for jm = 1 to nclv:
+        (zqx[jm-1,jk-1,0], zsinksum[jm-1,0] => zratio[jm-1,0]) L_micro_scale_factor_2 | for jl = kidia to kfdia:
+            (zqx[jm-1, jk-1, jl-1], zsinksum[jm-1, jl-1] => zratio[jm-1, jl-1]) S_micro_scale_factor | op(calc_scale_factor)
+
+    ; Lines 2290-2292 (Recalculate sum and scale - reset zsinksum)
+    (=> zsinksum[0,0]) L_micro_reset_zsinksum_1 | for jm = 1 to nclv:
+        (=> zsinksum[jm-1,0]) L_micro_reset_zsinksum_2 | for jl = kidia to kfdia:
+            (=> zsinksum[jm-1,jl-1]) S_micro_reset_zsinksum | op(reset_zsinksum)
+
+    ; Lines 2297-2322 (Recalculate sum and scale)
+    (zsolqa[0,0,0], zqx[0,0,0] => psum_solqa[0], zsinksum[0,0], zratio[0,0], zsolqa[0,0,0]) L_micro_recalc_1 | for jm = 1 to nclv:
+        (zsolqa[0,0,0], zqx[jm-1,jk-1,0] => psum_solqa[0], zsinksum[jm-1,0], zratio[jm-1,0], zsolqa[0,0,0]) L_micro_recalc_2 | for jl = kidia to kfdia:
+            (=> psum_solqa[jl-1]) S_micro_recalc_zero_psum | op(recalc_zero_psum)
+        (zsolqa[0,0,0] => psum_solqa[0]) L_micro_recalc_3 | for jn = 1 to nclv:
+            (zsolqa[jn-1,jm-1,0] => psum_solqa[0]) L_micro_recalc_4 | for jl = kidia to kfdia:
+                (psum_solqa[jl-1], zsolqa[jn-1, jm-1, jl-1] => psum_solqa[jl-1]) S_micro_recalc_sum_psum | op(recalc_sum_psum)
+        (psum_solqa[0] => zsinksum[0,0]) L_micro_recalc_5 | for jl = kidia to kfdia:
+            (zsinksum[jm-1,jl-1], psum_solqa[jl-1] => zsinksum[jm-1,jl-1]) S_micro_recalc_sink | op(recalc_sink_psum)
+        (zqx[jm-1,jk-1,0], zsinksum[jm-1,0] => zratio[jm-1,0]) L_micro_recalc_6 | for jl = kidia to kfdia:
+            (zqx[jm-1, jk-1, jl-1], zsinksum[jm-1, jl-1] => zratio[jm-1, jl-1]) S_micro_recalc_ratio | op(recalc_ratio_scale)
+        (zratio[jm-1,0] => zsolqa[0,0,0]) L_micro_recalc_7 | for jl = kidia to kfdia:
+            (zratio[jm-1,jl-1] => zsolqa[0,0,0]) L_micro_recalc_8 | for jn_inv = 1 to nclv:
+                (zsolqa[jn_inv-1,jm-1,jl-1], zsolqa[jm-1,jn_inv-1,jl-1], zratio[jm-1,jl-1] => zsolqa[jn_inv-1,jm-1,jl-1], zsolqa[jm-1,jn_inv-1,jl-1]) S_micro_recalc_scale | op(recalc_scale_sinks)
+
+    ; Lines 2331-2346 (Set LHS of equation)
+    (zfallsink[0,0], zsolqb[0,0,0] => zqlhs[0,0,0]) L_set_lhs_1 | for jm = 1 to nclv:
+        (zfallsink[jm-1,0], zsolqb[0,0,0] => zqlhs[jm-1,0,0]) L_set_lhs_2 | for jn = 1 to nclv:
+            (zfallsink[0], zsolqb[0] => zqlhs[0]) B_set_lhs_diag | if (jn = jm):
+                (zfallsink[jm-1,0], zsolqb[jn-1,0,0] => zqlhs[jm-1,jn-1,0]) L_set_lhs_diag_1 | for jl = kidia to kfdia:
+                    (zfallsink[jm-1,jl-1], zsolqb[jn-1,jm-1,jl-1], zsolqb[jn-1,ncldql-1,jl-1], zsolqb[jn-1,ncldqi-1,jl-1], zsolqb[jn-1,ncldqr-1,jl-1], zsolqb[jn-1,ncldqs-1,jl-1], zsolqb[jn-1,ncldqv-1,jl-1] => zqlhs[jm-1,jn-1,jl-1]) S_set_lhs_diag | op(set_lhs_diagonal)
+            (zsolqb[0] => zqlhs[0]) B_set_lhs_offdiag | if not (jn = jm):
+                (zsolqb[jm-1,jn-1,0] => zqlhs[jm-1,jn-1,0]) L_set_lhs_offdiag_1 | for jl = kidia to kfdia:
+                    (zsolqb[jm-1, jn-1, jl-1] => zqlhs[jm-1, jn-1, jl-1]) S_set_lhs_offdiag | op(set_lhs_off_diagonal)
+
+    ; Lines 2351-2359 (Set RHS of equation)
+    (zqx[0,0,0], zsolqa[0,0,0] => zqxn[0,0]) L_set_rhs_1 | for jm = 1 to nclv:
+        (zqx[jm-1,jk-1,0], zsolqa[0,0,0] => zqxn[jm-1,0]) L_set_rhs_2 | for jl = kidia to kfdia:
+            (zqx[jm-1,jk-1,jl-1], zsolqa[ncldql-1,jm-1,jl-1], zsolqa[ncldqi-1,jm-1,jl-1], zsolqa[ncldqr-1,jm-1,jl-1], zsolqa[ncldqs-1,jm-1,jl-1], zsolqa[ncldqv-1,jm-1,jl-1] => zqxn[jm-1,jl-1]) S_set_rhs | op(set_rhs_equation)
+
+    ; Lines 2373-2382 (LU decomposition - Non pivoting recursive factorization)
+    (zqlhs[0,0,0] => zqlhs[0,0,0]) L_lu_decomp_1 | for jn = 1 to nclv - 1:
+        (zqlhs[jn-1,0,0] => zqlhs[jn-1,0,0]) L_lu_decomp_2 | for jm = jn + 1 to nclv:
+            (zqlhs[jn-1,jm-1,0], zqlhs[jn-1,jn-1,0] => zqlhs[jn-1,jm-1,0]) L_lu_decomp_3 | for jl = kidia to kfdia:
+                (zqlhs[jn-1, jm-1, jl-1], zqlhs[jn-1, jn-1, jl-1] => zqlhs[jn-1, jm-1, jl-1]) S_lu_div | op(lu_divide)
+            (zqlhs[0,0,0] => zqlhs[0,0,0]) L_lu_decomp_4 | for ik = jn + 1 to nclv:
+                (zqlhs[ik-1,jm-1,0], zqlhs[jn-1,jm-1,0], zqlhs[ik-1,jn-1,0] => zqlhs[ik-1,jm-1,0]) L_lu_decomp_5 | for jl = kidia to kfdia:
+                    (zqlhs[ik-1, jm-1, jl-1], zqlhs[jn-1, jm-1, jl-1], zqlhs[ik-1, jn-1, jl-1] => zqlhs[ik-1, jm-1, jl-1]) S_lu_sub | op(lu_subtract)
+
+    ; Lines 2386-2389 (Backsubstitution - step 1)
+    (zqxn[0,0], zqlhs[0,0,0] => zqxn[0,0]) L_bs_step1_1 | for jn = 2 to nclv:
+        (zqxn[jn-1,0], zqlhs[0,0,0] => zqxn[jn-1,0]) L_bs_step1_2 | for jm = 1 to jn - 1:
+            (zqxn[jn-1,0], zqlhs[jm-1,jn-1,0], zqxn[jm-1,0] => zqxn[jn-1,0]) L_bs_step1_3 | for jl = kidia to kfdia:
+                (zqxn[jn-1, jl-1], zqlhs[jm-1, jn-1, jl-1], zqxn[jm-1, jl-1] => zqxn[jn-1, jl-1]) S_bs_step1_sub | op(backsub_step1_subtract)
+
+    ; Lines 2391-2392 (Backsubstitution - step 2, first part)
+    (zqxn[0,0], zqlhs[0,0,0] => zqxn[0,0]) L_bs_step2_div_1 | for jl = kidia to kfdia:
+        (zqxn[nclv-1,jl-1], zqlhs[nclv-1,nclv-1,jl-1] => zqxn[nclv-1,jl-1]) S_bs_step2_div | op(backsub_step2_divide)
+
+    ; Lines 2393-2398 (Backsubstitution - step 2, main loop)
+    (zqxn[0,0], zqlhs[0,0,0] => zqxn[0,0]) L_bs_step2_main_1 | for jn_inv_loop = 1 to (nclv - 1):
+        (zqxn[0,0], zqlhs[0,0,0] => zqxn[0,0]) L_bs_step2_main_2 | for jm = (nclv - jn_inv_loop) + 1 to nclv:
+            (zqxn[0,0], zqlhs[0,0,0] => zqxn[0,0]) L_bs_step2_main_3 | for jl = kidia to kfdia:
+                (zqxn[(nclv - jn_inv_loop)-1, jl-1], zqlhs[jm-1, (nclv - jn_inv_loop)-1, jl-1], zqxn[jm-1, jl-1] => zqxn[(nclv - jn_inv_loop)-1, jl-1]) S_bs_step2_main_sub | op(backsub_step2_subtract)
+        (zqxn[0,0], zqlhs[0,0,0] => zqxn[0,0]) L_bs_step2_main_4 | for jl = kidia to kfdia:
+            (zqxn[(nclv - jn_inv_loop)-1, jl-1], zqlhs[(nclv - jn_inv_loop)-1, (nclv - jn_inv_loop)-1, jl-1] => zqxn[(nclv - jn_inv_loop)-1, jl-1]) S_bs_step2_main_div | op(backsub_step2_divide_final)
+
+    ; Lines 2403-2407 (Ensure no small values/negatives remain)
+    (zqxn[0,0] => zqxn[0,0]) L_cleanup_zqxn_1 | for jn = 1 to nclv - 1:
+        (zqxn[jn-1,0] => zqxn[jn-1,0]) L_cleanup_zqxn_2 | for jl = kidia to kfdia:
+            (zqxn[jn-1,jl-1] => zqxn[ncldqv-1,jl-1], zqxn[jn-1,jl-1]) S_cleanup_zqxn | op(cleanup_small_zqxn)
+
+    ; Lines 2412-2415 (Variables needed for next level)
+    (zqxn[0,0] => zqxnm1[0,0], zqxn2d[0,0,0]) L_next_level_vars_1 | for jm = 1 to nclv:
+        (zqxn[jm-1,0] => zqxnm1[jm-1,0], zqxn2d[jm-1,jk-1,0]) L_next_level_vars_2 | for jl = kidia to kfdia:
+            (zqxn[jm-1,jl-1] => zqxnm1[jm-1,jl-1], zqxn2d[jm-1, jk-1, jl-1]) S_next_level_vars | op(store_next_level_vars)
+
+    ; 5.3 Precipitation/sedimentation fluxes to next level (inside L_vert)
+    ; Lines 2423-2425
+    (zfallsink[0,0], zqxn[0,0], zrdtgdp[0] => zpfplsx[0,0,0]) L_calc_precip_flux_1 | for jm = 1 to nclv:
+        (zfallsink[jm-1,0], zqxn[jm-1,0], zrdtgdp[0] => zpfplsx[jm-1,jk,0]) L_calc_precip_flux_2 | for jl = kidia to kfdia:
+            (zfallsink[jm-1, jl-1], zqxn[jm-1, jl-1], zrdtgdp[jl-1] => zpfplsx[jm-1, jk, jl-1]) S_calc_precip_flux | op(calc_precip_flux)
+
+    ; Lines 2428-2432 (Ensure precipitation fraction is zero if no precipitation)
+    (zpfplsx[0,0,0] => zqpretot[0]) L_precip_fraction_check_1 | for jl = kidia to kfdia:
+        (zpfplsx[ncldqs-1,jk,jl-1], zpfplsx[ncldqr-1,jk,jl-1] => zqpretot[jl-1]) S_precip_fraction_check_zqpretot | op(calc_zqpretot_for_check)
+    (zqpretot[0] => zcovptot[0]) L_precip_fraction_check_2 | for jl = kidia to kfdia:
+        (zqpretot[jl-1] => zcovptot[jl-1]) S_precip_fraction_check_zcovptot | op(reset_zcovptot_if_zero)
+
+; 6. Update Tendencies (inside L_vert)
+
+    ; Lines 2442-2446 (6.1 Temperature and CLV budgets - calculate fluxes)
+    (zpsupsatsrce[0,0], zconvsrce[0,0], zfallsrce[0,0], zfallsink[0,0], zconvsink[0,0], zqxn[0,0] => zfluxq[0,0]) L_update_clv_t_flux_1 | for jm = 1 to nclv - 1:
+        (zpsupsatsrce[jm-1,0], zconvsrce[jm-1,0], zfallsrce[jm-1,0], zfallsink[jm-1,0], zconvsink[jm-1,0], zqxn[jm-1,0] => zfluxq[jm-1,0]) L_update_clv_t_flux_2 | for jl = kidia to kfdia:
+            (zpsupsatsrce[jm-1,jl-1], zconvsrce[jm-1,jl-1], zfallsrce[jm-1,jl-1], zfallsink[jm-1,jl-1], zconvsink[jm-1,jl-1], zqxn[jm-1,jl-1] => zfluxq[jm-1,jl-1]) S_calc_zfluxq | op(calc_zfluxq)
+
+    ; Lines 2448-2454 (Update tendency_loc_t for liquid and ice phases)
+    (zfluxq[0,0], zqxn[0,0], zqx[0,0,0], iphase[0] => tendency_loc_t[0,0]) L_update_tend_t_clv_1 | for jm = 1 to nclv - 1:
+        (zfluxq[jm-1,0], zqxn[jm-1,0], zqx[jm-1,jk-1,0], iphase[jm-1] => tendency_loc_t[jk-1,0]) L_update_tend_t_clv_2 | for jl = kidia to kfdia:
+            (iphase[0], tendency_loc_t[0], zqxn[0], zqx[0], zfluxq[0] => tendency_loc_t[0]) B_update_tend_t_clv_1 | if (iphase[jm-1] = 1):
+                (=> tendency_loc_t[jk-1,jl-1]) S_update_t_clv_liquid | op(update_t_clv_liquid)
+            (iphase[0], tendency_loc_t[0], zqxn[0], zqx[0], zfluxq[0] => tendency_loc_t[0]) B_update_tend_t_clv_2 | if (iphase[jm-1] = 2):
+                (=> tendency_loc_t[jk-1,jl-1]) S_update_t_clv_ice | op(update_t_clv_ice)
+
+    ; Lines 2462-2463 (Update tendency_loc_cld)
+    (zqxn[0,0], zqx0[0,0,0] => tendency_loc_cld[0,0,0]) L_update_tend_cld_1 | for jm = 1 to nclv - 1:
+        (zqxn[jm-1,0], zqx0[jm-1,jk-1,0] => tendency_loc_cld[jm-1,jk-1,0]) L_update_tend_cld_2 | for jl = kidia to kfdia:
+            (zqxn[jm-1, jl-1], zqx0[jm-1, jk-1, jl-1], tendency_loc_cld[jm-1, jk-1, jl-1] => tendency_loc_cld[jm-1, jk-1, jl-1]) S_update_cld_tend | op(update_cld_tendencies)
+
+    ; Lines 2466-2475 (6.2 Humidity budget and 6.3 cloud cover)
+    (zqxn[0,0], zqx[0,0,0], zda[0] => tendency_loc_q[0,0], tendency_loc_a[0,0]) L_update_humidity_cover_1 | for jl = kidia to kfdia:
+        (zqxn[ncldqv-1,jl-1], zqx[ncldqv-1,jk-1,jl-1], zda[jl-1] => tendency_loc_q[jk-1,jl-1], tendency_loc_a[jk-1,jl-1]) S_update_humidity_cover | op(update_humidity_cloud_cover)
+
+    ; Lines 2480-2481 (Copy precipitation fraction into output variable)
+    (zcovptot[0] => pcovptot[0,0]) L_copy_pcovptot_1 | for jl = kidia to kfdia:
+        (zcovptot[jl-1] => pcovptot[jk-1,jl-1]) S_copy_pcovptot | op(copy_pcovptot)
+
+; 8. FLUX/DIAGNOSTICS (outside L_vert)
+
+; Lines 2496-2499 (Copy general precip arrays)
+(zpfplsx[0,0,0] => pfplsl[0,0], pfplsn[0,0]) L_copy_precip_arrays_1 | for jk = 1 to klev + 1:
+    (zpfplsx[0,0,0] => pfplsl[jk-1,0], pfplsn[jk-1,0]) L_copy_precip_arrays_2 | for jl = kidia to kfdia:
+        (zpfplsx[ncldqr-1,jk-1,jl-1], zpfplsx[ncldql-1,jk-1,jl-1], zpfplsx[ncldqs-1,jk-1,jl-1], zpfplsx[ncldqi-1,jk-1,jl-1] => pfplsl[jk-1,jl-1], pfplsn[jk-1,jl-1]) S_copy_precip_arrays | op(copy_precip_arrays)
+
+; Lines 2504-2515 (Initialize surface fluxes)
+(=> pfsqlf[0,0], pfsqif[0,0], pfsqrf[0,0], pfsqsf[0,0], pfcqlng[0,0], pfcqnng[0,0], pfcqrng[0,0], pfcqsng[0,0], pfsqltur[0,0], pfsqitur[0,0]) L_init_surface_fluxes_1 | for jl = kidia to kfdia:
+    (=> pfsqlf[0,jl-1], pfsqif[0,jl-1], pfsqrf[0,jl-1], pfsqsf[0,jl-1], pfcqlng[0,jl-1], pfcqnng[0,jl-1], pfcqrng[0,jl-1], pfcqsng[0,jl-1], pfsqltur[0,jl-1], pfsqitur[0,jl-1]) S_init_surface_fluxes | op(init_surface_fluxes)
+
+; Lines 2517-2558 (Flux calculation: integrate downwards)
+(paph[0,0], zfoealfa[0,0], pfsqlf[0,0], zqxn2d[0,0,0], zqx0[0,0,0], pvfl[0,0], plude[0,0], zlneg[0,0,0], pvfi[0,0] => pfsqlf[0,0], pfcqlng[0,0], pfsqltur[0,0], pfsqrf[0,0], pfcqrng[0,0], pfsqif[0,0], pfcqnng[0,0], pfsqitur[0,0], pfsqsf[0,0], pfcqsng[0,0]) L_flux_calc_down_1 | for jk = 1 to klev:
+    (paph[0,0], zfoealfa[jk-1,0], pfsqlf[jk-1,0], zqxn2d[0,jk-1,0], zqx0[0,jk-1,0], pvfl[jk-1,0], plude[jk-1,0], zlneg[0,jk-1,0], pvfi[jk-1,0] => pfsqlf[jk,0], pfcqlng[jk,0], pfsqltur[jk,0], pfsqrf[jk,0], pfcqrng[jk,0], pfsqif[jk,0], pfcqnng[jk,0], pfsqitur[jk,0], pfsqsf[jk,0], pfcqsng[jk,0]) L_flux_calc_down_2 | for jl = kidia to kfdia:
+        (paph[jk,jl-1], paph[jk-1,jl-1], zfoealfa[jk-1,jl-1], pfsqlf[jk-1,jl-1], zqxn2d[ncldql-1,jk-1,jl-1], zqx0[ncldql-1,jk-1,jl-1], pvfl[jk-1,jl-1], plude[jk-1,jl-1], zlneg[ncldql-1,jk-1,jl-1] => pfsqlf[jk,jl-1], pfcqlng[jk,jl-1], pfsqltur[jk,jl-1]) S_flux_calc_liquid | op(calc_liquid_flux_down)
+        (pfsqrf[jk-1,jl-1], zqxn2d[ncldqr-1,jk-1,jl-1], zqx0[ncldqr-1,jk-1,jl-1], zlneg[ncldqr-1,jk-1,jl-1] => pfsqrf[jk,jl-1], pfcqrng[jk,jl-1]) S_flux_calc_rain | op(calc_rain_flux_down)
+        (pfsqif[jk-1,jl-1], zqxn2d[ncldqi-1,jk-1,jl-1], zqx0[ncldqi-1,jk-1,jl-1], pvfi[jk-1,jl-1], plude[jk-1,jl-1], zlneg[ncldqi-1,jk-1,jl-1] => pfsqif[jk,jl-1], pfcqnng[jk,jl-1], pfsqitur[jk,jl-1]) S_flux_calc_ice | op(calc_ice_flux_down)
+        (pfsqsf[jk-1,jl-1], zqxn2d[ncldqs-1,jk-1,jl-1], zqx0[ncldqs-1,jk-1,jl-1], zlneg[ncldqs-1,jk-1,jl-1] => pfsqsf[jk,jl-1], pfcqsng[jk,jl-1]) S_flux_calc_snow | op(calc_snow_flux_down)
+
+; Lines 2563-2566 (Enthalpy flux due to precipitation)
+(pfplsl[0,0], pfplsn[0,0] => pfhpsl[0,0], pfhpsn[0,0]) L_enthalpy_flux_1 | for jk = 1 to klev + 1:
+    (pfplsl[jk-1,0], pfplsn[jk-1,0] => pfhpsl[jk-1,0], pfhpsn[jk-1,0]) L_enthalpy_flux_2 | for jl = kidia to kfdia:
+        (pfplsl[jk-1, jl-1], pfplsn[jk-1, jl-1] => pfhpsl[jk-1, jl-1], pfhpsn[jk-1, jl-1]) S_enthalpy_flux | op(calc_enthalpy_flux)
+
+; Line 2570
+(=>) S_return | op(return)

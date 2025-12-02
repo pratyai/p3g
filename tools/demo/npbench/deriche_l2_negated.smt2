@@ -1,7 +1,5 @@
 (declare-fun H () Int)
 (declare-fun W () Int)
-(declare-fun i_0 () Int)
-(declare-fun i_1 () Int)
 (declare-fun j () Int)
 
 (assert (and
@@ -13,8 +11,8 @@
       (not (<= i_1 (- W 1)))
       (and
         (or
-          (not (= i_0 i_1))
           (not (= (- j 2) (+ j 1)))
+          (not (= i_0 i_1))
         )
         (or
           (not (= i_0 i_1))
@@ -38,10 +36,7 @@
   (and
     (<= 2 j)
     (<= (+ j 1) (- H 1))
-    (<= 0 i_0)
-    (<= i_0 (- W 1))
-    (<= 0 i_1)
-    (<= i_1 (- W 1))
+    (<= 1 (- W 1))
     (<= 3 (- H 1))
   )
 ))

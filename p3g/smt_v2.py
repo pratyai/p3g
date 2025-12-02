@@ -68,6 +68,16 @@ class SmtQueryBuilder:
         for sym in get_free_variables(formula):
             self.add_existential_var(sym)
 
+    def _format_type(self, t) -> str:
+        """Converts PySMT type to SMT-LIB string representation."""
+        if t.is_int_type():
+            return "Int"
+        if t.is_bool_type():
+            return "Bool"
+        if t.is_array_type():
+            return f"(Array {self._format_type(t.index_type)} {self._format_type(t.elem_type)})"
+        return str(t)
+
     def _pretty_print(self, formula: PysmtFormula, indent_level: int = 0) -> str:
         """Serializes a pysmt formula with custom pretty-printing for major connectives."""
         indent = "  " * indent_level
@@ -83,7 +93,10 @@ class SmtQueryBuilder:
             )
 
             vars_str = " ".join(
-                [f"({s.symbol_name()} {s.get_type()})" for s in quantified_vars]
+                [
+                    f"({s.symbol_name()} {self._format_type(s.get_type())})"
+                    for s in quantified_vars
+                ]
             )
             body_str = self._pretty_print(formula.arg(0), indent_level + 1)
 
@@ -149,10 +162,8 @@ class SmtQueryBuilder:
         cons_simp = simplify(consequent)
 
         # Filter universals to only those actually used in the simplified formula
-        used_vars = get_free_variables(ant_simp) | get_free_variables(cons_simp)
         sorted_universals = sorted(
-            [v for v in self._universal_vars if v in used_vars],
-            key=lambda s: s.symbol_name(),
+            list(self._universal_vars), key=lambda s: s.symbol_name()
         )
 
         # Construct Implies. Note: We do NOT call simplify() on the final structure
@@ -248,16 +259,15 @@ class SmtQueryBuilder:
         if main_formula.is_exists():
             (main_formula,) = main_formula.args()
 
-        # Step 2: Collect all free variables for the declaration header
-        # To avoid statefulness issues, we use a local set for this build.
-        local_existential_vars = self._existential_vars.copy()
+        # Step 2: Collect all free variables
+        local_free_vars = self._existential_vars.copy()
 
         def collect_free_vars_local(formula: PysmtFormula):
             if formula is None:
                 return
             for sym in get_free_variables(formula):
                 if sym not in self._universal_vars:
-                    local_existential_vars.add(sym)
+                    local_free_vars.add(sym)
 
         collect_free_vars_local(main_formula)
         simplified_toplevel_assertions = []
@@ -274,7 +284,11 @@ class SmtQueryBuilder:
         main_assertion_str = f"(assert {self._pretty_print(main_formula, 0)})"
 
         # Step 4: Build declarations for all collected free (existential) variables
-        final_existentials = local_existential_vars - self._universal_vars
+        final_existentials = local_free_vars - self._universal_vars
+        vars_to_quantify = {
+            v for v in final_existentials if v.symbol_name().endswith("_val")
+        }
+        vars_to_declare = final_existentials - vars_to_quantify
 
         def get_decl_str(s: PysmtSymbol) -> str:
             t = s.get_type()
@@ -284,7 +298,7 @@ class SmtQueryBuilder:
                 return f"(declare-fun {s.symbol_name()} () (Array {t.index_type} {t.elem_type}))"
             return f"(declare-fun {s.symbol_name()} () {t})"
 
-        header_lines = sorted([get_decl_str(d) for d in final_existentials], key=str)
+        header_lines = sorted([get_decl_str(d) for d in vars_to_declare], key=str)
 
         output_lines = []
         if self.logic:
@@ -292,15 +306,38 @@ class SmtQueryBuilder:
 
         output_lines.extend(header_lines)
 
-        all_assertions_parts = []
-        if toplevel_assertion_strs:
-            all_assertions_parts.append("\n".join(toplevel_assertion_strs))
-            all_assertions_parts.append("")  # Add the empty line here
-        all_assertions_parts.append(main_assertion_str)
+        # Combine assertions and wrap in ForAll if needed
+        # We must split assertions: those depending on quantified vars (data) must act as
+        # implications (antecedents), while those strictly on free vars (params) must
+        # remain assertions (conjunctions) to prevent trivial satisfaction by invalid params.
+        data_dependent_asserts = []
+        global_asserts = []
 
-        all_assertions = "\n".join(all_assertions_parts)
+        for assertion in simplified_toplevel_assertions:
+            # Check if assertion depends on any variable we are about to quantify
+            if get_free_variables(assertion) & vars_to_quantify:
+                data_dependent_asserts.append(assertion)
+            else:
+                global_asserts.append(assertion)
 
-        return "\n".join(output_lines) + f"\n\n{all_assertions}\n\n(check-sat)"
+        # Construct the inner formula: (DataAsserts => MainFormula)
+        inner_formula = main_formula
+        if data_dependent_asserts:
+            inner_formula = Implies(And(data_dependent_asserts), inner_formula)
+
+        # Wrap in ForAll if we have variables to quantify
+        if vars_to_quantify:
+            sorted_vars = sorted(list(vars_to_quantify), key=lambda s: s.symbol_name())
+            quantified_formula = ForAll(sorted_vars, inner_formula)
+        else:
+            quantified_formula = inner_formula
+
+        # Combine with global parameter assertions: GlobalAsserts AND QuantifiedFormula
+        combined_formula = And(global_asserts + [quantified_formula])
+
+        final_assertion_str = f"(assert {self._pretty_print(combined_formula, 0)})"
+
+        return "\n".join(output_lines) + f"\n\n{final_assertion_str}\n\n(check-sat)"
 
 
 def _flatten_graph_to_compute_items(
@@ -355,8 +392,20 @@ def _find_conflict_elements(
                 subst[offset][var] = v
                 bounds.append(
                     And(
-                        GE(v, substitute(loop.start, {k: k + Int(offset)})),
-                        LE(v, substitute(loop.end, {k: k + Int(offset)})),
+                        GE(
+                            v,
+                            substitute(
+                                substitute(loop.start, {k: k + Int(offset)}),
+                                subst[offset],
+                            ),
+                        ),
+                        LE(
+                            v,
+                            substitute(
+                                substitute(loop.end, {k: k + Int(offset)}),
+                                subst[offset],
+                            ),
+                        ),
                     )
                 )
 
@@ -420,6 +469,13 @@ def exists_data_forall_bounds_forall_iters_chained(
     for var in bounds_vars:
         builder.add_universal_var(var)
 
+    # Also add all scalar symbolic constants from the root graph as universal quantifiers
+    loop_bound_syms = set()
+    _collect_all_loop_bound_sym_consts(loop_node.builder.root_graph, loop_bound_syms)
+    for sym_const in loop_node.builder.root_graph.symbols.values():
+        if sym_const in loop_bound_syms:
+            builder.add_universal_var(sym_const)
+
     # Store the set of universal variables that will be used in the main ForAll quantifier
     universal_vars_for_forall = builder._universal_vars.copy()
 
@@ -450,23 +506,29 @@ def exists_data_forall_bounds_forall_iters_chained(
     builder.add_antecedent_clause(LE(Plus(k, Int(1)), loop_node.end))
 
     # Add any assertions from the parsed code, separating into toplevel or antecedent
-    all_graph_assertions = []
-    _collect_all_assertions_recursive(
-        loop_node.builder.root_graph, all_graph_assertions
+    _, all_graph_assertions = _collect_ancestral_assertions(
+        loop_node.builder.root_graph, loop_node
     )
+
+    # Also collect non-empty assumptions for all nested loops (e.g. 0 <= N-1)
+    # This ensures we don't find trivial counterexamples where inner loops are empty.
+    nested_non_empty_checks = []
+    _collect_nested_loop_checks(loop_node.nested_graph, nested_non_empty_checks)
+    all_graph_assertions.extend(nested_non_empty_checks)
+
     for assertion in all_graph_assertions:
         assertion_free_vars = get_free_variables(assertion)
-        if any(v in universal_vars_for_forall for v in assertion_free_vars):
-            # Assertion depends on universal variables, keep in antecedent
+        # Only add to antecedent if ALL its free variables are UNIVERSAL.
+        # Otherwise, the assertion involves non-universal (existential/local) variables
+        # and should not be a global antecedent/toplevel.
+        if assertion_free_vars.issubset(universal_vars_for_forall):
             builder.add_antecedent_clause(assertion)
-        else:
-            # Assertion does not depend on universal variables, move to toplevel
-            builder.add_toplevel_assertion(assertion)
+        # Else: do not add it as a global assertion. Its scope is local to inner quantifiers.
 
     if extra_assertions:
         for assertion in extra_assertions:
             assertion_free_vars = get_free_variables(assertion)
-            if any(v in universal_vars_for_forall for v in assertion_free_vars):
+            if assertion_free_vars.issubset(universal_vars_for_forall):
                 builder.add_antecedent_clause(assertion)
             else:
                 builder.add_toplevel_assertion(assertion)
@@ -487,9 +549,13 @@ def exists_data_forall_bounds_forall_iters_chained(
         builder.add_consequent_clause(clause)
 
         # In the negated version, we don't want a witness outside the valid bound.
+        # However, we must ONLY add bounds for Universal variables (outer loop params).
+        # Adding bounds for Existential variables (inner loops) would hoist them to
+        # global scope, causing "leaks" and incorrect logic (e.g. asserting inner loop non-emptiness globally).
         if build_negated:
             for b in bounds:
-                builder.add_antecedent_clause(b)
+                if get_free_variables(b).issubset(universal_vars_for_forall):
+                    builder.add_antecedent_clause(b)
 
     # 5. Assemble and return the final query
     if build_negated:
@@ -504,15 +570,54 @@ def exists_data_forall_bounds_forall_iters_chained(
     return smt_query
 
 
-def _collect_all_assertions_recursive(graph: Graph, collected_assertions: list):
-    """Recursively collects all assertion formulas from the graph hierarchy."""
-    collected_assertions.extend(graph.assertions)
+def _collect_ancestral_assertions(
+    graph: Graph, target_loop: Loop
+) -> tuple[bool, list[PysmtFormula]]:
+    """
+    Recursively searches for the target_loop and collects assertions along the path.
+    Returns (found, assertions_list).
+    """
+    # 1. If this graph contains the target loop as a direct node, we are done.
+    # (Wait, loop is a node. We traverse nodes.)
+
+    # Start with assertions attached to this graph level (e.g. global or nested block)
+    current_level_assertions = list(graph.assertions)
+
     for node in graph.nodes:
-        if isinstance(node, Branch):
-            for _, nested_graph in node.branches:
-                _collect_all_assertions_recursive(nested_graph, collected_assertions)
-        elif isinstance(node, Loop):
-            _collect_all_assertions_recursive(node.nested_graph, collected_assertions)
+        if node is target_loop:
+            # Found it! Return the assertions of this level (context).
+            # We do NOT include assertions inside the loop itself.
+            return True, current_level_assertions
+
+        if isinstance(node, Loop):
+            # Recurse into nested graph
+            found, nested_assertions = _collect_ancestral_assertions(
+                node.nested_graph, target_loop
+            )
+            if found:
+                # If found in nested, bubble up.
+                # Path is: This Graph -> This Loop Node -> Nested Graph ...
+                # We should include assertions from this level.
+                # What about assertions attached to the Loop node itself?
+                # Usually 'assertions' property is on Graph. Loop node has 'start', 'end'.
+                # If Loop node has assertions, add them. (Loop class doesn't seem to have 'assertions' field based on use, but let's stick to Graph.assertions)
+                return True, current_level_assertions + nested_assertions
+
+        elif isinstance(node, Branch):
+            for pred, nested_graph in node.branches:
+                found, nested_assertions = _collect_ancestral_assertions(
+                    nested_graph, target_loop
+                )
+                if found:
+                    # Found in this branch.
+                    # Must include branch condition (pred) as an assertion for the path.
+                    return (
+                        True,
+                        current_level_assertions + [pred] + nested_assertions,
+                    )
+
+    # Not found in this graph
+    return False, []
 
 
 def _collect_all_data_nodes(graph: Graph, collected_data_nodes: set[Data]):
@@ -525,3 +630,40 @@ def _collect_all_data_nodes(graph: Graph, collected_data_nodes: set[Data]):
                 _collect_all_data_nodes(nested_graph, collected_data_nodes)
         elif isinstance(node, Loop):
             _collect_all_data_nodes(node.nested_graph, collected_data_nodes)
+
+
+def _collect_nested_loop_checks(graph: Graph, collected_checks: list[PysmtFormula]):
+    """Recursively collects non-empty assumptions for all nested loops."""
+    for node in graph.nodes:
+        if isinstance(node, Loop):
+            # Assume loop executes at least once: start + 1 <= end
+            collected_checks.append(LE(Plus(node.start, Int(1)), node.end))
+            _collect_nested_loop_checks(node.nested_graph, collected_checks)
+        elif isinstance(node, Branch):
+            for _, nested_graph in node.branches:
+                _collect_nested_loop_checks(nested_graph, collected_checks)
+
+
+def _collect_all_loop_bound_sym_consts(graph: Graph, collected_syms: set[PysmtSymbol]):
+    """
+    Recursively collects all scalar symbolic constants that appear in the
+    start and end bounds of any Loop node within the graph hierarchy.
+    """
+    for node in graph.nodes:
+        if isinstance(node, Loop):
+            # Collect free variables from its start and end bounds
+            free_vars = set(_get_free_variables_recursive(node.start))
+            free_vars.update(_get_free_variables_recursive(node.end))
+
+            # Add only scalar (INT) symbols to the collected set
+            for var in free_vars:
+                if var.get_type().is_int_type():
+                    collected_syms.add(var)
+
+            # Recurse into the nested graph of the loop
+            _collect_all_loop_bound_sym_consts(node.nested_graph, collected_syms)
+
+        elif isinstance(node, Branch):
+            # Recurse into all branches of a Branch node
+            for _, nested_graph in node.branches:
+                _collect_all_loop_bound_sym_consts(nested_graph, collected_syms)

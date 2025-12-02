@@ -1,6 +1,6 @@
 (declare-fun bin_idx_u_val () (Array Int Int))
 
-(assert (forall ((N Int) (i Int))
+(assert (forall ((N Int) (i Int) (npt Int))
   (=>
     (and
       (<= 0 i)
