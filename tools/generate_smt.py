@@ -371,15 +371,45 @@ Defaults to '?'.""",
             f"Quantifiers: {main_result.num_quantifiers}, Atoms: {main_result.num_atoms}, "
             f"Size: {main_result.formula_size}, Vars: {main_result.num_variables}, Arrays: {main_result.num_arrays})"
         )
-    except SolverReturnedUnknownResultError:
-        print("Primary Query Result: UNKNOWN (Solver returned unknown)")
-        run_data["main_result"] = "UNKNOWN"
-    except TimeoutError:
-        print("Primary Query Result: UNKNOWN (Timeout)")
-        run_data["main_result"] = "TIMEOUT"
+    except (SolverReturnedUnknownResultError, TimeoutError):
+        # Retry with aggressive=True
+        print("Primary Query Result: UNKNOWN/TIMEOUT. Retrying with aggressive=True...")
+        try:
+            main_result = solve_smt_string(smt_query, args.timeout, aggressive=True)
+            main_is_sat = main_result.is_sat
+            main_result_str = "SAT" if main_is_sat else "UNSAT"
+
+            run_data["main_result"] = main_result_str
+            run_data["main_time"] = main_result.time_elapsed
+            run_data["main_quantifiers"] = main_result.num_quantifiers
+            run_data["main_atoms"] = main_result.num_atoms
+            run_data["main_size"] = main_result.formula_size
+            run_data["main_variables"] = main_result.num_variables
+            run_data["main_arrays"] = main_result.num_arrays
+
+            print(
+                f"Primary Query Result (aggressive retry): {main_result_str} (Time: {main_result.time_elapsed:.4f}s, "
+                f"Quantifiers: {main_result.num_quantifiers}, Atoms: {main_result.num_atoms}, "
+                f"Size: {main_result.formula_size}, Vars: {main_result.num_variables}, Arrays: {main_result.num_arrays})"
+            )
+        except SolverReturnedUnknownResultError:
+            print(
+                "Primary Query Result (aggressive retry): UNKNOWN (Solver returned unknown)"
+            )
+            main_result_str = "UNKNOWN"
+            run_data["main_result"] = "UNKNOWN"
+        except TimeoutError:
+            print("Primary Query Result (aggressive retry): UNKNOWN (Timeout)")
+            main_result_str = "TIMEOUT"
+            run_data["main_result"] = "TIMEOUT"
+        except Exception as e:
+            print(f"Primary Query Result (aggressive retry): ERROR - {e}")
+            main_result_str = f"ERROR: {str(e)}"
+            run_data["main_result"] = main_result_str
     except Exception as e:
         print(f"Primary Query Result: ERROR - {e}")
-        run_data["main_result"] = f"ERROR: {str(e)}"
+        main_result_str = f"ERROR: {str(e)}"
+        run_data["main_result"] = main_result_str
 
     if negated_query:
         print("\n--- Solving Negated Query ---")
@@ -402,15 +432,49 @@ Defaults to '?'.""",
                 f"Quantifiers: {negated_result.num_quantifiers}, Atoms: {negated_result.num_atoms}, "
                 f"Size: {negated_result.formula_size}, Vars: {negated_result.num_variables}, Arrays: {negated_result.num_arrays})"
             )
-        except SolverReturnedUnknownResultError:
-            print("Negated Query Result: UNKNOWN (Solver returned unknown)")
-            run_data["negated_result"] = "UNKNOWN"
-        except TimeoutError:
-            print("Negated Query Result: UNKNOWN (Timeout)")
-            run_data["negated_result"] = "TIMEOUT"
+        except (SolverReturnedUnknownResultError, TimeoutError):
+            # Retry with aggressive=True
+            print(
+                "Negated Query Result: UNKNOWN/TIMEOUT. Retrying with aggressive=True..."
+            )
+            try:
+                negated_result = solve_smt_string(
+                    negated_query, args.timeout, aggressive=True
+                )
+                negated_is_sat = negated_result.is_sat
+                negated_result_str = "SAT" if negated_is_sat else "UNSAT"
+
+                run_data["negated_result"] = negated_result_str
+                run_data["negated_time"] = negated_result.time_elapsed
+                run_data["negated_quantifiers"] = negated_result.num_quantifiers
+                run_data["negated_atoms"] = negated_result.num_atoms
+                run_data["negated_size"] = negated_result.formula_size
+                run_data["negated_variables"] = negated_result.num_variables
+                run_data["negated_arrays"] = negated_result.num_arrays
+
+                print(
+                    f"Negated Query Result (aggressive retry): {negated_result_str} (Time: {negated_result.time_elapsed:.4f}s, "
+                    f"Quantifiers: {negated_result.num_quantifiers}, Atoms: {negated_result.num_atoms}, "
+                    f"Size: {negated_result.formula_size}, Vars: {negated_result.num_variables}, Arrays: {negated_result.num_arrays})"
+                )
+            except SolverReturnedUnknownResultError:
+                print(
+                    "Negated Query Result (aggressive retry): UNKNOWN (Solver returned unknown)"
+                )
+                negated_result_str = "UNKNOWN"
+                run_data["negated_result"] = "UNKNOWN"
+            except TimeoutError:
+                print("Negated Query Result (aggressive retry): UNKNOWN (Timeout)")
+                negated_result_str = "TIMEOUT"
+                run_data["negated_result"] = "TIMEOUT"
+            except Exception as e:
+                print(f"Negated Query Result (aggressive retry): ERROR - {e}")
+                negated_result_str = f"ERROR: {str(e)}"
+                run_data["negated_result"] = negated_result_str
         except Exception as e:
             print(f"Negated Query Result: ERROR - {e}")
-            run_data["negated_result"] = f"ERROR: {str(e)}"
+            negated_result_str = f"ERROR: {str(e)}"
+            run_data["negated_result"] = negated_result_str
 
         print("\n--- Interpretation ---")
         conclusion = "Inconclusive"

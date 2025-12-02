@@ -1,0 +1,116 @@
+sym R, K, M1, M2, N ; N = R**K, will need to handle R**K in bounds
+var i, i_grid, j_grid, k_loop_D_assign, r_pow_i_loop, r_loop, r_pow_K_i_1_loop, r_idx_tf, r_pow_i_idx_tf, r_grid, c_grid
+
+decl x, y
+decl i_coord, j_coord, dft_mat
+decl ii_coord, jj_coord
+decl tmp_perm, D, tmp
+decl tmp_twid
+decl R_pow_i, R_pow_K_i_1, R_pow_i_plus_1
+decl tmp_perm_r_idx, tmp_perm_r_pow_i_idx, tmp_perm_r_pow_K_i_1_idx, y_original_1D_idx ; For tmp_perm calculation
+decl tmp_twiddle_rhs_val ; For intermediate calculation of RHS of twiddle factor
+decl R_pow_K_minus_1, matmul_result
+
+out y
+
+; Initialize i_coord and j_coord, and mgrid1
+(i_coord[0,0] => i_coord[0,0]) ().L1_mgrid1_i| for i_grid = 0 to R - 1:
+    (i_coord[0,0] => i_coord[0,0]) .L2_mgrid1_i_j| for j_grid = 0 to R - 1:
+        (i_coord[i_grid, j_grid] => i_coord[i_grid, j_grid]) .S1_mgrid1_i| op(assign_i_grid)
+
+; (j_coord[:, j] = j)
+(j_coord[0,0] => j_coord[0,0]) (S1_mgrid1_i).L3_mgrid1_j| for j_grid = 0 to R - 1:
+    (j_coord[0,0] => j_coord[0,0]) .L4_mgrid1_j_i| for i_grid = 0 to R - 1:
+        (j_coord[i_grid, j_grid] => j_coord[i_grid, j_grid]) .S2_mgrid1_j| op(assign_j_grid)
+
+; dft_mat[:] = np.exp(-2.0j * np.pi * i_coord * j_coord / R)
+(i_coord[0,0], j_coord[0,0], dft_mat[0,0] => dft_mat[0,0]) (S2_mgrid1_j).L5_dft_mat_i| for i_grid = 0 to R - 1:
+    (i_coord[0,0], j_coord[0,0], dft_mat[0,0] => dft_mat[0,0]) .L6_dft_mat_j| for j_grid = 0 to R - 1:
+        (i_coord[i_grid, j_grid], j_coord[i_grid, j_grid], dft_mat[i_grid, j_grid] => dft_mat[i_grid, j_grid]) .S3_dft_mat_calc| op(calc_dft_mat_element)
+
+; y[:] = x[:]
+(x[0], y[0] => y[0]) (S3_dft_mat_calc).L7_y_copy| for i_grid = 0 to N - 1:
+    (x[i_grid], y[i_grid] => y[i_grid]) .S4_y_copy_element| op(copy_element)
+
+; Initialize ii_coord and jj_coord, and mgrid2
+(ii_coord[0,0] => ii_coord[0,0]) (S4_y_copy_element).L8_mgrid2_i| for i_grid = 0 to R - 1:
+    (ii_coord[0,0] => ii_coord[0,0]) .L9_mgrid2_i_j| for j_grid = 0 to N - 1:
+        (ii_coord[i_grid, j_grid] => ii_coord[i_grid, j_grid]) .S5_mgrid2_i| op(assign_i_grid)
+
+(jj_coord[0,0] => jj_coord[0,0]) (S5_mgrid2_i).L10_mgrid2_j| for j_grid = 0 to N - 1:
+    (jj_coord[0,0] => jj_coord[0,0]) .L11_mgrid2_j_i| for i_grid = 0 to R - 1:
+        (jj_coord[i_grid, j_grid] => jj_coord[i_grid, j_grid]) .S6_mgrid2_j| op(assign_j_grid)
+
+; Initialize tmp_perm
+(tmp_perm[0] => tmp_perm[0]) (S6_mgrid2_j).L12_tmp_perm_init| for i_grid = 0 to N - 1:
+    (tmp_perm[i_grid] => tmp_perm[i_grid]) .S7_tmp_perm_element| op(init_zero)
+
+; Initialize D
+(D[0] => D[0]) (S7_tmp_perm_element).L13_D_init| for i_grid = 0 to N - 1:
+    (D[i_grid] => D[i_grid]) .S8_D_element| op(init_zero)
+
+; Initialize tmp
+(tmp[0] => tmp[0]) (S8_D_element).L14_tmp_init| for i_grid = 0 to N - 1:
+    (tmp[i_grid] => tmp[i_grid]) .S9_tmp_element| op(init_zero)
+
+; Main Stockham loop
+(y[0], x[0], tmp_perm[0], D[0], tmp[0], dft_mat[0,0], ii_coord[0,0], jj_coord[0,0], R_pow_i[0], R_pow_K_i_1[0], tmp_perm_r_idx[0], tmp_perm_r_pow_i_idx[0], tmp_perm_r_pow_K_i_1_idx[0], y_original_1D_idx[0], R_pow_i_plus_1[0], tmp_twiddle_rhs_val[0], R_pow_K_minus_1[0], matmul_result[0,0] => y[0]) (S9_tmp_element).L15_K_loop| for i = 0 to K - 1:
+
+    ; Calculate dynamic dimensions R**i and R**(K-i-1)
+    (R[0], i[0], R_pow_i[0] => R_pow_i[0]) .S10_calc_R_pow_i| op(calc_R_pow_i) ; R_pow_i = R**i
+    (R[0], K[0], i[0], R_pow_K_i_1[0] => R_pow_K_i_1[0]) .S11_calc_R_pow_K_i_1| op(calc_R_pow_K_i_1) ; R_pow_K_i_1 = R**(K-i-1)
+
+    ; tmp_perm[:] = np.reshape(np.transpose(yv, axes=(1, 0, 2)), (N, ))
+    ; This involves 3D -> 3D (transpose) -> 1D (flatten)
+    (y[0], tmp_perm[0], R[0], R_pow_i[0], R_pow_K_i_1[0], tmp_perm_r_idx[0], tmp_perm_r_pow_i_idx[0], tmp_perm_r_pow_K_i_1_idx[0], y_original_1D_idx[0] => tmp_perm[0]) (S11_calc_R_pow_K_i_1).L16_tmp_perm_flat| for i_grid = 0 to N - 1: ; Loop over N elements of tmp_perm
+        ; Calculate 3D index (r_idx_transposed, r_pow_i_idx_transposed, r_pow_K_i_1_idx) from 1D i_grid for transposed yv
+        ; Transposed dims: (R, R_pow_i, R_pow_K_i_1)
+        (i_grid[0], R[0], R_pow_i[0], R_pow_K_i_1[0], tmp_perm_r_idx[0], tmp_perm_r_pow_i_idx[0], tmp_perm_r_pow_K_i_1_idx[0] => tmp_perm_r_idx[0], tmp_perm_r_pow_i_idx[0], tmp_perm_r_pow_K_i_1_idx[0]) .S12_calc_transposed_3D_idx| op(calc_transposed_3D_idx)
+        
+        ; Map transposed 3D index to original y 1D index
+        ; Original yv dims: (R_pow_i, R, R_pow_K_i_1)
+        (tmp_perm_r_idx[0], tmp_perm_r_pow_i_idx[0], tmp_perm_r_pow_K_i_1_idx[0], R_pow_i[0], R[0], R_pow_K_i_1[0], y_original_1D_idx[0] => y_original_1D_idx[0]) .S13_calc_y_original_1D_idx| op(calc_y_original_1D_idx)
+        
+        ; tmp_perm[i_grid] = y[y_original_1D_idx]
+        (y[y_original_1D_idx[0]], tmp_perm[i_grid] => tmp_perm[i_grid]) .S14_tmp_perm_assign| op(assign_perm_element)
+
+    ; Calculate dynamic dimension R**(i+1)
+    (R[0], i[0], R_pow_i_plus_1[0] => R_pow_i_plus_1[0]) (S14_tmp_perm_assign).S15_calc_R_pow_i_plus_1| op(calc_R_pow_i_plus_1)
+
+    ; tmpv[0] = np.exp(-2.0j * np.pi * ii_coord[:, :R**i] * jj_coord[:, :R**i] / R**(i + 1))
+    (ii_coord[0,0], jj_coord[0,0], tmp[0], R[0], R_pow_i[0], R_pow_i_plus_1[0], tmp_twiddle_rhs_val[0] => tmp[0]) (S15_calc_R_pow_i_plus_1).L17_twiddle_r_grid| for r_grid = 0 to R - 1:
+        (ii_coord[0,0], jj_coord[0,0], tmp[0], R[0], R_pow_i[0], R_pow_i_plus_1[0], tmp_twiddle_rhs_val[0] => tmp[0]) .L18_twiddle_c_grid| for c_grid = 0 to R_pow_i - 1:
+            ; Calculate RHS value for tmp[0, r_grid, c_grid] (in tmpv coordinates)
+            (ii_coord[r_grid, c_grid], jj_coord[r_grid, c_grid], R_pow_i_plus_1[0], tmp_twiddle_rhs_val[0] => tmp_twiddle_rhs_val[0]) .S16_calc_twiddle_rhs_val| op(calc_twiddle_factor_element_rhs)
+            
+            ; Assign to tmp (which is tmpv's backing array)
+            ; Index for tmp: (0 * R * R_pow_i) + r_grid * R_pow_i + c_grid
+            (tmp_twiddle_rhs_val[0], tmp[r_grid * R_pow_i + c_grid] => tmp[r_grid * R_pow_i + c_grid]) .S17_tmp_twiddle_assign| op(assign_tmp_twiddle_element)
+
+    ; tmp_twid = tmp_perm * D
+    (tmp_perm[0], D[0], tmp_twid[0] => tmp_twid[0]) (S17_tmp_twiddle_assign).L19_tmp_twid_mul| for i_grid = 0 to N - 1:
+        (tmp_perm[i_grid], D[i_grid], tmp_twid[i_grid] => tmp_twid[i_grid]) .S18_tmp_twid_element| op(multiply_element)
+
+    ; Calculate R**(K-1)
+    (R[0], K[0], R_pow_K_minus_1[0] => R_pow_K_minus_1[0]) (S18_tmp_twid_element).S19_calc_R_pow_K_minus_1| op(calc_R_pow_K_minus_1)
+
+    ; Matrix multiplication: matmul_result = dft_mat @ np.reshape(tmp_twid, (R, R**(K-1)))
+    ; Result dims: (R, R_pow_K_minus_1)
+    ; Loop over result rows (R)
+    (dft_mat[0,0], tmp_twid[0], matmul_result[0,0], R_pow_K_minus_1[0] => matmul_result[0,0]) (S19_calc_R_pow_K_minus_1).L20_matmul_res_r| for r_loop = 0 to R - 1:
+        ; Loop over result columns (R_pow_K_minus_1)
+        (dft_mat[0,0], tmp_twid[0], matmul_result[0,0], R_pow_K_minus_1[0] => matmul_result[0,0]) .L21_matmul_res_c| for c_loop = 0 to R_pow_K_minus_1 - 1:
+            ; Initialize matmul_result[r_loop, c_loop] to 0
+            (matmul_result[r_loop, c_loop] => matmul_result[r_loop, c_loop]) .S20_matmul_init_element| op(init_zero)
+            ; Inner loop for dot product (R)
+            (dft_mat[0,0], tmp_twid[0], matmul_result[0,0], R_pow_K_minus_1[0] => matmul_result[0,0]) (S20_matmul_init_element).L22_matmul_dot| for k_loop_D_assign = 0 to R - 1:
+                ; Matmul element: matmul_result[r_loop, c_loop] += dft_mat[r_loop, k_loop_D_assign] * tmp_twid_reshaped[k_loop_D_assign, c_loop]
+                ; tmp_twid_reshaped[k_loop_D_assign, c_loop] is tmp_twid[k_loop_D_assign * R_pow_K_minus_1 + c_loop]
+                (dft_mat[r_loop, k_loop_D_assign], tmp_twid[k_loop_D_assign * R_pow_K_minus_1 + c_loop], matmul_result[r_loop, c_loop] => matmul_result[r_loop, c_loop]) .S21_matmul_accum| op(matmul_accumulate)
+
+    ; y[:] = np.reshape(matmul_result, (N, ))
+    (matmul_result[0,0], y[0] => y[0]) (S21_matmul_accum).L23_y_final_assign| for i_grid = 0 to N - 1:
+        ; Map 1D index i_grid to 2D (r,c) in matmul_result:
+        ; r = i_grid / R_pow_K_minus_1
+        ; c = i_grid % R_pow_K_minus_1
+        (matmul_result[i_grid / R_pow_K_minus_1, i_grid % R_pow_K_minus_1], y[i_grid] => y[i_grid]) .S22_y_final_element| op(assign_element)

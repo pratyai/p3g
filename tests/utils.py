@@ -264,23 +264,73 @@ class MetricsWalker(IdentityDagWalker):
         return formula
 
 
-def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
+def get_smt_metrics_from_string(smt_string: str) -> MetricsWalker:
+    """
+    Parses an SMT-LIB string, walks the formula to collect metrics,
+    and returns them without invoking a solver.
+    """
+    parser = SmtLibParser()
+    script = parser.get_script(io.StringIO(smt_string))
+
+    walker = MetricsWalker()
+    formula = None
+    for cmd in script.commands:
+        if cmd.name == "assert":
+            formula = cmd.args[0]
+            walker.walk(formula)
+        elif cmd.name == "check-sat":
+            break  # No formula to walk if check-sat is before assert or no assert
+
+    if formula is None:
+        raise ValueError(
+            "No assert command found in SMT string to extract metrics from."
+        )
+
+    return walker
+
+
+def _clean_with_z3(smt_string: str, aggressive: bool = False):
+    from z3 import Solver, Goal, Then, Tactic
+
+    s = Solver()
+    s.from_string(smt_string)
+    assert s.assertions()
+    g = Goal()
+    g.add(s.assertions())
+
+    if aggressive:
+        tactic = Then(
+            Tactic("simplify"),
+            Tactic("propagate-values"),
+            Tactic("ctx-solver-simplify"),
+            Tactic("qe-light"),
+        )
+    else:
+        tactic = Then(
+            Tactic("simplify"),
+            Tactic("propagate-values"),
+        )
+
+    result = tactic(g)
+    output = Solver()
+    for subgoal in result:
+        for assertion in subgoal:
+            output.add(assertion)
+    return output.to_smt2()
+
+
+def _solve_smt_string_internal(
+    smt_string: str, result_queue: Queue, aggressive: bool = False
+):
     """
     Internal function to solve the SMT query. Designed to be run in a separate process.
     Puts (result, model_str) or (exception,) into the queue.
     """
+    walker = get_smt_metrics_from_string(smt_string)
+    smt_string = _clean_with_z3(smt_string, aggressive=aggressive)
     # 2. Parse the SMT-LIB string into pysmt formulas
     parser = SmtLibParser()
     script = parser.get_script(io.StringIO(smt_string))
-
-    # Metrics
-    num_quantifiers = 0
-    num_atoms = 0
-    num_and = 0
-    num_or = 0
-    formula_size = 0
-
-    walker = MetricsWalker()
 
     # 3. Run the solver using the pysmt API
     try:
@@ -293,7 +343,6 @@ def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
             for cmd in script.commands:
                 if cmd.name == "assert":
                     formula = cmd.args[0]
-                    walker.walk(formula)  # Collect metrics
                     s.add_assertion(formula)
                 elif cmd.name == "declare-fun":
                     pass
@@ -341,7 +390,9 @@ def _solve_smt_string_internal(smt_string: str, result_queue: Queue):
         result_queue.put((e,))
 
 
-def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> SmtResult:
+def solve_smt_string(
+    smt_string: str, timeout_seconds: int = 30, aggressive: bool = False
+) -> SmtResult:
     """
     Saves the SMT query to a file and runs an in-memory pysmt solver
     (e.g., z3, cvc5) on the parsed string within a separate process with a timeout.
@@ -352,7 +403,7 @@ def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> SmtResult:
     start_time = time.time()
     result_queue = Queue()
     process = Process(
-        target=_solve_smt_string_internal, args=(smt_string, result_queue)
+        target=_solve_smt_string_internal, args=(smt_string, result_queue, aggressive)
     )
     process.start()
     process.join(timeout=timeout_seconds)

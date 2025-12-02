@@ -10,12 +10,15 @@ out y
 
 ; MAIN OUTER LOOP
 (A_row[0], A_col[0], A[0], x[0], y[0] => y[0]) (L0_i_y_init).L1_i| for i = 0 to M - 1:
-    ; Initialize dot_product_accumulator for y[i]
-    (dot_product_accumulator[0] => dot_product_accumulator[0]) .S1_dot_product_init| op(dot_product_init_zero)
+    ; Initialize dot_product_accumulator SPECIFIC TO i
+    ; CHANGE: [0] -> [i]
+    (dot_product_accumulator[i] => dot_product_accumulator[i]) .S1_dot_product_init| op(dot_product_init_zero)
 
-    ; Loop for dot product: sum(A[k] * x[A_col[k]])
-    (A_col[0], A[0], x[0], dot_product_accumulator[0], A_row[0] => dot_product_accumulator[0]) (S1_dot_product_init).L2_k| for k = A_row[i] to A_row[i + 1] - 1:
-        (A[k], x[A_col[k]], dot_product_accumulator[0] => dot_product_accumulator[0]) .S2_dot_product_accum| op(dot_product_accumulate)
-    
+    ; Loop for dot product
+    ; CHANGE: [0] -> [i]
+    (A_col[0], A[0], x[0], dot_product_accumulator[i], A_row[0] => dot_product_accumulator[i]) (S1_dot_product_init).L2_k| for k = A_row[i] to A_row[i + 1] - 1:
+        (A[k], x[A_col[k]], dot_product_accumulator[i] => dot_product_accumulator[i]) .S2_dot_product_accum| op(dot_product_accumulate)
+
     ; Assign accumulated dot product to y[i]
-    (dot_product_accumulator[0], y[i] => y[i]) (L2_k).S3_y_assign| op(assign_y_element)
+    ; CHANGE: [0] -> [i]
+    (dot_product_accumulator[i], y[i] => y[i]) (L2_k).S3_y_assign| op(assign_y_element)
