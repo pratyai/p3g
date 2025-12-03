@@ -35,7 +35,7 @@ from pysmt.shortcuts import (
 from pysmt.smtlib.printers import SmtPrinter
 from pysmt.typing import INT
 
-from p3g.graph import Graph, Loop, Data, Compute, Branch
+from p3g.graph import Graph, Loop, Data, Compute, Branch, Map, Reduce
 from p3g.subsets import (
     _create_set_intersection_formula,
     substitute_subset,
@@ -45,6 +45,39 @@ from p3g.subsets import (
 )
 
 ComputeItem = namedtuple("ComputeItem", ["path_cond", "compute_node", "loops"])
+
+
+class AnalysisContext:
+    """
+    A data structure to pre-gather and store all necessary information from the P3G
+    for SMT query generation, avoiding repeated graph traversals.
+    """
+
+    def __init__(self):
+        #: A set of all Data nodes found throughout the entire graph hierarchy.
+        self.all_data_nodes: set[Data] = set()
+        #: Maps each unique array_id to its original name (e.g., 10001 -> "A").
+        self.id_to_array_name: dict[int, str] = {}
+        #: Maps each unique array_id to a PysmtSymbol representing its memory location
+        #: (e.g., 10001 -> Symbol("DATA!A", INT)). Used for aliasing checks.
+        self.id_to_location_symbol_map: dict[int, PysmtSymbol] = {}
+        #: Maps a PysmtSymbol representing an array's content (e.g., Symbol("A_val", ArrayType))
+        #: to its corresponding internal array_id.
+        self.pysmt_array_sym_to_array_id: dict[PysmtSymbol, int] = {}
+        #: A flattened list of all ComputeItem (path_cond, compute_node, loops) tuples
+        #: within the specified Loop node's body.
+        self.all_compute_items: list[ComputeItem] = []
+        #: A list of all PysmtFormula assertions collected from the graph, including
+        #: ancestral assertions and nested loop non-empty checks.
+        self.all_assertions: list[PysmtFormula] = []
+        #: A set of PysmtSymbols that appear in the start and end bounds of any
+        #: Loop node within the graph hierarchy, excluding loop iterators themselves.
+        self.loop_bound_symbols: set[PysmtSymbol] = set()
+        #: A set of PysmtSymbols identified as universally quantified variables
+        #: in the SMT query (e.g., outer loop iterators, global parameters).
+        self.universal_vars: set[PysmtSymbol] = set()
+        #: A list of additional PysmtFormula assertions provided by the user.
+        self.extra_assertions: list[PysmtFormula] = []
 
 
 class SmtQueryBuilder:
@@ -441,6 +474,134 @@ def _find_conflict_elements(
     return conflict_elements
 
 
+def _build_analysis_context(
+    root_graph: Graph,
+    loop_node: Loop,
+    extra_assertions: list[PysmtFormula] | None = None,
+) -> AnalysisContext:
+    """
+    Traverses the P3G and gathers all necessary information into an AnalysisContext object.
+    """
+    context = AnalysisContext()
+    context.extra_assertions = extra_assertions if extra_assertions is not None else []
+    # Add extra_assertions to all_assertions for comprehensive collection
+    context.all_assertions.extend(context.extra_assertions)
+
+    # Helper recursive function for graph traversal
+    def _traverse_graph(
+        graph: Graph,
+        target_loop: Loop,
+        builder_instance,  # The GraphBuilder instance from loop_node.builder
+        current_assertions: list[
+            PysmtFormula
+        ],  # Accumulates assertions from ancestor graphs
+        is_target_loop_ancestor_or_self: bool,  # True if 'graph' is the target loop or one of its ancestors
+    ):
+        # Add assertions explicitly defined at the current graph level
+        context.all_assertions.extend(graph.assertions)
+
+        # Collect data node information
+        for node in graph.nodes:
+            if isinstance(node, Data):
+                context.all_data_nodes.add(node)
+                if node.array_id not in context.id_to_array_name:
+                    context.id_to_array_name[node.array_id] = (
+                        node.graph._array_id_to_name.get(node.array_id, node.name)
+                    )
+                    context.id_to_location_symbol_map[node.array_id] = Symbol(
+                        f"DATA!{context.id_to_array_name[node.array_id]}", INT
+                    )
+
+                # Populate pysmt_array_sym_to_array_id from the builder's map
+                # The builder's map directly maps array symbols to array_ids.
+                # We iterate over the builder's map to copy relevant entries.
+                for (
+                    pysmt_sym,
+                    arr_id,
+                ) in (
+                    builder_instance._pysmt_array_sym_to_array_id.items()
+                ):  # Use builder_instance
+                    if (
+                        arr_id == node.array_id
+                        and pysmt_sym not in context.pysmt_array_sym_to_array_id
+                    ):
+                        context.pysmt_array_sym_to_array_id[pysmt_sym] = arr_id
+
+            # For Loop nodes, gather bounds, add non-empty checks, and identify universal vars
+            elif isinstance(node, Loop):
+                # Collect free variables from its start and end bounds
+                free_vars = set(_get_free_variables_recursive(node.start))
+                free_vars.update(_get_free_variables_recursive(node.end))
+                for var in free_vars:
+                    if var.get_type().is_int_type():
+                        context.loop_bound_symbols.add(var)
+
+                # Add non-empty assumption for the loop (start + 1 <= end)
+                context.all_assertions.append(LE(Plus(node.start, Int(1)), node.end))
+
+                _traverse_graph(
+                    node.nested_graph,
+                    target_loop,
+                    builder_instance,  # Pass builder_instance down
+                    current_assertions
+                    + graph.assertions,  # Pass accumulated assertions to nested graph
+                    is_target_loop_ancestor_or_self or node is target_loop,
+                )
+
+            # For Branch nodes, add branch predicate as assertion and traverse nested graphs
+            elif isinstance(node, Branch):
+                for pred, nested_graph in node.branches:
+                    # The branch predicate defines the path condition, and should not be added to global assertions.
+                    _traverse_graph(
+                        nested_graph,
+                        target_loop,
+                        builder_instance,  # Pass builder_instance down
+                        current_assertions
+                        + graph.assertions
+                        + [pred],  # Pass accumulated assertions to nested graph
+                        is_target_loop_ancestor_or_self,
+                    )
+
+            # For Map and Reduce nodes, their nested graphs are traversed like Loop nodes.
+            # No specific context collection other than the nested graph traversal.
+            elif isinstance(
+                node, (Map, Reduce)
+            ):  # Assuming Map and Reduce also have nested_graph
+                _traverse_graph(
+                    node.nested_graph,
+                    target_loop,
+                    builder_instance,  # Pass builder_instance down
+                    current_assertions + graph.assertions,
+                    is_target_loop_ancestor_or_self,
+                )
+
+    # Start traversal from the root graph
+    _traverse_graph(
+        root_graph, loop_node, loop_node.builder, [], False
+    )  # Pass loop_node.builder here
+
+    # The target loop's iterator and its bounds variables are always universal
+    context.universal_vars.add(loop_node.loop_var)
+    bounds_vars = _get_free_variables_recursive(
+        loop_node.start
+    ) | _get_free_variables_recursive(loop_node.end)
+    for var in bounds_vars:
+        context.universal_vars.add(var)
+
+    # All scalar symbolic constants from the root graph that are also loop bound symbols are universal
+    for sym_const in root_graph.symbols.values():
+        if (
+            sym_const.get_type().is_int_type()
+            and sym_const in context.loop_bound_symbols
+        ):
+            context.universal_vars.add(sym_const)
+
+    # Collect all compute items within the loop_node's nested graph body
+    context.all_compute_items = _flatten_graph_to_compute_items(loop_node.nested_graph)
+
+    return context
+
+
 def exists_data_forall_bounds_forall_iters_chained(
     loop_node: Loop,
     extra_assertions: list[PysmtFormula] | None = None,
@@ -458,83 +619,36 @@ def exists_data_forall_bounds_forall_iters_chained(
     """
     builder = SmtQueryBuilder(logic=logic)
 
+    # Build the analysis context
+    context = _build_analysis_context(
+        loop_node.builder.root_graph, loop_node, extra_assertions
+    )
+
     # Use the original loop variable from the P3G model for the analysis
     k = loop_node.loop_var
 
-    # 1. Define Universal Quantifiers
-    builder.add_universal_var(k)
-    bounds_vars = _get_free_variables_recursive(
-        loop_node.start
-    ) | _get_free_variables_recursive(loop_node.end)
-    for var in bounds_vars:
+    # 1. Define Universal Quantifiers from context
+    for var in context.universal_vars:
         builder.add_universal_var(var)
-
-    # Also add all scalar symbolic constants from the root graph as universal quantifiers
-    loop_bound_syms = set()
-    _collect_all_loop_bound_sym_consts(loop_node.builder.root_graph, loop_bound_syms)
-    for sym_const in loop_node.builder.root_graph.symbols.values():
-        if sym_const in loop_bound_syms:
-            builder.add_universal_var(sym_const)
 
     # Store the set of universal variables that will be used in the main ForAll quantifier
     universal_vars_for_forall = builder._universal_vars.copy()
 
-    # 2. Define symbols for analysis
-    all_data_nodes: set[Data] = set()
-    _collect_all_data_nodes(loop_node.builder.root_graph, all_data_nodes)
-
-    # Create INT symbols for array locations (e.g., DATA!A), used for aliasing checks.
-    id_to_location_symbol_map = {}
-    processed_array_ids = set()  # To prevent redundant assertions for the same array_id
-    for data_node in all_data_nodes:
-        if data_node.array_id in processed_array_ids:
-            continue
-        processed_array_ids.add(data_node.array_id)
-
-        array_name = data_node.graph._array_id_to_name[data_node.array_id]
-        # This symbol represents the array's identity/location.
-        loc_sym = Symbol(f"DATA!{array_name}", INT)
-        id_to_location_symbol_map[data_node.array_id] = loc_sym
-
-    # Note: Symbols for array *values* (e.g., A_val) are not created here.
-    # They are discovered automatically by the SmtQueryBuilder if they appear
-    # in any of the formulas being serialized, and are treated as free existential variables.
+    # 2. Use id_to_location_symbol_map from context for aliasing checks
+    id_to_location_symbol_map = context.id_to_location_symbol_map
 
     # 3. Build the Antecedent (LHS of =>)
     builder.add_antecedent_clause(GE(loop_node.end, Plus(loop_node.start, Int(1))))
     builder.add_antecedent_clause(GE(k, loop_node.start))
     builder.add_antecedent_clause(LE(Plus(k, Int(1)), loop_node.end))
 
-    # Add any assertions from the parsed code, separating into toplevel or antecedent
-    _, all_graph_assertions = _collect_ancestral_assertions(
-        loop_node.builder.root_graph, loop_node
-    )
-
-    # Also collect non-empty assumptions for all nested loops (e.g. 0 <= N-1)
-    # This ensures we don't find trivial counterexamples where inner loops are empty.
-    nested_non_empty_checks = []
-    _collect_nested_loop_checks(loop_node.nested_graph, nested_non_empty_checks)
-    all_graph_assertions.extend(nested_non_empty_checks)
-
-    for assertion in all_graph_assertions:
+    # Add assertions from the analysis context, separating into toplevel or antecedent
+    for assertion in context.all_assertions:
         assertion_free_vars = get_free_variables(assertion)
-        # Only add to antecedent if ALL its free variables are UNIVERSAL.
-        # Otherwise, the assertion involves non-universal (existential/local) variables
-        # and should not be a global antecedent/toplevel.
         if assertion_free_vars.issubset(universal_vars_for_forall):
             builder.add_antecedent_clause(assertion)
-        # Else: do not add it as a global assertion. Its scope is local to inner quantifiers.
-
-    if extra_assertions:
-        for assertion in extra_assertions:
-            assertion_free_vars = get_free_variables(assertion)
-            if assertion_free_vars.issubset(universal_vars_for_forall):
-                builder.add_antecedent_clause(assertion)
-            else:
-                builder.add_toplevel_assertion(assertion)
 
     # 4. Populate the Consequent (RHS of =>) with dependency clauses
-    # Collect all conjuncts for the pair clause and filter out TRUE literals
     for existential_vars, path_conds, bounds, conflicts in _find_conflict_elements(
         loop_node.nested_graph, k, id_to_location_symbol_map
     ):
@@ -548,10 +662,6 @@ def exists_data_forall_bounds_forall_iters_chained(
             clause = simplify(And(all_conjuncts))
         builder.add_consequent_clause(clause)
 
-        # In the negated version, we don't want a witness outside the valid bound.
-        # However, we must ONLY add bounds for Universal variables (outer loop params).
-        # Adding bounds for Existential variables (inner loops) would hoist them to
-        # global scope, causing "leaks" and incorrect logic (e.g. asserting inner loop non-emptiness globally).
         if build_negated:
             for b in bounds:
                 if get_free_variables(b).issubset(universal_vars_for_forall):
@@ -568,102 +678,3 @@ def exists_data_forall_bounds_forall_iters_chained(
             print(f"--- SMT v2 Query (Chained) ---\n{smt_query}")
 
     return smt_query
-
-
-def _collect_ancestral_assertions(
-    graph: Graph, target_loop: Loop
-) -> tuple[bool, list[PysmtFormula]]:
-    """
-    Recursively searches for the target_loop and collects assertions along the path.
-    Returns (found, assertions_list).
-    """
-    # 1. If this graph contains the target loop as a direct node, we are done.
-    # (Wait, loop is a node. We traverse nodes.)
-
-    # Start with assertions attached to this graph level (e.g. global or nested block)
-    current_level_assertions = list(graph.assertions)
-
-    for node in graph.nodes:
-        if node is target_loop:
-            # Found it! Return the assertions of this level (context).
-            # We do NOT include assertions inside the loop itself.
-            return True, current_level_assertions
-
-        if isinstance(node, Loop):
-            # Recurse into nested graph
-            found, nested_assertions = _collect_ancestral_assertions(
-                node.nested_graph, target_loop
-            )
-            if found:
-                # If found in nested, bubble up.
-                # Path is: This Graph -> This Loop Node -> Nested Graph ...
-                # We should include assertions from this level.
-                # What about assertions attached to the Loop node itself?
-                # Usually 'assertions' property is on Graph. Loop node has 'start', 'end'.
-                # If Loop node has assertions, add them. (Loop class doesn't seem to have 'assertions' field based on use, but let's stick to Graph.assertions)
-                return True, current_level_assertions + nested_assertions
-
-        elif isinstance(node, Branch):
-            for pred, nested_graph in node.branches:
-                found, nested_assertions = _collect_ancestral_assertions(
-                    nested_graph, target_loop
-                )
-                if found:
-                    # Found in this branch.
-                    # Must include branch condition (pred) as an assertion for the path.
-                    return (
-                        True,
-                        current_level_assertions + [pred] + nested_assertions,
-                    )
-
-    # Not found in this graph
-    return False, []
-
-
-def _collect_all_data_nodes(graph: Graph, collected_data_nodes: set[Data]):
-    """Recursively collects all Data nodes from the graph and its nested structures."""
-    for node in graph.nodes:
-        if isinstance(node, Data):
-            collected_data_nodes.add(node)
-        elif isinstance(node, Branch):
-            for _, nested_graph in node.branches:
-                _collect_all_data_nodes(nested_graph, collected_data_nodes)
-        elif isinstance(node, Loop):
-            _collect_all_data_nodes(node.nested_graph, collected_data_nodes)
-
-
-def _collect_nested_loop_checks(graph: Graph, collected_checks: list[PysmtFormula]):
-    """Recursively collects non-empty assumptions for all nested loops."""
-    for node in graph.nodes:
-        if isinstance(node, Loop):
-            # Assume loop executes at least once: start + 1 <= end
-            collected_checks.append(LE(Plus(node.start, Int(1)), node.end))
-            _collect_nested_loop_checks(node.nested_graph, collected_checks)
-        elif isinstance(node, Branch):
-            for _, nested_graph in node.branches:
-                _collect_nested_loop_checks(nested_graph, collected_checks)
-
-
-def _collect_all_loop_bound_sym_consts(graph: Graph, collected_syms: set[PysmtSymbol]):
-    """
-    Recursively collects all scalar symbolic constants that appear in the
-    start and end bounds of any Loop node within the graph hierarchy.
-    """
-    for node in graph.nodes:
-        if isinstance(node, Loop):
-            # Collect free variables from its start and end bounds
-            free_vars = set(_get_free_variables_recursive(node.start))
-            free_vars.update(_get_free_variables_recursive(node.end))
-
-            # Add only scalar (INT) symbols to the collected set
-            for var in free_vars:
-                if var.get_type().is_int_type():
-                    collected_syms.add(var)
-
-            # Recurse into the nested graph of the loop
-            _collect_all_loop_bound_sym_consts(node.nested_graph, collected_syms)
-
-        elif isinstance(node, Branch):
-            # Recurse into all branches of a Branch node
-            for _, nested_graph in node.branches:
-                _collect_all_loop_bound_sym_consts(nested_graph, collected_syms)

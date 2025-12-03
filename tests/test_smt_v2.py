@@ -6,19 +6,21 @@ from pysmt.shortcuts import (
     Symbol,
     INT,
     Int,
+    Equals,
+    GE,
 )
 from pysmt.smtlib.parser import SmtLibParser
 from pysmt.walkers import IdentityDagWalker
 
 from p3g.graph import Loop
 from p3g.parser import PseudocodeParser
-from p3g.smt_v2 import exists_data_forall_bounds_forall_iters_chained
+from p3g.smt_v2 import (
+    exists_data_forall_bounds_forall_iters_chained,
+    _build_analysis_context,
+)
 
 
-# Re-defining test helpers from test_smt.py for the new file.
-# In a real-world scenario, these would be moved to a shared conftest.py or a test utils module.
-
-
+# Test helpers shared across different test classes in this module.
 class SmtQueryInspector(IdentityDagWalker):
     """
     A PySMT walker to inspect the structure of the parsed SMT query.
@@ -54,9 +56,9 @@ def pseudocode_to_inspector(
     extra_constraints=None,
 ) -> SmtQueryInspector:
     pseudocode = textwrap.dedent(psudocode).strip()
-    print(pseudocode)
     parser = PseudocodeParser()
     root_graph = parser.parse(pseudocode)
+    # The generator_function expects a Loop node. We assume there's exactly one top-level loop.
     (loop,) = (n for n in root_graph.nodes if isinstance(n, Loop))
     smt_query = generator_function(loop, extra_constraints or [])
     return parse_smt_query_and_inspect(smt_query)
@@ -488,3 +490,101 @@ class TestNegatedQueryBuild:
                     found_j_quantifier = True
                     break
         assert found_j_quantifier, "Inner loop variable 'j' not found in quantifiers"
+
+
+class TestAnalysisContextBuilding:
+    def test_basic_context_building(self):
+        pseudocode = """
+            sym N, M
+            var i, j
+            decl A, B
+            out B
+            (A[0:N], B[0:N] => B[0:N]) loop_outer | for i = 0 to N:
+                ! (< i N)
+                (A[0:M], B[0:M] => B[0:M]) loop_inner | for j = 0 to M:
+                    (A[j], B[j] => B[j]) comp1 | op(B[j] = A[j])
+                (A[i] => A[i]) comp2 | op(A[i] = A[i] + 1)
+        """
+        parser = PseudocodeParser()
+        root_graph = parser.parse(textwrap.dedent(pseudocode).strip())
+
+        # Find the outer loop node
+        outer_loop_node = None
+        for node in root_graph.nodes:
+            if isinstance(node, Loop) and node.name == "loop_outer":
+                outer_loop_node = node
+                break
+        assert outer_loop_node is not None, "Outer loop node not found"
+
+        extra_assertions = [
+            GE(Symbol("N", INT), Int(1)),
+            Equals(Symbol("N", INT), Int(10)),
+        ]
+
+        context = _build_analysis_context(root_graph, outer_loop_node, extra_assertions)
+
+        # Assert all_data_nodes
+        expected_data_node_names = {
+            "A(0)",
+            "B(0)",
+            "A(1)",
+            "B(1)",
+            "A(2)",
+            "B(2)",
+            "B(3)",
+        }
+        data_node_names = {node.name for node in context.all_data_nodes}
+        assert data_node_names.issuperset(expected_data_node_names)
+
+        # Assert id_to_array_name and id_to_location_symbol_map
+        assert {"A", "B"}.issubset(context.id_to_array_name.values())
+
+        array_a_id = next(
+            id for id, name in context.id_to_array_name.items() if name == "A"
+        )
+        array_b_id = next(
+            id for id, name in context.id_to_array_name.items() if name == "B"
+        )
+        assert context.id_to_location_symbol_map[array_a_id].symbol_name() == "DATA!A"
+        assert context.id_to_location_symbol_map[array_b_id].symbol_name() == "DATA!B"
+
+        # Assert loop_bound_symbols
+        expected_loop_bound_sym_names = {"N", "M"}
+        loop_bound_sym_names = {s.symbol_name() for s in context.loop_bound_symbols}
+        assert loop_bound_sym_names.issuperset(expected_loop_bound_sym_names)
+        assert "i" not in loop_bound_sym_names  # loop vars are not loop bound symbols
+        assert "j" not in loop_bound_sym_names
+
+        # Assert universal_vars (outer loop var 'i', and global symbols N, M)
+        expected_universal_var_names = {"i", "N", "M"}
+        universal_var_names = {s.symbol_name() for s in context.universal_vars}
+        assert universal_var_names.issuperset(expected_universal_var_names)
+        assert (
+            "j" not in universal_var_names
+        )  # Inner loop var 'j' should not be universal here
+
+        # Assert all_assertions
+        expected_assertion_strs = {
+            "(1 <= N)",  # From extra_assertions: GE(N,1) is normalized to 1 <= N
+            "(N = 10)",  # From extra_assertions: Equals(N,10)
+            "(i < N)",  # From loop_outer's ! (< i N)
+            "((0 + 1) <= M)",  # From loop_inner non-empty check
+            "((0 + 1) <= N)",  # From loop_outer non-empty check
+        }
+        assertion_strs = {str(a) for a in context.all_assertions}
+        assert assertion_strs.issuperset(expected_assertion_strs)
+
+        # Assert extra_assertions
+        expected_extra_assertion_strs = {
+            "(1 <= N)",
+            "(N = 10)",
+        }  # Note: PySMT converts GE to LE
+        extra_assertion_strs = {str(a) for a in context.extra_assertions}
+        assert extra_assertion_strs.issuperset(expected_extra_assertion_strs)
+
+        # Assert all_compute_items
+        expected_compute_node_names = {"comp1", "comp2"}
+        compute_node_names = {
+            item.compute_node.name for item in context.all_compute_items
+        }
+        assert compute_node_names.issuperset(expected_compute_node_names)
