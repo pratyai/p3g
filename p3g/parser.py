@@ -128,6 +128,7 @@ class PseudocodeParser:
             ("VAR", r"\bvar\b"),
             ("OUT", r"\bout\b"),
             ("FOR", r"\bfor\b"),
+            ("MAP", r"\bmap\b"),
             ("TO", r"\bto\b"),
             ("IF", r"\bif\b"),
             ("ELSE", r"\belse\b"),
@@ -401,6 +402,10 @@ class PseudocodeParser:
             statement_result_reads, statement_result_writes = self._parse_for_loop(
                 hierarchical_reads, hierarchical_writes, node_name
             )
+        elif peek_type == "MAP":
+            statement_result_reads, statement_result_writes = self._parse_map_statement(
+                hierarchical_reads, hierarchical_writes, node_name
+            )
         elif peek_type == "IF":
             statement_result_reads, statement_result_writes = self._parse_if_statement(
                 hierarchical_reads, hierarchical_writes, node_name
@@ -518,6 +523,59 @@ class PseudocodeParser:
             if hierarchical_reads is not None:
                 for node, _ in hierarchical_reads:
                     # The 'node' here is already the correct Data object for the version
+                    scope_inputs[node.name] = node
+
+            self._current_scope_inputs_stack.append(scope_inputs)
+
+            self._current_array_state_stack.append(".")
+            body_reads, body_writes = self._parse_block()
+            self._current_array_state_stack.pop()
+
+            self._current_scope_inputs_stack.pop()
+
+        del self.known_symbols[var]
+        self._consume("DEDENT")
+
+        return body_reads, body_writes
+
+    def _parse_map_statement(
+        self,
+        hierarchical_reads: list[tuple[Data, PysmtAccessSubset | None]],
+        hierarchical_writes: list[tuple[Data, PysmtAccessSubset | None]],
+        node_name: str | None,
+    ) -> tuple[list, list]:
+        """Parses a map statement: map i = start to end: ..."""
+        self._consume("MAP")
+        var = self._consume("ID").value
+        if var not in self._declared_loop_vars:
+            raise ValueError(f"Map variable '{var}' was not declared. Use 'var {var}'.")
+        self._consume("EQ")
+        start_formula, start_reads = self._parse_expression()
+        self._consume("TO")
+        end_formula, end_reads = self._parse_expression()
+        self._consume("COLON")
+        self._consume("NEWLINE")
+        self._consume("INDENT")
+
+        map_name = node_name if node_name else f"M_{var}"
+
+        with self.builder.add_map(
+            map_name,
+            var,
+            start_formula,
+            end_formula,
+            reads=hierarchical_reads,
+            writes=hierarchical_writes,
+        ) as map_node:
+            self.known_symbols[var] = map_node.loop_var
+
+            # Populate and push scope inputs
+            # Inherit from parent scope (the current top of the stack)
+            scope_inputs = self._current_scope_inputs_stack[-1].copy()
+
+            # Augment/override with arrays explicitly passed in the hierarchical_reads of the map itself
+            if hierarchical_reads is not None:
+                for node, _ in hierarchical_reads:
                     scope_inputs[node.name] = node
 
             self._current_scope_inputs_stack.append(scope_inputs)

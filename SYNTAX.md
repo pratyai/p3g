@@ -16,6 +16,7 @@ This document outlines the syntax for the `.pcode` pseudocode language used to d
 4.  [Statement Types](#statement-types)
     -   [Compute (`op`)](#compute-op)
     -   [Sequential Loop (`for`)](#sequential-loop-for)
+    -   [Map (`map`)](#map-map)
     -   [Conditional (`if-else`)](#conditional-if-else)
     -   [Assertion (`!`)](#assertion-)
 5.  [Access Patterns](#access-patterns)
@@ -232,6 +233,28 @@ decl A, B
 ```
 Here, the loop `L1` as a whole reads from `A[0:N-1]` and `B[1:N]` and writes to `A[1:N]`. The statement `S1` inside the loop specifies the access for a single iteration.
 
+### Map (`map`)
+
+Represents a parallel `map` operation. The map body is an indented block of further statements. Unlike a `for` loop, a `map` implies that all iterations are independent and can be executed in any order or in parallel.
+
+**Syntax:**
+```
+(<reads> => <writes>) M1| map <var> = <start> to <end>:
+    <indented_block_of_statements>
+```
+- `<var>`: The map iteration variable.
+- `<start>` and `<end>`: Expressions defining the inclusive iteration bounds.
+
+**Example:**
+```pcode
+decl A, B
+out B
+
+(A[0:N] => B[0:N]) M1| map i = 0 to N:
+    (A[i] => B[i]) S1| op(copy)
+```
+In this example, the map `M1` reads from `A[0:N]` and writes to `B[0:N]`. The statement `S1` inside the map specifies the access for a single iteration, where each `B[i]` is computed independently from `A[i]`.
+
 ### Conditional (`if-else`)
 
 Represents a conditional branch.
@@ -312,10 +335,10 @@ Mutable scalar variables (variables that are updated within the program) should 
 
 ## Expressions
 
-Expressions can be used in loop bounds, access indices, and `if` conditions. **Note: Expressions do not currently support operator precedence; they are evaluated from left to right.** They support:
+Expressions can be used in loop bounds, access indices, and `if` conditions. Expressions support standard operator precedence (multiplication/division/modulo/power bind tighter than addition/subtraction). They support:
 -   **Literals**: Numbers (`1`, `42`), Booleans (`true`, `false`).
 -   **Variables**: Loop variables (`i`) or globally defined symbols (`N`).
--   **Arithmetic**: Unary minus (`-`), binary operators (`+`, `-`, `*`, `/`, `//`).
+-   **Arithmetic**: Unary minus (`-`), binary operators (`+`, `-`, `*`, `/`, `//`, `%`, `^`).
 -   **Array Reads**: `A[i]`, `B[i-1]` (only for reading a value within a condition or another expression, not for defining the statement's primary access annotation).
 -   **Logical**: `and`, `or`, `not` (within `if` conditions).
 -   **Comparison**: `=`, `>`, `<`, `>=`, `<=` (within `if` conditions).

@@ -387,7 +387,7 @@ def _flatten_graph_to_compute_items(
             for pred, nested_g in node.branches:
                 new_cond = And(path_cond, pred)
                 items.extend(_flatten_graph_to_compute_items(nested_g, new_cond, loops))
-        elif isinstance(node, Loop):
+        elif isinstance(node, (Loop, Map)):
             new_loops = loops + [node]
             items.extend(
                 _flatten_graph_to_compute_items(node.nested_graph, path_cond, new_loops)
@@ -527,8 +527,8 @@ def _build_analysis_context(
                     ):
                         context.pysmt_array_sym_to_array_id[pysmt_sym] = arr_id
 
-            # For Loop nodes, gather bounds, add non-empty checks, and identify universal vars
-            elif isinstance(node, Loop):
+            # For Loop and Map nodes, gather bounds, add non-empty checks, and identify universal vars
+            elif isinstance(node, (Loop, Map)):
                 # Collect free variables from its start and end bounds
                 free_vars = set(_get_free_variables_recursive(node.start))
                 free_vars.update(_get_free_variables_recursive(node.end))
@@ -562,11 +562,9 @@ def _build_analysis_context(
                         is_target_loop_ancestor_or_self,
                     )
 
-            # For Map and Reduce nodes, their nested graphs are traversed like Loop nodes.
+            # For Reduce nodes, their nested graphs are traversed.
             # No specific context collection other than the nested graph traversal.
-            elif isinstance(
-                node, (Map, Reduce)
-            ):  # Assuming Map and Reduce also have nested_graph
+            elif isinstance(node, Reduce):
                 _traverse_graph(
                     node.nested_graph,
                     target_loop,

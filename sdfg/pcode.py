@@ -3,13 +3,54 @@ from __future__ import annotations
 import dace
 import sympy as sp
 from dace.sdfg import SDFG
-from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, NestedSDFG
+from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, MapExit, NestedSDFG
 from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock
 from dace.sdfg.utils import dfs_topological_sort
 from dace.transformation.passes.analysis.loop_analysis import (
     get_loop_end,
     get_init_assignment,
 )
+
+# Define keywords used in P3G to avoid clashes with SDFG symbol names
+P3G_KEYWORDS = {
+    "FORALL",
+    "EXISTS",
+    "AND",
+    "OR",
+    "NOT",
+    "SELECT",
+    "INT_TYPE",
+    "DECL",
+    "SYM",
+    "VAR",
+    "OUT",
+    "FOR",
+    "TO",
+    "IF",
+    "ELSE",
+    "OP",
+    "GE",
+    "LE",
+    "ARROW",
+    "EQ",
+    "GT",
+    "LT",
+    "PIPE",
+    "COLON",
+    "LPAREN",
+    "RPAREN",
+    "LBRACKET",
+    "RBRACKET",
+    "PLUS",
+    "MINUS",
+    "TIMES",
+    "IDIV",
+    "MOD",
+    "DIVIDE",
+    "COMMA",
+    "DOT",
+    "BANG",
+}
 
 
 class SDFGToPseudocodeConverter:
@@ -37,6 +78,7 @@ class SDFGToPseudocodeConverter:
 
         # Track processed CFG nodes to avoid redundant processing in conditional branches
         self._processed_cfg_nodes: set[dace.sdfg.nodes.Node] = set()
+        self._processed_dataflow_nodes: set[dace.sdfg.nodes.Node] = set()
 
     def _indent(self):
         return "    " * self._indent_level
@@ -60,6 +102,16 @@ class SDFGToPseudocodeConverter:
         expr_str: str
         if isinstance(expr, sp.Integer):
             expr_str = str(expr)
+        elif expr == sp.true:
+            expr_str = "true"
+        elif expr == sp.false:
+            expr_str = "false"
+        elif isinstance(expr, sp.Tuple):
+            raise NotImplementedError(
+                f"Multi-element SymPy expression (Tuple: {expr}) not directly "
+                "supported as a single argument in PCode. "
+                "Requires specific handling for conversion."
+            )
         elif isinstance(expr, sp.Symbol):
             expr_str = str(expr)
         elif isinstance(expr, sp.Add):
@@ -187,15 +239,22 @@ class SDFGToPseudocodeConverter:
                     return sp.sympify(code_str, locals=sympy_locals)
                 except (sp.SympifyError, TypeError) as e2:
                     print(
-                        f"Warning: Failed to sympify with IndexedBase context '{code_str}': {e2}"
+                        f"ERROR: Failed to sympify with IndexedBase context '{code_str}': {e2}. "
+                        "Re-raising for explicit handling."
                     )
-                    return sp.symbols(code_str)
+                    raise e2  # Re-raise the exception
             else:
-                print(f"Warning: Could not directly sympify '{code_str}': {e}")
-                return sp.symbols(code_str)
+                print(
+                    f"ERROR: Could not directly sympify '{code_str}': {e}. "
+                    "Re-raising for explicit handling."
+                )
+                raise e  # Re-raise the exception
         except sp.SympifyError as e:
-            print(f"Warning: Could not directly sympify '{code_str}': {e}")
-            return sp.symbols(code_str)
+            print(
+                f"ERROR: Could not directly sympify '{code_str}': {e}. "
+                "Re-raising for explicit handling."
+            )
+            raise e  # Re-raise the exception
 
     def _convert_sympy_boolean_to_pseudocode(self, expr: sp.Expr) -> str:
         """
@@ -272,6 +331,10 @@ class SDFGToPseudocodeConverter:
         """
         Generic dispatcher for converting SDFG nodes to pseudocode statements.
         """
+        if node in self._processed_dataflow_nodes:
+            return
+        self._processed_dataflow_nodes.add(node)
+
         if isinstance(node, Tasklet):
             self._convert_tasklet(node, state)
         elif isinstance(node, AccessNode):
@@ -295,8 +358,8 @@ class SDFGToPseudocodeConverter:
 
         # Collect explicit reads
         for edge in state.in_edges(tasklet):
-            if isinstance(edge.src, AccessNode):
-                array_name = edge.src.data
+            if edge.data.data:
+                array_name = edge.data.data
                 subset_str = self._convert_memlet_subset_to_pseudocode(edge.data.subset)
                 current_read_accesses.append((array_name, subset_str))
                 producer = self._array_state.get(array_name, ".")
@@ -304,8 +367,8 @@ class SDFGToPseudocodeConverter:
 
         # Collect writes (and also implicitly add them to reads for SSA)
         for edge in state.out_edges(tasklet):
-            if isinstance(edge.dst, AccessNode):
-                array_name = edge.dst.data
+            if edge.data.data:
+                array_name = edge.data.data
                 subset_str = self._convert_memlet_subset_to_pseudocode(edge.data.subset)
                 current_write_accesses.append((array_name, subset_str))
                 # If an array is written, it's also implicitly read from its previous version
@@ -364,21 +427,21 @@ class SDFGToPseudocodeConverter:
         # Collect reads
         source_states: dict[str, str] = {}
         for edge in state.in_edges(map_entry):
-            if isinstance(edge.src, AccessNode):
-                array_name = edge.src.data
-                subset_str = self._convert_memlet_subset_to_pseudocode(edge.data.subset)
-                reads_map_boundary.append((array_name, subset_str))
+            if edge.data.data:
+                array_name = edge.data.data
+                # subset_str = self._convert_memlet_subset_to_pseudocode(edge.data.subset)
+                reads_map_boundary.append((array_name, "0"))
                 source_states[array_name] = self._array_state.get(array_name, ".")
 
         map_exit = state.exit_node(map_entry)
         for edge in state.out_edges(map_exit):
-            if isinstance(edge.dst, AccessNode):
-                array_name = edge.dst.data
-                subset_str = self._convert_memlet_subset_to_pseudocode(edge.data.subset)
-                writes_map_boundary.append((array_name, subset_str))
+            if edge.data.data:
+                array_name = edge.data.data
+                # subset_str = self._convert_memlet_subset_to_pseudocode(edge.data.subset)
+                writes_map_boundary.append((array_name, "0"))
                 # Map writes also implicitly read from their previous version for SSA
-                if (array_name, subset_str) not in reads_map_boundary:
-                    reads_map_boundary.append((array_name, subset_str))
+                if (array_name, "0") not in reads_map_boundary:
+                    reads_map_boundary.append((array_name, "0"))
                 source_states[array_name] = self._array_state.get(array_name, ".")
 
         read_str = self._convert_accesses_to_pseudocode(reads_map_boundary)
@@ -398,7 +461,7 @@ class SDFGToPseudocodeConverter:
             dataflow_prefix = f"({source_states_str})."
 
         self._add_line(
-            f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}| for {param} = {start_expr} to {end_expr}:"
+            f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}| map {param} = {start_expr} to {end_expr}:"
         )
 
         self._indent_level += 1
@@ -417,10 +480,16 @@ class SDFGToPseudocodeConverter:
         # Recursively convert nodes inside the map
         scope_subgraph = state.scope_subgraph(map_entry)
         for node in dfs_topological_sort(scope_subgraph):
-            if not isinstance(
-                node, (MapEntry, dace.sdfg.nodes.MapExit, AccessNode)
-            ):  # Avoid re-processing MapEntry/Exit or raw AccessNodes
-                self._convert_node(node, state)
+            if node == map_entry:
+                continue
+            # Only process direct children of this map to preserve hierarchy
+            if state.entry_node(node) != map_entry:
+                continue
+            if isinstance(
+                node, (dace.sdfg.nodes.MapExit, AccessNode)
+            ):  # Avoid re-processing MapExit or raw AccessNodes
+                continue
+            self._convert_node(node, state)
 
         self._indent_level -= 1
 
@@ -431,6 +500,13 @@ class SDFGToPseudocodeConverter:
             old_array_state[array_name] = stmt_name
         self._array_state = old_array_state
 
+    def convert_body(self):
+        """
+        Converts the body of the SDFG (CFG nodes) to pseudocode without declarations.
+        """
+        for node in dfs_topological_sort(self.sdfg):
+            self._convert_cfg_node(node, self.sdfg)
+
     def _convert_nested_sdfg(self, nested_sdfg_node: NestedSDFG, state: SDFGState):
         reads = []
         writes = []
@@ -440,8 +516,8 @@ class SDFGToPseudocodeConverter:
         # Collect reads from incoming memlets
         for k, v in nested_sdfg_node.in_connectors.items():
             for edge in state.in_edges(nested_sdfg_node):
-                if edge.dst_conn == k and isinstance(edge.src, AccessNode):
-                    array_name = edge.src.data
+                if edge.dst_conn == k and edge.data.data:
+                    array_name = edge.data.data
                     subset_str = self._convert_memlet_subset_to_pseudocode(
                         edge.data.subset
                     )
@@ -453,8 +529,8 @@ class SDFGToPseudocodeConverter:
         # Collect writes from outgoing memlets (and also explicitly add them to reads for SSA)
         for k, v in nested_sdfg_node.out_connectors.items():
             for edge in state.out_edges(nested_sdfg_node):
-                if edge.src_conn == k and isinstance(edge.dst, AccessNode):
-                    array_name = edge.dst.data
+                if edge.src_conn == k and edge.data.data:
+                    array_name = edge.data.data
                     subset_str = self._convert_memlet_subset_to_pseudocode(
                         edge.data.subset
                     )
@@ -483,11 +559,31 @@ class SDFGToPseudocodeConverter:
             source_states_str = ", ".join(filtered_source_stmts)
             dataflow_prefix = f"({source_states_str})."
 
-        self._add_line(
-            f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}| op(NestedSDFG: {nested_sdfg_node.label})"
-        )
+        # Instead of opaque op, try to inline the nested SDFG
+
+        # self._add_line(
+        #     f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}| op(NestedSDFG: {nested_sdfg_node.label})"
+        # )
+
+        # Recursively convert the nested SDFG body
+        nested_converter = SDFGToPseudocodeConverter(nested_sdfg_node.sdfg)
+        # Propagate indentation level
+        nested_converter._indent_level = self._indent_level
+        # Propagate array state (basic heuristic, might not map perfectly without explicit symbol mapping logic)
+        # nested_converter._array_state = self._array_state.copy() # Too risky without mapping
+
+        # We need to collect declarations from nested SDFG if we haven't already
+        # But convert_body doesn't print them. They should have been collected by the top-level
+        # _collect_all_declarations_and_outputs if traversed correctly.
+
+        # Run conversion of body
+        nested_converter.convert_body()
+
+        # Append lines to current lines
+        self.pseudocode_lines.extend(nested_converter.pseudocode_lines)
 
         # Update array state for all arrays written by this NestedSDFG
+        # This assumes the nested SDFG execution is atomic regarding these writes in the current scope
         for array_name, _ in writes:
             self._array_state[array_name] = stmt_name
 
@@ -512,16 +608,22 @@ class SDFGToPseudocodeConverter:
 
             # If not processed as a conditional, mark the state itself as processed and convert its dataflow nodes
             self._processed_cfg_nodes.add(node)
-            # Recursively convert all dataflow nodes within the state
-            for dnode in dfs_topological_sort(
-                node
-            ):  # Renamed 'node' to 'dnode' for clarity
-                # Skip MapExit nodes as they are handled by MapEntry, and raw AccessNodes
-                if isinstance(dnode, (dace.sdfg.nodes.MapExit, AccessNode)):
-                    continue
-                self._convert_node(
-                    dnode, node
-                )  # Pass the SDFGState 'node' as context for dataflow nodes
+            dataflow_nodes = list(dfs_topological_sort(node))
+            if not dataflow_nodes:
+                # If the SDFGState is empty, add a NOOP operation to maintain structure
+                self._add_line(f"( => ) noop | op(NOOP_state_{node.label})")
+            else:
+                # Recursively convert all dataflow nodes within the state
+                for dnode in dataflow_nodes:
+                    # Only process top-level nodes in the state (not inside any map)
+                    if node.entry_node(dnode) is not None:
+                        continue
+                    # Skip MapExit nodes as they are handled by MapEntry, and raw AccessNodes
+                    if isinstance(dnode, (dace.sdfg.nodes.MapExit, AccessNode)):
+                        continue
+                    self._convert_node(
+                        dnode, node
+                    )  # Pass the SDFGState 'node' as context for dataflow nodes
         elif isinstance(node, LoopRegion):
             self._processed_cfg_nodes.add(node)
             self._convert_loop_region(node, parent_cfg_node)
@@ -542,6 +644,45 @@ class SDFGToPseudocodeConverter:
                 continue
             self._convert_node(node, state)
 
+    def _collect_region_accesses(self, region):
+        reads = set()
+        writes = set()
+
+        def process_state(state):
+            for node in state.nodes():
+                if isinstance(node, AccessNode):
+                    if state.out_degree(node) > 0:
+                        reads.add(node.data)
+                    if state.in_degree(node) > 0:
+                        writes.add(node.data)
+
+        nodes_to_process = []
+        if isinstance(region, (LoopRegion, dace.sdfg.SDFG)):
+            nodes_to_process = region.nodes()
+        elif isinstance(region, ConditionalBlock):
+            for _, body in region.branches:
+                # body is a ControlFlowRegion (like LoopRegion/SDFG structure)
+                nodes_to_process.append(body)
+        elif isinstance(region, SDFGState):
+            process_state(region)
+            return sorted(list(reads)), sorted(list(writes))
+
+        for node in nodes_to_process:
+            if isinstance(node, SDFGState):
+                process_state(node)
+            elif isinstance(node, (LoopRegion, ConditionalBlock)):
+                r, w = self._collect_region_accesses(node)
+                reads.update(r)
+                writes.update(w)
+            elif isinstance(
+                node, dace.sdfg.state.ControlFlowRegion
+            ):  # Generic catch for nested regions in branches
+                r, w = self._collect_region_accesses(node)
+                reads.update(r)
+                writes.update(w)
+
+        return sorted(list(reads)), sorted(list(writes))
+
     def _convert_loop_region(self, loop_region: LoopRegion, parent_cfg_node):
         loop_var_str = loop_region.loop_variable
         self._declared_loop_vars.add(loop_var_str)
@@ -553,10 +694,12 @@ class SDFGToPseudocodeConverter:
             get_loop_end(loop_region), wrap_if_complex=True
         )
 
-        # For now, loop header reads/writes are empty lists.
-        # A more robust implementation would require analyzing memlets across CFG boundaries.
-        read_str = ""
-        write_str = ""
+        r_vars, w_vars = self._collect_region_accesses(loop_region)
+        reads_loop_boundary = [(r, "0") for r in r_vars]
+        writes_loop_boundary = [(w, "0") for w in w_vars]
+
+        read_str = self._convert_accesses_to_pseudocode(reads_loop_boundary)
+        write_str = self._convert_accesses_to_pseudocode(writes_loop_boundary)
 
         # Determine source states for arrays that are read into the loop region from outside
         source_states: dict[str, str] = {}
@@ -618,8 +761,9 @@ class SDFGToPseudocodeConverter:
         for array_name in self._array_state:
             source_states[array_name] = self._array_state[array_name]
 
-        reads_cond_boundary = []  # Placeholder
-        writes_cond_boundary = []  # Placeholder
+        r_vars, w_vars = self._collect_region_accesses(cond_block)
+        reads_cond_boundary = [(r, "0") for r in r_vars]
+        writes_cond_boundary = [(w, "0") for w in w_vars]
 
         read_str = self._convert_accesses_to_pseudocode(reads_cond_boundary)
         write_str = self._convert_accesses_to_pseudocode(writes_cond_boundary)
@@ -657,8 +801,8 @@ class SDFGToPseudocodeConverter:
             # Determine if this is an 'else' branch
             is_else_branch = False
             if (
-                dace_cond_codeblock.code == "1"
-            ):  # '1' is the default for an unconditional else in DaCe
+                dace_cond_codeblock is None or dace_cond_codeblock.code == "1"
+            ):  # Handle implicit else or explicit '1' condition
                 is_else_branch = True
             elif num_branches > 1 and i == num_branches - 1 and not else_handled:
                 # Heuristic: If it's the last branch in a multi-branch conditional,
@@ -859,51 +1003,75 @@ class SDFGToPseudocodeConverter:
 
         return "\n".join(self.pseudocode_lines)
 
+    def _extract_sympy_symbols(self, expr: sp.Expr):
+        """
+        Recursively extracts all unique sympy.Symbol instances from an expression
+        and adds their string representation to self._declared_symbols,
+        excluding P3G_KEYWORDS.
+        Also, identifies `sympy.Indexed` instances and adds their base names
+        to `self._declared_arrays` if they are not already present.
+        """
+        if isinstance(expr, sp.Symbol):
+            sym_name = str(expr)
+            if sym_name not in P3G_KEYWORDS:
+                self._declared_symbols.add(sym_name)
+        elif isinstance(expr, sp.Indexed):
+            array_name = str(expr.base)
+            self._declared_arrays.add(array_name)
+        elif hasattr(expr, "args"):
+            for arg in expr.args:
+                self._extract_sympy_symbols(arg)
+
     def _collect_all_declarations_and_outputs(self):
         # Collect arrays and symbols which are available from sdfg.arrays and sdfg.symbols
-        # in __init__
-        self._declared_arrays.update(self.sdfg.arrays.keys())
+        for name, array_desc in self.sdfg.arrays.items():
+            if array_desc.shape == ():  # 0-dimensional array, treat as scalar
+                self._declared_symbols.add(name)
+            else:
+                self._declared_arrays.add(name)
         self._declared_symbols.update(str(s) for s in self.sdfg.symbols.keys())
 
-        # Outputs are also known from sdfg.arrays.items() if not transient
-        # We don't store them in a separate set here yet, as it's directly derived from sdfg.arrays
-
-        # To collect loop variables, we need to traverse the SDFG, as they are defined within MapEntry/LoopRegion
-        # This will populate self._declared_loop_vars
+        # To collect loop variables and other symbols from expressions, we need to traverse the SDFG.
         for node in dfs_topological_sort(self.sdfg):
-            self._traverse_for_var_declarations(node, self.sdfg)
+            self._traverse_for_declarations_in_expressions(node, self.sdfg)
 
-    def _traverse_for_var_declarations(self, node, sdfg_context):
-        # This is a simplified traversal to find loop variables.
-        # It's not a full pseudocode conversion.
+    def _traverse_for_declarations_in_expressions(self, node, sdfg_context):
+        # Collect loop variables and extract symbols from expressions.
         if isinstance(node, MapEntry):
             map_ = node.map
-            if len(map_.params) == 1:
-                self._declared_loop_vars.add(map_.params[0])
-            elif len(map_.params) > 1:
-                # Handle multi-dimensional maps (e.g., add all params)
-                for p in map_.params:
-                    self._declared_loop_vars.add(p)
 
+            for param in map_.params:
+                self._declared_loop_vars.add(param)
+            # Extract symbols from map range expressions
+            for r in map_.range:
+                self._extract_sympy_symbols(r[0])  # Start
+                self._extract_sympy_symbols(r[1])  # End
             # Recurse into the map's subgraph
-            scope_subgraph = sdfg_context.scope_subgraph(node)
+            scope_subgraph = sdfg_context.scope_subgraph(
+                node, include_entry=False, include_exit=False
+            )
             for sub_node in dfs_topological_sort(scope_subgraph):
-                self._traverse_for_var_declarations(sub_node, sdfg_context)
+                self._traverse_for_declarations_in_expressions(sub_node, sdfg_context)
 
         elif isinstance(node, LoopRegion):
             self._declared_loop_vars.add(node.loop_variable)
+            # Extract symbols from loop bounds
+            self._extract_sympy_symbols(get_init_assignment(node))
+            self._extract_sympy_symbols(get_loop_end(node))
             # Recurse into the loop region's CFG nodes
             for sub_node in dfs_topological_sort(node):
-                self._traverse_for_var_declarations(
-                    sub_node, node
-                )  # Pass node (LoopRegion) as context
+                self._traverse_for_declarations_in_expressions(sub_node, node)
 
         elif isinstance(node, ConditionalBlock):
-            for _, branch_cfg in node.branches:
+            for dace_cond_codeblock, branch_cfg in node.branches:
+                if dace_cond_codeblock is not None and dace_cond_codeblock.code != "1":
+                    # Extract symbols from condition expression
+                    sympy_cond_expr = self._parse_code_block_to_sympy(
+                        dace_cond_codeblock
+                    )
+                    self._extract_sympy_symbols(sympy_cond_expr)
                 for sub_node in dfs_topological_sort(branch_cfg):
-                    self._traverse_for_var_declarations(
-                        sub_node, branch_cfg
-                    )  # Pass branch_cfg as context
+                    self._traverse_for_declarations_in_expressions(sub_node, branch_cfg)
 
         elif isinstance(node, NestedSDFG):
             # Recurse into the nested SDFG
@@ -912,17 +1080,27 @@ class SDFGToPseudocodeConverter:
             self._declared_arrays.update(nested_converter._declared_arrays)
             self._declared_symbols.update(nested_converter._declared_symbols)
             self._declared_loop_vars.update(nested_converter._declared_loop_vars)
+            # Extract symbols from symbol mappings in NestedSDFG
+            for sym_name_or_expr in node.symbol_mapping.values():
+                try:
+                    # Attempt to sympify if it's a string, otherwise assume it's already a SymPy object
+                    sym_expr = sp.sympify(sym_name_or_expr)
+                    self._extract_sympy_symbols(sym_expr)
+                except sp.SympifyError:
+                    # If it cannot be sympified, it might be a literal string or another non-symbolic type, ignore it
+                    pass
 
         elif isinstance(node, SDFGState):
             # Recurse into dataflow nodes of the state
             for sub_node in dfs_topological_sort(node):
-                # Skip MapExit nodes as they are handled by MapEntry, and raw AccessNodes
-                if isinstance(sub_node, (dace.sdfg.nodes.MapExit, AccessNode)):
-                    continue
-                # For non-CFG nodes, we only care about nested SDFGs or structures that declare vars
-                if isinstance(sub_node, NestedSDFG):
-                    self._traverse_for_var_declarations(sub_node, node.sdfg)
-                # No other dataflow nodes directly declare 'var'
+                if isinstance(sub_node, MapEntry):
+                    # Recurse into the map's subgraph within the current state
+                    self._traverse_for_declarations_in_expressions(sub_node, node)
+                elif isinstance(sub_node, NestedSDFG):
+                    # Recurse into the nested SDFG object itself
+                    self._traverse_for_declarations_in_expressions(
+                        sub_node, sub_node.sdfg
+                    )
 
     def _print_declarations(self):
         """Generates decl, sym, and var statements."""
@@ -931,13 +1109,14 @@ class SDFGToPseudocodeConverter:
         if all_arrays:
             self._add_line(f"decl {', '.join(all_arrays)}")
 
-        # Symbols
-        all_symbols = sorted(list(self._declared_symbols))
+        # Loop variables
+        all_loop_vars = sorted(list(self._declared_loop_vars))
+
+        # Symbols - exclude loop variables
+        all_symbols = sorted(list(self._declared_symbols - self._declared_loop_vars))
         if all_symbols:
             self._add_line(f"sym {', '.join(all_symbols)}")
 
-        # Loop variables
-        all_loop_vars = sorted(list(self._declared_loop_vars))
         if all_loop_vars:
             self._add_line(f"var {', '.join(all_loop_vars)}")
 
