@@ -26,6 +26,19 @@
     (not (= i (+ i 1)))
     (not (<= i (- (+ i 1) 1)))
   )
+  (forall ((j_1 Int))
+    (or
+      (and
+        (not (= i j_1))
+        (or
+          (not (= i (+ i 1)))
+          (not (= i j_1))
+        )
+      )
+      (not (<= 0 j_1))
+      (not (<= j_1 (- (+ i 1) 1)))
+    )
+  )
   (forall ((j_0 Int))
     (or
       (and
@@ -236,24 +249,11 @@
       (not (<= j_1 (- (+ i 1) 1)))
     )
   )
-  (forall ((j_1 Int))
-    (or
-      (and
-        (not (= i j_1))
-        (or
-          (not (= i (+ i 1)))
-          (not (= i j_1))
-        )
-      )
-      (not (<= 0 j_1))
-      (not (<= j_1 (- (+ i 1) 1)))
-    )
-  )
   (and
     (<= 2 (- N 1))
-    (<= 1 (- i 1))
     (<= (+ i 1) (- N 1))
     (<= 1 i)
+    (<= 1 (- i 1))
   )
   (forall ((j_1 Int))
     (or

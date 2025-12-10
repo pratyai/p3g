@@ -6,12 +6,12 @@
 
 (assert (and
   (and
+    (<= 0 t)
+    (<= (+ t 1) (- TSTEPS 1))
     (<= 1 (- K 1))
     (<= 1 (- J 1))
     (<= 1 (- I 1))
     (<= 1 (- TSTEPS 1))
-    (<= 0 t)
-    (<= (+ t 1) (- TSTEPS 1))
   )
   (forall ((i_loop_0 Int) (i_loop_1 Int) (j_loop_0 Int) (j_loop_1 Int) (k_loop_0 Int) (k_loop_1 Int))
     (or

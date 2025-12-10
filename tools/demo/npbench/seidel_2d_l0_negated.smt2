@@ -3,12 +3,6 @@
 (declare-fun t () Int)
 
 (assert (and
-  (and
-    (<= (+ t 1) (- TSTEPS 2))
-    (<= 2 (- N 2))
-    (<= 1 (- TSTEPS 2))
-    (<= 0 t)
-  )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int) (j_1 Int))
     (or
       (not (<= 1 j_0))
@@ -54,6 +48,12 @@
         )
       )
     )
+  )
+  (and
+    (<= (+ t 1) (- TSTEPS 2))
+    (<= 0 t)
+    (<= 2 (- N 2))
+    (<= 1 (- TSTEPS 2))
   )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int) (j_1 Int))
     (or

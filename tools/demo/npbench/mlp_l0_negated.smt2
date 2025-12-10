@@ -5,11 +5,11 @@
 
 (assert (and
   (and
+    (<= 0 n_mlp)
     (<= (+ n_mlp 1) (- N 1))
     (<= 1 (- C_in 1))
     (<= 1 (- S0 1))
     (<= 1 (- N 1))
-    (<= 0 n_mlp)
   )
   (forall ((k_matmul_0 Int) (k_matmul_1 Int) (s0_mlp_0 Int) (s0_mlp_1 Int))
     (or

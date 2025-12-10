@@ -3,14 +3,15 @@
 (declare-fun j () Int)
 
 (assert (and
-  (and
-    (<= (+ j 1) (- M 1))
-    (<= (+ i 2) (- M 1))
-    (<= (+ i 1) j)
-  )
   (or
     (not (= i (+ j 1)))
     (not (= j i))
+  )
+  (and
+    (<= (+ i 1) j)
+    (<= (+ j 1) (- M 1))
+    (<= (+ i 2) (- M 1))
+    (<= 1 (- M 2))
   )
   (not (= j (+ j 1)))
 ))

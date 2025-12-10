@@ -8,14 +8,14 @@
 
 (assert (and
   (and
-    (<= 0 i)
+    (<= 1 (- C_in 1))
     (<= 1 (- K 1))
-    (<= (+ i 1) (- H_out 1))
+    (<= 1 (- C_out 1))
     (<= 1 (- N 1))
     (<= 1 (- W_out 1))
     (<= 1 (- H_out 1))
-    (<= 1 (- C_out 1))
-    (<= 1 (- C_in 1))
+    (<= 0 i)
+    (<= (+ i 1) (- H_out 1))
   )
   (forall ((c_out_0 Int) (c_out_1 Int) (j_0 Int) (j_1 Int) (n_batch_0 Int) (n_batch_1 Int))
     (or

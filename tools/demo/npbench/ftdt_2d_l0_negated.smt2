@@ -5,6 +5,7 @@
 
 (assert (and
   (and
+    (<= 0 t)
     (<= (+ t 1) (- TMAX 1))
     (<= 1 (- NY 2))
     (<= 1 (- NX 2))
@@ -13,7 +14,6 @@
     (<= 1 (- NY 1))
     (<= 2 (- NX 1))
     (<= 1 (- TMAX 1))
-    (<= 0 t)
   )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int) (j_1 Int))
     (or

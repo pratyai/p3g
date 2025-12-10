@@ -6,9 +6,9 @@
 (assert (and
   (and
     (<= 1 (- NR 1))
-    (<= (+ idx 1) 31)
     (<= 1 slab_per_bc)
     (<= 0 idx)
+    (<= (+ idx 1) 31)
     (<= 1 (- NM 1))
   )
   (not (<= 1 NR))

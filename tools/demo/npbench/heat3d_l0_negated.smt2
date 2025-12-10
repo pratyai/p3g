@@ -5,9 +5,9 @@
 (assert (and
   (and
     (<= 1 t)
-    (<= 2 (- N 2))
     (<= 2 (- TSTEPS 1))
     (<= (+ t 1) (- TSTEPS 1))
+    (<= 2 (- N 2))
   )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int) (j_1 Int) (k_0 Int) (k_1 Int))
     (or
