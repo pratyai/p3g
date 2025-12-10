@@ -302,6 +302,499 @@ def generate_spmv_sdfg(name: str = "spmv") -> SDFG:
     return sdfg
 
 
+def generate_gram_schmidt_sdfg(name: str = "gram_schmidt") -> SDFG:
+    """
+    Generates an SDFG for Gram-Schmidt Orthogonalization (MGS).
+    Uses LoopRegions to expose scalar 'nrm' for SSA expansion.
+    """
+    M = dace.symbol("M", dace.int64)
+    N = dace.symbol("N", dace.int64)
+
+    sdfg = SDFG(name)
+    sdfg.add_array("A", [M, N], dace.float64)
+    sdfg.add_array("Q", [M, N], dace.float64)
+    sdfg.add_array("R", [N, N], dace.float64)
+    sdfg.add_scalar("nrm", dace.float64, transient=True)
+    sdfg.add_scalar("tmp_dot", dace.float64, transient=True)  # For R[k, j]
+
+    init_state = sdfg.add_state("init", is_start_block=True)
+
+    # k loop: 0 to N
+    k_loop = LoopRegion("k_loop", "k < N", "k", "k = 0", "k = k + 1")
+    sdfg.add_node(k_loop)
+    sdfg.add_edge(init_state, k_loop, InterstateEdge())
+
+    # --- Inside k_loop ---
+
+    # 1. Norm Calculation: nrm = dot(A[:, k], A[:, k])
+    #    We need a loop over i (0 to M)
+    nrm_init = k_loop.add_state("nrm_init", is_start_block=True)
+    t_nrm_zero = nrm_init.add_tasklet("zero_nrm", {}, {"o"}, "o = 0.0")
+    nrm_init.add_memlet_path(
+        t_nrm_zero, nrm_init.add_write("nrm"), src_conn="o", memlet=Memlet("nrm[0]")
+    )
+
+    nrm_loop = LoopRegion("nrm_loop", "i_nrm < M", "i_nrm", "i_nrm=0", "i_nrm=i_nrm+1")
+    k_loop.add_node(nrm_loop)
+    k_loop.add_edge(nrm_init, nrm_loop, InterstateEdge())
+
+    # Inside nrm_loop: nrm += A[i, k] * A[i, k]
+    nrm_comp = nrm_loop.add_state("nrm_comp", is_start_block=True)
+    t_nrm_acc = nrm_comp.add_tasklet(
+        "nrm_acc", {"a", "acc_in"}, {"acc_out"}, "acc_out = acc_in + a * a"
+    )
+    nrm_comp.add_memlet_path(
+        nrm_comp.add_read("A"), t_nrm_acc, dst_conn="a", memlet=Memlet("A[i_nrm, k]")
+    )
+    nrm_comp.add_memlet_path(
+        nrm_comp.add_read("nrm"), t_nrm_acc, dst_conn="acc_in", memlet=Memlet("nrm[0]")
+    )
+    nrm_comp.add_memlet_path(
+        t_nrm_acc,
+        nrm_comp.add_write("nrm"),
+        src_conn="acc_out",
+        memlet=Memlet("nrm[0]"),
+    )
+
+    # 2. R[k, k] = sqrt(nrm) and Q[:, k] = A[:, k] / R[k, k]
+    #    We compute R[k,k] first
+    calc_rkk = k_loop.add_state("calc_rkk")
+    k_loop.add_edge(nrm_loop, calc_rkk, InterstateEdge())
+
+    t_rkk = calc_rkk.add_tasklet("rkk", {"n"}, {"r"}, "r = sqrt(n)")
+    calc_rkk.add_memlet_path(
+        calc_rkk.add_read("nrm"), t_rkk, dst_conn="n", memlet=Memlet("nrm[0]")
+    )
+    calc_rkk.add_memlet_path(
+        t_rkk, calc_rkk.add_write("R"), src_conn="r", memlet=Memlet("R[k, k]")
+    )
+
+    #    Update Q[:, k] (Loop i)
+    #    We need R[k, k] which is in array R.
+    q_loop = LoopRegion("q_loop", "i_q < M", "i_q", "i_q=0", "i_q=i_q+1")
+    k_loop.add_node(q_loop)
+    k_loop.add_edge(calc_rkk, q_loop, InterstateEdge())
+
+    q_comp = q_loop.add_state("q_comp", is_start_block=True)
+    t_q = q_comp.add_tasklet("calc_q", {"a", "r"}, {"q"}, "q = a / r")
+    q_comp.add_memlet_path(
+        q_comp.add_read("A"), t_q, dst_conn="a", memlet=Memlet("A[i_q, k]")
+    )
+    q_comp.add_memlet_path(
+        q_comp.add_read("R"), t_q, dst_conn="r", memlet=Memlet("R[k, k]")
+    )
+    q_comp.add_memlet_path(
+        t_q, q_comp.add_write("Q"), src_conn="q", memlet=Memlet("Q[i_q, k]")
+    )
+
+    # 3. Inner j loop: k+1 to N
+    j_loop = LoopRegion("j_loop", "j < N", "j", "j = k + 1", "j = j + 1")
+    k_loop.add_node(j_loop)
+    k_loop.add_edge(q_loop, j_loop, InterstateEdge())
+
+    # --- Inside j_loop ---
+
+    # 3a. R[k, j] = dot(Q[:, k], A[:, j]) using tmp_dot scalar
+    dot_init = j_loop.add_state("dot_init", is_start_block=True)
+    t_dot_zero = dot_init.add_tasklet("zero_dot", {}, {"o"}, "o = 0.0")
+    dot_init.add_memlet_path(
+        t_dot_zero,
+        dot_init.add_write("tmp_dot"),
+        src_conn="o",
+        memlet=Memlet("tmp_dot[0]"),
+    )
+
+    dot_loop = LoopRegion("dot_loop", "i_dot < M", "i_dot", "i_dot=0", "i_dot=i_dot+1")
+    j_loop.add_node(dot_loop)
+    j_loop.add_edge(dot_init, dot_loop, InterstateEdge())
+
+    dot_comp = dot_loop.add_state("dot_comp", is_start_block=True)
+    t_dot_acc = dot_comp.add_tasklet(
+        "dot_acc", {"q", "a", "acc_in"}, {"acc_out"}, "acc_out = acc_in + q * a"
+    )
+    dot_comp.add_memlet_path(
+        dot_comp.add_read("Q"), t_dot_acc, dst_conn="q", memlet=Memlet("Q[i_dot, k]")
+    )
+    dot_comp.add_memlet_path(
+        dot_comp.add_read("A"), t_dot_acc, dst_conn="a", memlet=Memlet("A[i_dot, j]")
+    )
+    dot_comp.add_memlet_path(
+        dot_comp.add_read("tmp_dot"),
+        t_dot_acc,
+        dst_conn="acc_in",
+        memlet=Memlet("tmp_dot[0]"),
+    )
+    dot_comp.add_memlet_path(
+        t_dot_acc,
+        dot_comp.add_write("tmp_dot"),
+        src_conn="acc_out",
+        memlet=Memlet("tmp_dot[0]"),
+    )
+
+    # Save tmp_dot to R[k, j]
+    save_dot = j_loop.add_state("save_dot")
+    j_loop.add_edge(dot_loop, save_dot, InterstateEdge())
+    t_save = save_dot.add_tasklet("save", {"i"}, {"o"}, "o = i")
+    save_dot.add_memlet_path(
+        save_dot.add_read("tmp_dot"), t_save, dst_conn="i", memlet=Memlet("tmp_dot[0]")
+    )
+    save_dot.add_memlet_path(
+        t_save, save_dot.add_write("R"), src_conn="o", memlet=Memlet("R[k, j]")
+    )
+
+    # 3b. A[:, j] -= Q[:, k] * R[k, j] (Loop i)
+    sub_loop = LoopRegion("sub_loop", "i_sub < M", "i_sub", "i_sub=0", "i_sub=i_sub+1")
+    j_loop.add_node(sub_loop)
+    j_loop.add_edge(save_dot, sub_loop, InterstateEdge())
+
+    sub_comp = sub_loop.add_state("sub_comp", is_start_block=True)
+    t_sub = sub_comp.add_tasklet(
+        "sub", {"a_in", "q", "r"}, {"a_out"}, "a_out = a_in - q * r"
+    )
+    sub_comp.add_memlet_path(
+        sub_comp.add_read("A"), t_sub, dst_conn="a_in", memlet=Memlet("A[i_sub, j]")
+    )
+    sub_comp.add_memlet_path(
+        sub_comp.add_read("Q"), t_sub, dst_conn="q", memlet=Memlet("Q[i_sub, k]")
+    )
+    sub_comp.add_memlet_path(
+        sub_comp.add_read("R"), t_sub, dst_conn="r", memlet=Memlet("R[k, j]")
+    )
+    sub_comp.add_memlet_path(
+        t_sub, sub_comp.add_write("A"), src_conn="a_out", memlet=Memlet("A[i_sub, j]")
+    )
+
+    final_state = sdfg.add_state("final")
+    sdfg.add_edge(k_loop, final_state, InterstateEdge())
+
+    return sdfg
+
+
+def generate_adi_sdfg(name: str = "adi") -> SDFG:
+    """
+    Generates an SDFG for the ADI (Alternating Direction Implicit) stencil.
+    Faithful implementation of tools/demo/npbench/adi.py.txt.
+    """
+    N = dace.symbol("N", dace.int64)
+    TSTEPS = dace.symbol("TSTEPS", dace.int64)
+
+    sdfg = SDFG(name)
+    sdfg.add_array("u", [N, N], dace.float64)
+    sdfg.add_array("v", [N, N], dace.float64)
+    sdfg.add_array("p", [N, N], dace.float64)
+    sdfg.add_array("q", [N, N], dace.float64)
+
+    # Constants as symbols
+    for c_name in ["a", "b", "c", "d", "e", "f"]:
+        sdfg.add_symbol(c_name, dace.float64)
+
+    init_state = sdfg.add_state("init", is_start_block=True)
+
+    # Time loop t: 1 to TSTEPS+1
+    time_loop = LoopRegion("time_loop", "t <= TSTEPS", "t", "t=1", "t=t+1")
+    sdfg.add_node(time_loop)
+    sdfg.add_edge(init_state, time_loop, InterstateEdge())
+
+    # =========================================================================
+    # PART 1: Column Sweep (Implicit X)
+    # Solving for v using u
+    # =========================================================================
+
+    # 1. Initialization
+    # v[0, 1:N-1] = 1.0
+    # p[1:N-1, 0] = 0.0
+    # q[1:N-1, 0] = v[0, 1:N-1]
+
+    # We can do this in one LoopRegion over 'i' (1..N-1)
+    col_init_loop = LoopRegion("col_init_loop", "i < N-1", "i", "i=1", "i=i+1")
+    time_loop.add_node(col_init_loop, is_start_block=True)
+
+    col_init_state = col_init_loop.add_state("col_init_state", is_start_block=True)
+
+    # Shared AccessNode for v to enforce ordering (Write -> Read)
+    v_access = col_init_state.add_access("v")
+
+    # v[0, i] = 1.0
+    t_v_init = col_init_state.add_tasklet("init_v", {}, {"o"}, "o = 1.0")
+    col_init_state.add_memlet_path(
+        t_v_init, v_access, src_conn="o", memlet=Memlet("v[0, i]")
+    )
+
+    # p[i, 0] = 0.0
+    t_p_init = col_init_state.add_tasklet("init_p", {}, {"o"}, "o = 0.0")
+    col_init_state.add_memlet_path(
+        t_p_init, col_init_state.add_write("p"), src_conn="o", memlet=Memlet("p[i, 0]")
+    )
+
+    # q[i, 0] = v[0, i]
+    # Connect from the same v_access node to ensure t_q_init runs after t_v_init
+    t_q_init = col_init_state.add_tasklet("init_q", {"v_in"}, {"q_out"}, "q_out = v_in")
+    col_init_state.add_memlet_path(
+        v_access, t_q_init, dst_conn="v_in", memlet=Memlet("v[0, i]")
+    )
+    col_init_state.add_memlet_path(
+        t_q_init,
+        col_init_state.add_write("q"),
+        src_conn="q_out",
+        memlet=Memlet("q[i, 0]"),
+    )
+
+    # 2. Forward Sweep Loop (j=1..N-1)
+    col_sweep_1 = LoopRegion("col_sweep_1", "j < N-1", "j", "j=1", "j=j+1")
+    time_loop.add_node(col_sweep_1)
+    time_loop.add_edge(col_init_loop, col_sweep_1, InterstateEdge())
+
+    # Inner loop i (1..N-1)
+    row_loop_1 = LoopRegion("row_loop_1", "i < N-1", "i", "i=1", "i=i+1")
+    col_sweep_1.add_node(row_loop_1, is_start_block=True)
+
+    comp_state_1 = row_loop_1.add_state("comp_1", is_start_block=True)
+
+    # p[i, j] calculation
+    t_p = comp_state_1.add_tasklet(
+        "calc_p", {"p_prev"}, {"p_out"}, "p_out = -c / (a * p_prev + b)"
+    )
+
+    # q[i, j] calculation
+    # q[i, j] = (-d * u[j, i-1] + (1.0 + 2.0 * d) * u[j, i] - f * u[j, i+1] - a * q[i, j-1]) / (a * p[i, j-1] + b)
+    t_q = comp_state_1.add_tasklet(
+        "calc_q",
+        {"p_prev", "q_prev", "u_west", "u_center", "u_east"},
+        {"q_out"},
+        "q_out = (-d * u_west + (1.0 + 2.0 * d) * u_center - f * u_east - a * q_prev) / (a * p_prev + b)",
+    )
+
+    # Inputs for t_p
+    comp_state_1.add_memlet_path(
+        comp_state_1.add_read("p"), t_p, dst_conn="p_prev", memlet=Memlet("p[i, j-1]")
+    )
+
+    # Inputs for t_q
+    comp_state_1.add_memlet_path(
+        comp_state_1.add_read("p"), t_q, dst_conn="p_prev", memlet=Memlet("p[i, j-1]")
+    )
+    comp_state_1.add_memlet_path(
+        comp_state_1.add_read("q"), t_q, dst_conn="q_prev", memlet=Memlet("q[i, j-1]")
+    )
+    comp_state_1.add_memlet_path(
+        comp_state_1.add_read("u"), t_q, dst_conn="u_west", memlet=Memlet("u[j, i-1]")
+    )
+    comp_state_1.add_memlet_path(
+        comp_state_1.add_read("u"), t_q, dst_conn="u_center", memlet=Memlet("u[j, i]")
+    )
+    comp_state_1.add_memlet_path(
+        comp_state_1.add_read("u"), t_q, dst_conn="u_east", memlet=Memlet("u[j, i+1]")
+    )
+
+    # Outputs
+    comp_state_1.add_memlet_path(
+        t_p, comp_state_1.add_write("p"), src_conn="p_out", memlet=Memlet("p[i, j]")
+    )
+    comp_state_1.add_memlet_path(
+        t_q, comp_state_1.add_write("q"), src_conn="q_out", memlet=Memlet("q[i, j]")
+    )
+
+    # 3. Post-Forward Initialization (v boundary)
+    # v[N-1, 1:N-1] = 1.0
+    v_bound_loop = LoopRegion("v_bound_loop", "i < N-1", "i", "i=1", "i=i+1")
+    time_loop.add_node(v_bound_loop)
+    time_loop.add_edge(col_sweep_1, v_bound_loop, InterstateEdge())
+
+    v_bound_state = v_bound_loop.add_state("v_bound_state", is_start_block=True)
+    t_v_bound = v_bound_state.add_tasklet("init_v_bound", {}, {"o"}, "o = 1.0")
+    v_bound_state.add_memlet_path(
+        t_v_bound,
+        v_bound_state.add_write("v"),
+        src_conn="o",
+        memlet=Memlet("v[N-1, i]"),
+    )
+
+    # 4. Backward Sweep Loop (j=N-2..0)
+    col_sweep_2 = LoopRegion("col_sweep_2", "j > 0", "j", "j=N-2", "j=j-1")
+    time_loop.add_node(col_sweep_2)
+    time_loop.add_edge(v_bound_loop, col_sweep_2, InterstateEdge())
+
+    row_loop_2 = LoopRegion("row_loop_2", "i < N-1", "i", "i=1", "i=i+1")
+    col_sweep_2.add_node(row_loop_2, is_start_block=True)
+
+    comp_state_2 = row_loop_2.add_state("comp_2", is_start_block=True)
+
+    # v[j, i] = p[i, j] * v[j+1, i] + q[i, j]
+    t_v = comp_state_2.add_tasklet(
+        "calc_v",
+        {"p_val", "v_next", "q_val"},
+        {"v_out"},
+        "v_out = p_val * v_next + q_val",
+    )
+
+    comp_state_2.add_memlet_path(
+        comp_state_2.add_read("p"), t_v, dst_conn="p_val", memlet=Memlet("p[i, j]")
+    )
+    comp_state_2.add_memlet_path(
+        comp_state_2.add_read("v"), t_v, dst_conn="v_next", memlet=Memlet("v[j+1, i]")
+    )
+    comp_state_2.add_memlet_path(
+        comp_state_2.add_read("q"), t_v, dst_conn="q_val", memlet=Memlet("q[i, j]")
+    )
+    comp_state_2.add_memlet_path(
+        t_v, comp_state_2.add_write("v"), src_conn="v_out", memlet=Memlet("v[j, i]")
+    )
+
+    # =========================================================================
+    # PART 2: Row Sweep (Implicit Y)
+    # Solving for u using v
+    # =========================================================================
+
+    # 5. Initialization for Part 2
+    # u[1:N-1, 0] = 1.0
+    # p[1:N-1, 0] = 0.0
+    # q[1:N-1, 0] = u[1:N-1, 0]
+
+    row_init_loop = LoopRegion("row_init_loop", "i < N-1", "i", "i=1", "i=i+1")
+    time_loop.add_node(row_init_loop)
+    time_loop.add_edge(col_sweep_2, row_init_loop, InterstateEdge())
+
+    row_init_state = row_init_loop.add_state("row_init_state", is_start_block=True)
+
+    # Shared AccessNode for u to enforce ordering
+    u_access = row_init_state.add_access("u")
+
+    # u[i, 0] = 1.0
+    t_u_init = row_init_state.add_tasklet("init_u", {}, {"o"}, "o = 1.0")
+    row_init_state.add_memlet_path(
+        t_u_init, u_access, src_conn="o", memlet=Memlet("u[i, 0]")
+    )
+
+    # p[i, 0] = 0.0
+    t_p_init_2 = row_init_state.add_tasklet("init_p_2", {}, {"o"}, "o = 0.0")
+    row_init_state.add_memlet_path(
+        t_p_init_2,
+        row_init_state.add_write("p"),
+        src_conn="o",
+        memlet=Memlet("p[i, 0]"),
+    )
+
+    # q[i, 0] = u[i, 0]
+    t_q_init_2 = row_init_state.add_tasklet(
+        "init_q_2", {"u_in"}, {"q_out"}, "q_out = u_in"
+    )
+    row_init_state.add_memlet_path(
+        u_access, t_q_init_2, dst_conn="u_in", memlet=Memlet("u[i, 0]")
+    )
+    row_init_state.add_memlet_path(
+        t_q_init_2,
+        row_init_state.add_write("q"),
+        src_conn="q_out",
+        memlet=Memlet("q[i, 0]"),
+    )
+
+    # 6. Forward Sweep Loop (j=1..N-1)
+    row_sweep_1 = LoopRegion("row_sweep_1", "j < N-1", "j", "j=1", "j=j+1")
+    time_loop.add_node(row_sweep_1)
+    time_loop.add_edge(row_init_loop, row_sweep_1, InterstateEdge())
+
+    # Inner loop i (1..N-1)
+    row_loop_3 = LoopRegion("row_loop_3", "i < N-1", "i", "i=1", "i=i+1")
+    row_sweep_1.add_node(row_loop_3, is_start_block=True)
+
+    comp_state_3 = row_loop_3.add_state("comp_3", is_start_block=True)
+
+    # p[i, j] calculation: p[i, j] = -f / (d * p[i, j-1] + e)
+    t_p_2 = comp_state_3.add_tasklet(
+        "calc_p_2", {"p_prev"}, {"p_out"}, "p_out = -f / (d * p_prev + e)"
+    )
+
+    # q[i, j] calculation:
+    # q[i, j] = (-a * v[i-1, j] + (1.0 + 2.0 * a) * v[i, j] - c * v[i+1, j] - d * q[i, j-1]) / (d * p[i, j-1] + e)
+    t_q_2 = comp_state_3.add_tasklet(
+        "calc_q_2",
+        {"p_prev", "q_prev", "v_west", "v_center", "v_east"},
+        {"q_out"},
+        "q_out = (-a * v_west + (1.0 + 2.0 * a) * v_center - c * v_east - d * q_prev) / (d * p_prev + e)",
+    )
+
+    # Inputs for t_p_2
+    comp_state_3.add_memlet_path(
+        comp_state_3.add_read("p"), t_p_2, dst_conn="p_prev", memlet=Memlet("p[i, j-1]")
+    )
+
+    # Inputs for t_q_2
+    comp_state_3.add_memlet_path(
+        comp_state_3.add_read("p"), t_q_2, dst_conn="p_prev", memlet=Memlet("p[i, j-1]")
+    )
+    comp_state_3.add_memlet_path(
+        comp_state_3.add_read("q"), t_q_2, dst_conn="q_prev", memlet=Memlet("q[i, j-1]")
+    )
+    comp_state_3.add_memlet_path(
+        comp_state_3.add_read("v"), t_q_2, dst_conn="v_west", memlet=Memlet("v[i-1, j]")
+    )
+    comp_state_3.add_memlet_path(
+        comp_state_3.add_read("v"), t_q_2, dst_conn="v_center", memlet=Memlet("v[i, j]")
+    )
+    comp_state_3.add_memlet_path(
+        comp_state_3.add_read("v"), t_q_2, dst_conn="v_east", memlet=Memlet("v[i+1, j]")
+    )
+
+    # Outputs
+    comp_state_3.add_memlet_path(
+        t_p_2, comp_state_3.add_write("p"), src_conn="p_out", memlet=Memlet("p[i, j]")
+    )
+    comp_state_3.add_memlet_path(
+        t_q_2, comp_state_3.add_write("q"), src_conn="q_out", memlet=Memlet("q[i, j]")
+    )
+
+    # 7. Post-Forward Initialization (u boundary)
+    # u[1:N-1, N-1] = 1.0
+    u_bound_loop = LoopRegion("u_bound_loop", "i < N-1", "i", "i=1", "i=i+1")
+    time_loop.add_node(u_bound_loop)
+    time_loop.add_edge(row_sweep_1, u_bound_loop, InterstateEdge())
+
+    u_bound_state = u_bound_loop.add_state("u_bound_state", is_start_block=True)
+    t_u_bound = u_bound_state.add_tasklet("init_u_bound", {}, {"o"}, "o = 1.0")
+    u_bound_state.add_memlet_path(
+        t_u_bound,
+        u_bound_state.add_write("u"),
+        src_conn="o",
+        memlet=Memlet("u[i, N-1]"),
+    )
+
+    # 8. Backward Sweep Loop (j=N-2..0)
+    row_sweep_2 = LoopRegion("row_sweep_2", "j > 0", "j", "j=N-2", "j=j-1")
+    time_loop.add_node(row_sweep_2)
+    time_loop.add_edge(u_bound_loop, row_sweep_2, InterstateEdge())
+
+    row_loop_4 = LoopRegion("row_loop_4", "i < N-1", "i", "i=1", "i=i+1")
+    row_sweep_2.add_node(row_loop_4, is_start_block=True)
+
+    comp_state_4 = row_loop_4.add_state("comp_4", is_start_block=True)
+
+    # u[i, j] = p[i, j] * u[i, j+1] + q[i, j]
+    t_u = comp_state_4.add_tasklet(
+        "calc_u",
+        {"p_val", "u_next", "q_val"},
+        {"u_out"},
+        "u_out = p_val * u_next + q_val",
+    )
+
+    comp_state_4.add_memlet_path(
+        comp_state_4.add_read("p"), t_u, dst_conn="p_val", memlet=Memlet("p[i, j]")
+    )
+    comp_state_4.add_memlet_path(
+        comp_state_4.add_read("u"), t_u, dst_conn="u_next", memlet=Memlet("u[i, j+1]")
+    )
+    comp_state_4.add_memlet_path(
+        comp_state_4.add_read("q"), t_u, dst_conn="q_val", memlet=Memlet("q[i, j]")
+    )
+    comp_state_4.add_memlet_path(
+        t_u, comp_state_4.add_write("u"), src_conn="u_out", memlet=Memlet("u[i, j]")
+    )
+
+    final_state = sdfg.add_state("final")
+    sdfg.add_edge(time_loop, final_state, InterstateEdge())
+
+    return sdfg
+
+
 def _process_sdfg(
     sdfg: SDFG, name: str, out_dir: str, description: str, suffix: str = ""
 ):
@@ -356,11 +849,19 @@ if __name__ == "__main__":
     # Original SpMV SDFG (LoopRegion)
     sdfg_spmv_loop = generate_spmv_sdfg()
     sdfg_spmv_loop.simplify()
-    expand_scalars(sdfg_spmv_loop)
+    # expand_scalars(sdfg_spmv_loop) # Keep original unexpanded
     _process_sdfg(sdfg_spmv_loop, "spmv", args.out_dir, "SpMV original (LoopRegion)")
 
+    # SpMV Expanded
+    sdfg_spmv_expanded = deepcopy(sdfg_spmv_loop)
+    sdfg_spmv_expanded.name = "spmv_expanded"
+    expand_scalars(sdfg_spmv_expanded)
+    _process_sdfg(
+        sdfg_spmv_expanded, "spmv", args.out_dir, "SpMV expanded", "_expanded"
+    )
+
     # SpMV transformed (ScalarExpansion and LoopToMap)
-    sdfg_spmv_map = deepcopy(sdfg_spmv_loop)
+    sdfg_spmv_map = deepcopy(sdfg_spmv_expanded)
     sdfg_spmv_map.name = "spmv_map"
     # To properly parallelize the outer loop, a ScalarExpansion pass would typically
     # be applied first to `accum`. Without it, LoopToMap will keep `accum` serial.
@@ -370,5 +871,68 @@ if __name__ == "__main__":
         sdfg_spmv_map, "spmv", args.out_dir, "SpMV transformed (LoopToMap)", "_map"
     )
     print("SpMV done.")
+
+    # --- Gram-Schmidt ---
+    print("\nGenerating Gram-Schmidt SDFGs...")
+
+    # Original Gram-Schmidt SDFG (LoopRegion)
+    sdfg_gs_loop = generate_gram_schmidt_sdfg()
+    sdfg_gs_loop.simplify()
+    # expand_scalars(sdfg_gs_loop) # Do it explicitly to test
+    # We want to show 'nrm' being expanded
+    _process_sdfg(
+        sdfg_gs_loop, "gram_schmidt", args.out_dir, "Gram-Schmidt original (LoopRegion)"
+    )
+
+    # Apply expansion
+    sdfg_gs_expanded = deepcopy(sdfg_gs_loop)
+    sdfg_gs_expanded.name = "gram_schmidt_expanded"
+    expand_scalars(sdfg_gs_expanded)
+    _process_sdfg(
+        sdfg_gs_expanded,
+        "gram_schmidt",
+        args.out_dir,
+        "Gram-Schmidt expanded",
+        "_expanded",
+    )
+
+    # Transformed to Maps
+    sdfg_gs_map = deepcopy(sdfg_gs_expanded)
+    sdfg_gs_map.name = "gram_schmidt_map"
+    sdfg_gs_map.apply_transformations_repeated(LoopToMap)
+    sdfg_gs_map.simplify()
+    _process_sdfg(
+        sdfg_gs_map,
+        "gram_schmidt",
+        args.out_dir,
+        "Gram-Schmidt transformed (LoopToMap)",
+        "_map",
+    )
+    print("Gram-Schmidt done.")
+
+    # --- ADI ---
+    print("\nGenerating ADI SDFGs...")
+
+    # Original ADI SDFG (LoopRegion)
+    sdfg_adi_loop = generate_adi_sdfg()
+    sdfg_adi_loop.simplify()
+    _process_sdfg(sdfg_adi_loop, "adi", args.out_dir, "ADI original (LoopRegion)")
+
+    # ADI Expanded
+    sdfg_adi_expanded = deepcopy(sdfg_adi_loop)
+    sdfg_adi_expanded.name = "adi_expanded"
+    expand_scalars(sdfg_adi_expanded)
+    _process_sdfg(sdfg_adi_expanded, "adi", args.out_dir, "ADI expanded", "_expanded")
+
+    # ADI transformed (LoopToMap)
+    # The inner 'i' loops should be parallelized (mapped), while 'j' loops remain sequential.
+    sdfg_adi_map = deepcopy(sdfg_adi_expanded)
+    sdfg_adi_map.name = "adi_map"
+    sdfg_adi_map.apply_transformations_repeated(LoopToMap)
+    sdfg_adi_map.simplify()
+    _process_sdfg(
+        sdfg_adi_map, "adi", args.out_dir, "ADI transformed (LoopToMap)", "_map"
+    )
+    print("ADI done.")
 
     print("\nAll SDFGs generated and validated successfully.")

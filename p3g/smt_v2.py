@@ -487,6 +487,15 @@ def _build_analysis_context(
     # Add extra_assertions to all_assertions for comprehensive collection
     context.all_assertions.extend(context.extra_assertions)
 
+    # Helper to check ancestry using node.parent pointers
+    def _is_ancestor(ancestor: Node, node: Node) -> bool:
+        curr = node
+        while curr:
+            if curr == ancestor:
+                return True
+            curr = curr.parent
+        return False
+
     # Helper recursive function for graph traversal
     def _traverse_graph(
         graph: Graph,
@@ -537,7 +546,17 @@ def _build_analysis_context(
                         context.loop_bound_symbols.add(var)
 
                 # Add non-empty assumption for the loop (start + 1 <= end)
-                context.all_assertions.append(LE(Plus(node.start, Int(1)), node.end))
+                # Only if the loop is relevant (ancestor, self, or descendant of target_loop)
+                # Note: Ancestor check: is 'node' an ancestor of 'target_loop'?
+                # Descendant check: is 'target_loop' an ancestor of 'node'?
+                if (
+                    node == target_loop
+                    or _is_ancestor(node, target_loop)
+                    or _is_ancestor(target_loop, node)
+                ):
+                    context.all_assertions.append(
+                        LE(Plus(node.start, Int(1)), node.end)
+                    )
 
                 _traverse_graph(
                     node.nested_graph,
