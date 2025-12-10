@@ -1,0 +1,32 @@
+decl p, q, u, v
+sym N, TSTEPS, a, b, c, d, e, f
+var i, j, t
+out p, q, u, v
+
+(p[0], q[0], u[0], v[0] => p[0], q[0], u[0], v[0]) ().L1| for t = 1 to TSTEPS:
+    (v[0], p[0], q[0] => p[0], v[0], q[0]) ().M2| map i = 1 to (-2 + N):
+        (v[0, i] => v[0, i]) ().T1| op(init_v)
+        (v[0, i], q[i, 0] => q[i, 0]) (T1).T2| op(init_q)
+        (p[i, 0] => p[i, 0]) ().T3| op(init_p)
+    (p[0], q[0], u[0] => p[0], q[0]) (M2).L4| for j = 1 to (-2 + N):
+        (u[0], p[0], q[0] => p[0], q[0]) (M2).M5| map i = 1 to (-2 + N):
+            (u[j, i], u[j, (1 + i)], u[j, (-1 + i)], p[i, (-1 + j)], q[i, (-1 + j)], q[i, j] => q[i, j]) (M2).T6| op(calc_q)
+            (p[i, (-1 + j)], p[i, j] => p[i, j]) (M2).T7| op(calc_p)
+    (v[0] => v[0]) (M2).M8| map i = 1 to (-2 + N):
+        (v[(-1 + N), i] => v[(-1 + N), i]) (M2).T9| op(init_v_bound)
+    (p[0], q[0], v[0] => v[0]) (L4, M8).L10| for j = (-2 + N) to 1:
+        (p[0], v[0], q[0] => v[0]) (L4, M8).M11| map i = 1 to (-2 + N):
+            (p[i, j], v[(1 + j), i], q[i, j], v[j, i] => v[j, i]) (L4, M8).T12| op(calc_v)
+    (u[0], p[0], q[0] => u[0], p[0], q[0]) (L4).M13| map i = 1 to (-2 + N):
+        (u[i, 0] => u[i, 0]) ().T1| op(init_u)
+        (u[i, 0], q[i, 0] => q[i, 0]) (T1).T2| op(init_q_2)
+        (p[i, 0] => p[i, 0]) ().T3| op(init_p_2)
+    (p[0], q[0], v[0] => p[0], q[0]) (L10, M13).L15| for j = 1 to (-2 + N):
+        (p[0], v[0], q[0] => p[0], q[0]) (L10, M13).M16| map i = 1 to (-2 + N):
+            (p[i, (-1 + j)], p[i, j] => p[i, j]) (M13).T17| op(calc_p_2)
+            (p[i, (-1 + j)], v[i, j], v[(1 + i), j], v[(-1 + i), j], q[i, (-1 + j)], q[i, j] => q[i, j]) (L10, M13, T17).T18| op(calc_q_2)
+    (u[0] => u[0]) (M13).M19| map i = 1 to (-2 + N):
+        (u[i, (-1 + N)] => u[i, (-1 + N)]) (M13).T20| op(init_u_bound)
+    (p[0], q[0], u[0] => u[0]) (L10, L15, M19).L21| for j = (-2 + N) to 1:
+        (u[0], p[0], q[0] => u[0]) (L15, M19).M22| map i = 1 to (-2 + N):
+            (u[i, (1 + j)], p[i, j], q[i, j], u[i, j] => u[i, j]) (L15, M19).T23| op(calc_u)

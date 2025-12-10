@@ -1,0 +1,19 @@
+decl A, Q, R, nrm, tmp_dot
+sym M, N
+var i_dot, i_nrm, i_q, i_sub, j, k
+out A, Q, R
+
+(A[0], Q[0], R[0], nrm[0], tmp_dot[0] => A[0], Q[0], R[0], nrm[0], tmp_dot[0]) ().L1| for k = 0 to (-1 + N):
+    (nrm[k] => nrm[k]) ().T2| op(zero_nrm)
+    (A[0], nrm[0] => nrm[0]) (T2).L3| for i_nrm = 0 to (-1 + M):
+        (A[i_nrm, k], nrm[k] => nrm[k]) (T2).T4| op(nrm_acc)
+    (nrm[k], R[k, k] => R[k, k]) (L3).T5| op(rkk)
+    (A[0], R[0], Q[0] => Q[0]) (T5).M6| map i_q = 0 to (-1 + M):
+        (A[i_q, k], R[k, k], Q[i_q, k] => Q[i_q, k]) (T5).T7| op(calc_q)
+    (A[0], Q[0], R[0], tmp_dot[0] => R[0], A[0], tmp_dot[0]) (M6, T5).M8| map j = (1 + k) to (-1 + N):
+        (tmp_dot[j] => tmp_dot[j]) ().T1| op(zero_dot)
+        (A[0], Q[0], tmp_dot[0] => tmp_dot[0]) (T1).L2| for i_dot = 0 to (-1 + M):
+            (A[i_dot, j], tmp_dot[j], Q[i_dot, k] => tmp_dot[j]) (T1).T3| op(dot_acc)
+        (tmp_dot[j], R[k, j] => R[k, j]) (L2).T4| op(save)
+        (A[0], R[0], Q[0] => A[0]) (T4).M5| map i_sub = 0 to (-1 + M):
+            (A[i_sub, j], R[k, j], Q[i_sub, k] => A[i_sub, j]) (T4).T6| op(sub)

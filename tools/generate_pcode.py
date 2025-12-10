@@ -30,6 +30,8 @@ def main():
     )
     args = parser.parse_args()
 
+    original_input_arg = args.input
+
     # Handle directory input
     if os.path.isdir(args.input):
         import questionary
@@ -55,12 +57,29 @@ def main():
 
         args.input = selected_file
 
-    # Determine output path if not provided
+    # Determine output path if not provided or if it's a directory
     if args.output is None:
         input_path = pathlib.Path(args.input)
-        output_dir = pathlib.Path(project_root) / "tmp"
+        if os.path.isdir(original_input_arg):
+            # If original input was a directory, use it as the output directory
+            output_dir = pathlib.Path(original_input_arg)
+        else:
+            # Otherwise, use the default project_root/tmp
+            output_dir = pathlib.Path(project_root) / "tmp"
         output_dir.mkdir(parents=True, exist_ok=True)  # Ensure tmp directory exists
-        args.output = str(output_dir / f"{input_path.stem}.pcode")
+        output_file_path = output_dir / f"{input_path.stem}.pcode"
+    else:
+        output_path = pathlib.Path(args.output)
+        if output_path.is_dir():
+            input_path = pathlib.Path(args.input)
+            output_path.mkdir(
+                parents=True, exist_ok=True
+            )  # Ensure output directory exists
+            output_file_path = output_path / f"{input_path.stem}.pcode"
+        else:
+            # Assume it's a file path, ensure its parent directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_file_path = output_path
 
     print(f"Loading SDFG from {args.input}")
     sdfg = dace.SDFG.from_file(args.input)
@@ -69,10 +88,10 @@ def main():
     converter = SDFGToPseudocodeConverter(sdfg)
     pseudocode = converter.convert()
 
-    with open(args.output, "w") as f:
+    with open(output_file_path, "w") as f:
         f.write(pseudocode)
 
-    print(f"Pseudocode generated and saved to {args.output}")
+    print(f"Pseudocode generated and saved to {output_file_path}")
 
 
 if __name__ == "__main__":

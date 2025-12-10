@@ -1,0 +1,14 @@
+decl A, B
+sym N, TSTEPS
+var i, j, k, t
+out A, B
+
+(A[0], B[0] => A[0], B[0]) ().L1| for t = 1 to (-1 + TSTEPS):
+    (A[0], B[0] => B[0]) ().M2| map i = 1 to (-2 + N):
+        (A[0], B[0] => B[0]) ().M3| map j = 1 to (-2 + N):
+            (A[0], B[0] => B[0]) ().M4| map k = 1 to (-2 + N):
+                (A[i, j, k], A[(-1 + i), j, k], A[(1 + i), j, k], A[i, (-1 + j), k], A[i, (1 + j), k], A[i, j, (-1 + k)], A[i, j, (1 + k)], B[i, j, k] => B[i, j, k]) ().T5| op(update_B_stencil)
+    (B[0], A[0] => A[0]) (M2).M6| map i = 1 to (-2 + N):
+        (B[0], A[0] => A[0]) (M2).M7| map j = 1 to (-2 + N):
+            (B[0], A[0] => A[0]) (M2).M8| map k = 1 to (-2 + N):
+                (B[i, j, k], B[(-1 + i), j, k], B[(1 + i), j, k], B[i, (-1 + j), k], B[i, (1 + j), k], B[i, j, (-1 + k)], B[i, j, (1 + k)], A[i, j, k] => A[i, j, k]) (M2).T9| op(update_A_stencil)
