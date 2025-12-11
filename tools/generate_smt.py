@@ -25,18 +25,15 @@ from tests.utils import solve_smt_string, TimeoutError
 from p3g.graph import Branch, Map, Loop, Graph
 
 
-def find_all_loop_nodes(graph: Graph) -> list[Loop]:
+def find_all_loop_nodes(graph: Graph) -> list[Loop | Map]:
     """
-    Recursively finds all Loop nodes within a graph and its nested structures.
+    Recursively finds all Loop and Map nodes within a graph and its nested structures.
     """
     found_loops = []
     for node in graph.nodes:
-        if isinstance(node, Loop):
+        if isinstance(node, (Loop, Map)):
             found_loops.append(node)
-            # Recursively search in the nested graph of this Loop
-            found_loops.extend(find_all_loop_nodes(node.nested_graph))
-        elif isinstance(node, Map):
-            # Recursively search in the nested graph of this Map
+            # Recursively search in the nested graph of this Loop/Map
             found_loops.extend(find_all_loop_nodes(node.nested_graph))
         elif isinstance(node, Branch):
             # Recursively search in all branch paths of this Branch
