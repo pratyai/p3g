@@ -63,6 +63,9 @@ class PseudocodeParser:
         self._current_array_state_stack: list[str] = ["."]
         self._current_scope_inputs_stack: list[dict[str, Data]] = [{}]
 
+        self._statement_order_map = {".": -1}
+        self._statement_counter = 0
+
     def parse(self, code: str) -> Graph:
         """
         Parses a block of pseudocode and returns the constructed P3G graph.
@@ -344,6 +347,10 @@ class PseudocodeParser:
             node_name = self._consume("ID").value
             self._consume("PIPE")
 
+        # Track statement order for ambiguity resolution
+        self._statement_order_map[node_name] = self._statement_counter
+        self._statement_counter += 1
+
         # Consolidate the accesses.
         consolidated_reads = []
         for name, subset in hierarchical_reads_raw:
@@ -354,11 +361,23 @@ class PseudocodeParser:
                     found_nodes.append(self._array_state[key])
 
             unique_nodes = list(set(found_nodes))
-            assert len(unique_nodes) <= 1, (
-                f"Ambiguous read for '{name}'. Found in multiple prior states: {follow_statements}"
-            )
 
-            if unique_nodes:
+            if len(unique_nodes) > 1:
+                # Ambiguous read! Resolve by picking the one produced by the latest statement.
+                candidates = []
+                # We need to iterate 'follow_statements' again or map found_nodes back.
+                # Re-scanning follow_statements is safer to link node to state.
+                for state in follow_statements:
+                    key = (self.builder.current_graph, state, name)
+                    if key in self._array_state:
+                        node = self._array_state[key]
+                        order = self._statement_order_map.get(state, -1)
+                        candidates.append((order, node))
+
+                # Sort by order descending (latest first)
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                read_node = candidates[0][1]
+            elif unique_nodes:
                 read_node = unique_nodes[0]
             else:
                 dot_key = (self.builder.current_graph, ".", name)

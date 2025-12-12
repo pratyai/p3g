@@ -412,6 +412,24 @@ def _find_conflict_elements(
     for (pc1, comp1, loops1), (pc2, comp2, loops2) in itertools.product(
         items, repeat=2
     ):
+        # Optimization: Early Pruning based on array ID intersection
+        # We only care if W1 overlaps R2 (RAW), W1 overlaps W2 (WAW), or R1 overlaps W2 (WAR)
+        w1_ids = (
+            {d for d, _ in comp1.get_write_set()} if comp1.get_write_set() else set()
+        )
+        r1_ids = {d for d, _ in comp1.get_read_set()} if comp1.get_read_set() else set()
+        w2_ids = (
+            {d for d, _ in comp2.get_write_set()} if comp2.get_write_set() else set()
+        )
+        r2_ids = {d for d, _ in comp2.get_read_set()} if comp2.get_read_set() else set()
+
+        has_RAW = not w1_ids.isdisjoint(r2_ids)
+        has_WAW = not w1_ids.isdisjoint(w2_ids)
+        has_WAR = not r1_ids.isdisjoint(w2_ids)
+
+        if not (has_RAW or has_WAW or has_WAR):
+            continue
+
         existential_vars = set()
         subst = [{}, {}]
 

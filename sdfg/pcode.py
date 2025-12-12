@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ast
+
 import dace
 import sympy as sp
+from collections import defaultdict
 from dace.sdfg import SDFG
 from dace.sdfg.nodes import AccessNode, Tasklet, MapEntry, MapExit, NestedSDFG
 from dace.sdfg.state import LoopRegion, SDFGState, ConditionalBlock
@@ -10,6 +13,7 @@ from dace.transformation.passes.analysis.loop_analysis import (
     get_loop_end,
     get_init_assignment,
 )
+import sympy.parsing.sympy_parser
 
 # Define keywords used in P3G to avoid clashes with SDFG symbol names
 P3G_KEYWORDS = {
@@ -53,6 +57,224 @@ P3G_KEYWORDS = {
 }
 
 
+class ASTReadExtractor(ast.NodeVisitor):
+    def __init__(self, declared_arrays: set[str]):
+        self.reads = []
+        self.declared_arrays = declared_arrays
+
+    def visit_Subscript(self, node):
+        array_name = None
+        # Extract array name (e.g., A in A[i])
+        if isinstance(node.value, ast.Name):
+            array_name = node.value.id
+        elif isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+            # Handle cases like `func(arg)[idx]`, we just take the func name for now
+            array_name = node.value.func.id
+        # TODO: Handle more complex node.value types if necessary
+
+        if array_name and array_name in self.declared_arrays:
+            subset_str = self._convert_slice_to_pseudocode(node.slice)
+            self.reads.append((array_name, subset_str))
+
+        # Continue visiting children of the subscript (e.g., expressions within indices)
+        self.generic_visit(node)
+
+    def _convert_slice_to_pseudocode(self, slice_node) -> str:
+        if isinstance(slice_node, ast.Index):
+            return self._convert_ast_expr_to_pseudocode(slice_node.value)
+        elif isinstance(slice_node, ast.Slice):
+            lower = (
+                self._convert_ast_expr_to_pseudocode(slice_node.lower)
+                if slice_node.lower
+                else ""
+            )
+            upper = (
+                self._convert_ast_expr_to_pseudocode(slice_node.upper)
+                if slice_node.upper
+                else ""
+            )
+            # P3G range syntax does not support step
+            return f"{lower}:{upper}"
+        elif isinstance(slice_node, ast.ExtSlice):
+            parts = []
+            for dim in slice_node.dims:
+                parts.append(self._convert_slice_to_pseudocode(dim))
+            return ", ".join(parts)
+        elif isinstance(
+            slice_node,
+            (
+                ast.BinOp,
+                ast.Name,
+                ast.Constant,
+                ast.Call,
+                ast.UnaryOp,
+                ast.Compare,
+                ast.BoolOp,
+                ast.Tuple,
+                ast.List,
+            ),
+        ):
+            # If the slice itself is an expression, convert it directly.
+            # This handles cases like `arr[i + j]` where the index is a direct BinOp,
+            # or `arr[N]` where the index is a Name, or `arr[1]` where it's a Constant.
+            return self._convert_ast_expr_to_pseudocode(slice_node)
+        else:
+            raise NotImplementedError(
+                f"Unsupported slice type: {type(slice_node).__name__}"
+            )
+
+    def _convert_ast_expr_to_pseudocode(self, ast_expr_node) -> str:
+        # Recursively convert simple AST expressions (numbers, names, binops, etc.) to strings
+        if ast_expr_node is None:
+            return ""
+        elif isinstance(ast_expr_node, ast.Constant):
+            return str(ast_expr_node.value)
+        elif isinstance(ast_expr_node, ast.Name):
+            # If a name refers to a declared array, it is considered a scalar array access
+            # in P3G, so we should append '[0]' and record the read.
+            if ast_expr_node.id in self.declared_arrays:
+                self.reads.append((ast_expr_node.id, "0"))
+                return f"{ast_expr_node.id}[0]"
+            return ast_expr_node.id
+        elif isinstance(ast_expr_node, ast.BinOp):
+            left = self._convert_ast_expr_to_pseudocode(ast_expr_node.left)
+            right = self._convert_ast_expr_to_pseudocode(ast_expr_node.right)
+            op = self._convert_ast_op_to_str(ast_expr_node.op)
+            # Add parentheses for correct precedence if necessary
+            if isinstance(ast_expr_node.op, (ast.Add, ast.Sub)) and isinstance(
+                ast_expr_node.left, (ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow)
+            ):
+                return f"({left} {op} {right})"
+            return f"{left} {op} {right}"
+        elif isinstance(ast_expr_node, ast.UnaryOp):
+            operand = self._convert_ast_expr_to_pseudocode(ast_expr_node.operand)
+            op = self._convert_ast_unary_op_to_str(ast_expr_node.op)
+            return f"{op}{operand}"
+        elif isinstance(ast_expr_node, ast.Call):
+            func_name = self._convert_ast_expr_to_pseudocode(ast_expr_node.func)
+            args = ", ".join(
+                self._convert_ast_expr_to_pseudocode(arg) for arg in ast_expr_node.args
+            )
+            return f"{func_name}({args})"
+        elif isinstance(ast_expr_node, ast.Compare):
+            left = self._convert_ast_expr_to_pseudocode(ast_expr_node.left)
+            ops = [self._convert_ast_op_to_str(op) for op in ast_expr_node.ops]
+            comparators = [
+                self._convert_ast_expr_to_pseudocode(comp)
+                for comp in ast_expr_node.comparators
+            ]
+            # Handle multiple comparisons: A > B > C => A > B and B > C
+            result = []
+            # First comparison
+            result.append(f"{left} {ops[0]} {comparators[0]}")
+            # Chained comparisons
+            for i in range(1, len(ops)):
+                result.append(f"{comparators[i - 1]} {ops[i]} {comparators[i]}")
+            return " and ".join(result)
+        elif isinstance(ast_expr_node, ast.BoolOp):
+            op = " and " if isinstance(ast_expr_node.op, ast.And) else " or "
+            values = [
+                self._convert_ast_expr_to_pseudocode(val)
+                for val in ast_expr_node.values
+            ]
+            return f"({op.join(values)})"
+        elif isinstance(
+            ast_expr_node, ast.Subscript
+        ):  # Nested subscript, e.g. B[A[i]] or A[B[0]]
+            # This is an indirect access. We need to record this access itself.
+            array_name = None
+            if isinstance(ast_expr_node.value, ast.Name):
+                array_name = ast_expr_node.value.id
+            elif isinstance(ast_expr_node.value, ast.Call) and isinstance(
+                ast_expr_node.value.func, ast.Name
+            ):
+                array_name = ast_expr_node.value.func.id
+
+            if array_name and array_name in self.declared_arrays:
+                subset_str = self._convert_slice_to_pseudocode(ast_expr_node.slice)
+                self.reads.append((array_name, subset_str))
+
+            # Then return its string representation
+            return f"{self._convert_ast_expr_to_pseudocode(ast_expr_node.value)}[{self._convert_slice_to_pseudocode(ast_expr_node.slice)}]"
+
+        elif isinstance(ast_expr_node, ast.Tuple):
+            elements = ", ".join(
+                self._convert_ast_expr_to_pseudocode(e) for e in ast_expr_node.elts
+            )
+            return elements
+        elif isinstance(ast_expr_node, ast.List):
+            elements = ", ".join(
+                self._convert_ast_expr_to_pseudocode(e) for e in ast_expr_node.elts
+            )
+            return f"[{elements}]"
+        else:
+            raise NotImplementedError(
+                f"Unsupported AST expression type: {type(ast_expr_node).__name__}"
+            )
+
+    def _convert_ast_op_to_str(self, op_node):
+        if isinstance(op_node, ast.Add):
+            return "+"
+        if isinstance(op_node, ast.Sub):
+            return "-"
+        if isinstance(op_node, ast.Mult):
+            return "*"
+        if isinstance(op_node, ast.Div):
+            return "/"
+        if isinstance(op_node, ast.FloorDiv):
+            return "//"  # P3G SYNTAX.md lists //
+        if isinstance(op_node, ast.Mod):
+            return "%"
+        if isinstance(op_node, ast.Pow):
+            return "^"  # P3G uses ^ for power
+        if isinstance(op_node, ast.Eq):
+            return "="  # P3G uses = for equality
+        if isinstance(op_node, ast.NotEq):
+            return "!="
+        if isinstance(op_node, ast.Lt):
+            return "<"
+        if isinstance(op_node, ast.LtE):
+            return "<="
+        if isinstance(op_node, ast.Gt):
+            return ">"
+        if isinstance(op_node, ast.GtE):
+            return ">="
+        if isinstance(op_node, ast.Is):
+            raise ValueError(
+                "Unsupported binary operator 'is'. Identity comparisons are not part of P3G pseudocode syntax."
+            )
+        if isinstance(op_node, ast.IsNot):
+            raise ValueError(
+                "Unsupported binary operator 'is not'. Identity comparisons are not part of P3G pseudocode syntax."
+            )
+        if isinstance(op_node, ast.In):
+            raise ValueError(
+                "Unsupported binary operator 'in'. Membership tests are not part of P3G pseudocode syntax."
+            )
+        if isinstance(op_node, ast.NotIn):
+            raise ValueError(
+                "Unsupported binary operator 'not in'. Membership tests are not part of P3G pseudocode syntax."
+            )
+        raise NotImplementedError(
+            f"Unsupported binary operator: {type(op_node).__name__}"
+        )
+
+    def _convert_ast_unary_op_to_str(self, op_node):
+        if isinstance(op_node, ast.USub):
+            return "-"
+        if isinstance(op_node, ast.UAdd):
+            return "+"
+        if isinstance(op_node, ast.Not):
+            return "not "
+        if isinstance(op_node, ast.Invert):
+            raise ValueError(
+                f"Unsupported unary operator (bitwise invert '~'). Bitwise operations are not part of P3G pseudocode syntax."
+            )
+        raise NotImplementedError(
+            f"Unsupported unary operator: {type(op_node).__name__}"
+        )
+
+
 class SDFGToPseudocodeConverter:
     """
     Translates a DaCe SDFG into a P3G pseudocode string.
@@ -73,12 +295,44 @@ class SDFGToPseudocodeConverter:
         # Dataflow tracking
         # Maps array_name to the name of the statement that last wrote to it in the current scope
         self._array_state: dict[str, str] = {}
+        # Track writes per statement for conflict resolution
+        self._statement_writes: dict[str, set[str]] = defaultdict(set)
         # Stack to manage scope for dataflow (e.g., entering/exiting loops, branches)
         self._current_array_state_stack: list[str] = ["."]
 
         # Track processed CFG nodes to avoid redundant processing in conditional branches
         self._processed_cfg_nodes: set[dace.sdfg.nodes.Node] = set()
         self._processed_dataflow_nodes: set[dace.sdfg.nodes.Node] = set()
+
+        self.sympy_global_dict = {
+            "GreaterThan": sp.GreaterThan,
+            "LessThan": sp.LessThan,
+            "StrictGreaterThan": sp.StrictGreaterThan,
+            "StrictLessThan": sp.StrictLessThan,
+            "Equality": sp.Equality,
+            "Eq": sp.Eq,
+            "Ge": sp.Ge,
+            "Gt": sp.Gt,
+            "Le": sp.Le,
+            "Lt": sp.Lt,  # Added comparison functions
+            "And": sp.And,
+            "Or": sp.Or,
+            "Not": sp.Not,
+            "Add": sp.Add,
+            "Mul": sp.Mul,
+            "Pow": sp.Pow,
+            "Float": sp.Float,
+            "Integer": sp.Integer,
+            "Min": sp.Min,
+            "Max": sp.Max,
+            "Symbol": sp.Symbol,
+            "IndexedBase": sp.IndexedBase,
+            "Indexed": sp.Indexed,
+            "true": sp.true,
+            "false": sp.false,
+            "True": sp.true,
+            "False": sp.false,
+        }
 
     def _indent(self):
         return "    " * self._indent_level
@@ -102,6 +356,8 @@ class SDFGToPseudocodeConverter:
         expr_str: str
         if isinstance(expr, sp.Integer):
             expr_str = str(expr)
+        elif isinstance(expr, (sp.Float, float)):  # Always cast floats to int
+            expr_str = str(int(expr))
         elif expr == sp.true:
             expr_str = "true"
         elif expr == sp.false:
@@ -114,6 +370,14 @@ class SDFGToPseudocodeConverter:
             )
         elif isinstance(expr, sp.Symbol):
             expr_str = str(expr)
+            if expr_str in self._declared_arrays:
+                expr_str = f"{expr_str}[0]"
+        elif isinstance(expr, sp.IndexedBase):  # Added handling for IndexedBase
+            expr_str = str(expr)
+            if expr_str in self._declared_arrays:  # If it's a scalar array (decl)
+                expr_str = f"{expr_str}[0]"
+            # else: expr_str = str(expr) # Already covered by the default str(expr) below for non-declared IndexedBases
+
         elif isinstance(expr, sp.Add):
             expr_str = " + ".join(
                 self._convert_sympy_to_pseudocode_expr(arg, wrap_if_complex=True)
@@ -176,12 +440,6 @@ class SDFGToPseudocodeConverter:
                     for arg in expr.args
                 )
                 expr_str = f"max({args_str})"
-            elif expr.func == sp.Floor:
-                args_str = ", ".join(
-                    self._convert_sympy_to_pseudocode_expr(arg, wrap_if_complex=True)
-                    for arg in expr.args
-                )
-                expr_str = f"floor({args_str})"
             else:
                 raise NotImplementedError(
                     f"Unsupported SymPy function in expression: {expr.func}"
@@ -199,19 +457,42 @@ class SDFGToPseudocodeConverter:
     def _get_read_accesses_from_expression(
         self, sympy_expr: sp.Expr
     ) -> list[tuple[str, str]]:
-        """
-        Recursively extracts read accesses (array name and subset string) from a SymPy expression.
-        """
+        if isinstance(
+            sympy_expr, (bool, int, float, sp.Integer, sp.Float)
+        ) or sympy_expr in (sp.true, sp.false):
+            return []
+
         accesses = []
+
+        # Always recurse into arguments of compound expressions if they exist
+        if isinstance(sympy_expr, sp.Basic):
+            for arg in sympy_expr.args:
+                accesses.extend(self._get_read_accesses_from_expression(arg))
+
         if isinstance(sympy_expr, sp.Indexed):
             base_name = str(sympy_expr.base)
             indices_str = ", ".join(
-                self._convert_sympy_to_pseudocode_expr(idx, wrap_if_complex=True)
+                self._convert_sympy_to_pseudocode_expr(idx, wrap_if_complex=False)
                 for idx in sympy_expr.indices
             )
-            accesses.append((base_name, indices_str))
-        for arg in sympy_expr.args:
-            accesses.extend(self._get_read_accesses_from_expression(arg))
+            # Only consider it a read if the base is a declared array
+            if base_name in self._declared_arrays:
+                accesses.append((base_name, indices_str))
+            return accesses
+
+        if isinstance(sympy_expr, sp.Symbol):
+            # If it's a symbol that was declared as an array (scalar array in P3G)
+            if str(sympy_expr) in self._declared_arrays:
+                accesses.append((str(sympy_expr), "0"))
+            # P3G Symbols (declared via 'sym') are not included in read/write lists.
+            return accesses
+
+        # If it's an IndexedBase without indices, it's not a direct access itself.
+        # Accesses are collected from Indexed expressions.
+        if isinstance(sympy_expr, sp.IndexedBase):
+            return accesses
+
+        # Default return in case no specific type matched and no args produced accesses.
         return accesses
 
     def _parse_code_block_to_sympy(
@@ -219,48 +500,53 @@ class SDFGToPseudocodeConverter:
     ) -> sp.Expr:
         """Converts a dace.properties.CodeBlock into a sympy.Expr."""
         code_str = code_block.as_string
+
+        sympy_locals = {str(s): sp.Symbol(s) for s in self.sdfg.free_symbols}
+
+        # Iterate over all declared arrays and determine their SymPy representation
+        for name in self._declared_arrays:
+            if name in self.sdfg.arrays:  # It's an original SDFG array
+                array_desc = self.sdfg.arrays[name]
+                if array_desc.shape == ():  # Original 0-dim array (scalar)
+                    sympy_locals[name] = sp.Indexed(sp.Symbol(name), 0)
+                else:  # Original multi-dim array
+                    sympy_locals[name] = sp.IndexedBase(name)
+            else:  # It's a promoted scalar array (not an original SDFG array, e.g., _if_cond_0)
+                sympy_locals[name] = sp.Indexed(sp.Symbol(name), 0)
+
+        sympy_locals.update(
+            {name: sp.Symbol(name) for name in self._declared_loop_vars}
+        )
+        sympy_locals.update({name: sp.Symbol(name) for name in self._declared_symbols})
+
+        # global_dict as before...
+
         try:
-            return sp.sympify(code_str)
-        except TypeError as e:
-            if "'Symbol' object is not subscriptable" in str(e):
-                # SymPy struggles with direct array indexing.
-                # Provide context for declared arrays as IndexedBase.
-                sympy_locals = {
-                    name: sp.IndexedBase(name) for name in self._declared_arrays
-                }
-                # Also include loop variables and symbols for completeness
-                sympy_locals.update(
-                    {name: sp.Symbol(name) for name in self._declared_loop_vars}
-                )
-                sympy_locals.update(
-                    {name: sp.Symbol(name) for name in self._declared_symbols}
-                )
-                try:
-                    return sp.sympify(code_str, locals=sympy_locals)
-                except (sp.SympifyError, TypeError) as e2:
-                    print(
-                        f"ERROR: Failed to sympify with IndexedBase context '{code_str}': {e2}. "
-                        "Re-raising for explicit handling."
-                    )
-                    raise e2  # Re-raise the exception
-            else:
-                print(
-                    f"ERROR: Could not directly sympify '{code_str}': {e}. "
-                    "Re-raising for explicit handling."
-                )
-                raise e  # Re-raise the exception
-        except sp.SympifyError as e:
-            print(
-                f"ERROR: Could not directly sympify '{code_str}': {e}. "
-                "Re-raising for explicit handling."
+            return sympy.parsing.sympy_parser.parse_expr(
+                code_str,
+                local_dict=sympy_locals,
+                global_dict=self.sympy_global_dict,
+                evaluate=False,
             )
-            raise e  # Re-raise the exception
+        except (sp.SympifyError, TypeError) as e:
+            raise ValueError(
+                f"Failed to sympify expression '{code_str}' with provided context: {e}. "
+                f"Declared arrays: {self._declared_arrays}, symbols: {self._declared_symbols}, loop vars: {self._declared_loop_vars}"
+            ) from e
 
     def _convert_sympy_boolean_to_pseudocode(self, expr: sp.Expr) -> str:
         """
         Converts a SymPy boolean expression to its pseudocode string representation.
-        Handles logical operators.
+        Handles logical operators, comparisons, boolean literals, and integer literals 0/1.
         """
+
+        def _to_pseudocode_part(sub_expr: sp.Expr, wrap: bool) -> str:
+            # Check if the sub_expr is itself a boolean or relational expression
+            if sub_expr.is_Boolean:
+                return self._convert_sympy_boolean_to_pseudocode(sub_expr)
+            else:
+                return self._convert_sympy_to_pseudocode_expr(sub_expr, wrap)
+
         if isinstance(expr, sp.And):
             return " and ".join(
                 self._convert_sympy_boolean_to_pseudocode(arg) for arg in expr.args
@@ -270,10 +556,10 @@ class SDFGToPseudocodeConverter:
                 self._convert_sympy_boolean_to_pseudocode(arg) for arg in expr.args
             )
         elif isinstance(expr, sp.Not):
-            # If the argument is a comparison, wrap it for clarity.
-            arg_str = self._convert_sympy_boolean_to_pseudocode(expr.args[0])
+            arg_str = _to_pseudocode_part(expr.arg, False)  # Use helper for arg
+            # Wrap if the argument is a comparison to ensure correct precedence in 'not (A > B)'
             if isinstance(
-                expr.args[0],
+                expr.arg,
                 (
                     sp.Equality,
                     sp.GreaterThan,
@@ -285,17 +571,64 @@ class SDFGToPseudocodeConverter:
                 return f"not ({arg_str})"
             return f"not {arg_str}"
         elif isinstance(expr, sp.Equality):
-            return f"{self._convert_sympy_to_pseudocode_expr(expr.lhs, wrap_if_complex=True)} == {self._convert_sympy_to_pseudocode_expr(expr.rhs, wrap_if_complex=True)}"
+            # Apply the simplification rule for (LHS = 1) -> LHS and (LHS = 0) -> not (LHS)
+            if expr.rhs == sp.Integer(1) and (
+                expr.lhs.is_Boolean or expr.lhs.is_Relational
+            ):
+                # Simplify (LHS = 1) to LHS
+                # No need to wrap outer LHS if it's already a boolean expression (is_Boolean)
+                return _to_pseudocode_part(expr.lhs, False)
+            elif expr.rhs == sp.Integer(0) and (
+                expr.lhs.is_Boolean or expr.lhs.is_Relational
+            ):
+                # Simplify (LHS = 0) to not (LHS)
+                lhs_str = _to_pseudocode_part(expr.lhs, False)
+                # Ensure negation is properly parenthesized if LHS is a complex boolean expression
+                if isinstance(
+                    expr.lhs,
+                    (
+                        sp.And,
+                        sp.Or,
+                        sp.Equality,
+                        sp.GreaterThan,
+                        sp.LessThan,
+                        sp.StrictGreaterThan,
+                        sp.StrictLessThan,
+                    ),
+                ):
+                    return f"not ({lhs_str})"
+                return f"not {lhs_str}"
+            # Original handling for general equality
+            return f"{_to_pseudocode_part(expr.lhs, True)} = {_to_pseudocode_part(expr.rhs, True)}"
         elif isinstance(expr, sp.GreaterThan):
-            return f"{self._convert_sympy_to_pseudocode_expr(expr.lhs, wrap_if_complex=True)} >= {self._convert_sympy_to_pseudocode_expr(expr.rhs, wrap_if_complex=True)}"
+            return f"{_to_pseudocode_part(expr.lhs, True)} >= {_to_pseudocode_part(expr.rhs, True)}"
         elif isinstance(expr, sp.LessThan):
-            return f"{self._convert_sympy_to_pseudocode_expr(expr.lhs, wrap_if_complex=True)} <= {self._convert_sympy_to_pseudocode_expr(expr.rhs, wrap_if_complex=True)}"
+            return f"{_to_pseudocode_part(expr.lhs, True)} <= {_to_pseudocode_part(expr.rhs, True)}"
         elif isinstance(expr, sp.StrictGreaterThan):
-            return f"{self._convert_sympy_to_pseudocode_expr(expr.lhs, wrap_if_complex=True)} > {self._convert_sympy_to_pseudocode_expr(expr.rhs, wrap_if_complex=True)}"
+            return f"{_to_pseudocode_part(expr.lhs, True)} > {_to_pseudocode_part(expr.rhs, True)}"
         elif isinstance(expr, sp.StrictLessThan):
-            return f"{self._convert_sympy_to_pseudocode_expr(expr.lhs, wrap_if_complex=True)} < {self._convert_sympy_to_pseudocode_expr(expr.rhs, wrap_if_complex=True)}"
+            return f"{_to_pseudocode_part(expr.lhs, True)} < {_to_pseudocode_part(expr.rhs, True)}"
+        elif expr == sp.true:
+            return "true"
+        elif expr == sp.false:
+            return "false"
+        elif isinstance(expr, sp.Integer):
+            if expr == 0:
+                return "false"
+            elif expr == 1:
+                return "true"
+            raise ValueError(
+                f"Non-boolean integer literal '{expr}' found in boolean context."
+            )
+        elif isinstance(expr, (sp.Symbol, sp.Indexed)):
+            # Assuming symbols/indexed in boolean context refer to boolean variables
+            return self._convert_sympy_to_pseudocode_expr(
+                expr, wrap_if_complex=False
+            )  # No need to wrap a simple boolean var
         else:
-            return self._convert_sympy_to_pseudocode_expr(expr, wrap_if_complex=True)
+            raise ValueError(
+                f"Unsupported SymPy expression '{expr}' in boolean context."
+            )
 
     def _convert_memlet_subset_to_pseudocode(self, subset) -> str:
         """
@@ -325,7 +658,13 @@ class SDFGToPseudocodeConverter:
         """
         if not access_list:
             return ""
-        return ", ".join([f"{name}[{subset}]" for name, subset in access_list])
+        # Filter out symbols
+        filtered_access_list = [
+            (name, subset)
+            for name, subset in access_list
+            if name not in self._declared_symbols
+        ]
+        return ", ".join([f"{name}[{subset}]" for name, subset in filtered_access_list])
 
     def _convert_node(self, node: dace.sdfg.nodes.Node, state: SDFGState):
         """
@@ -349,6 +688,14 @@ class SDFGToPseudocodeConverter:
             raise NotImplementedError(
                 f"Conversion for node type {type(node)} not yet implemented."
             )
+
+    def _resolve_source_conflicts(
+        self, source_states: dict[str, str]
+    ) -> dict[str, str]:
+        """
+        Pass-through: Conflict resolution is now handled by the Parser's 'Latest Wins' logic.
+        """
+        return source_states
 
     def _convert_tasklet(self, tasklet: Tasklet, state: SDFGState):
         # Determine source states for reads and update array_state for writes
@@ -382,25 +729,27 @@ class SDFGToPseudocodeConverter:
 
         stmt_name = self._get_next_stmt_name("T")
 
-        # Construct source_states string for pseudocode
-        unique_source_stmts = sorted(list(set(source_states.values())))
-        # Filter out "." which represents the initial state and should be indicated by "()"
+        # Resolve conflicts and construct source_states string
+        resolved_source_states = self._resolve_source_conflicts(source_states)
+        unique_source_stmts = sorted(list(set(resolved_source_states.values())))
         filtered_source_stmts = [s for s in unique_source_stmts if s != "."]
 
         if not filtered_source_stmts:
-            dataflow_prefix = "()."  # Explicit empty source states
+            dataflow_prefix = "()."
         else:
             source_states_str = ", ".join(filtered_source_stmts)
             dataflow_prefix = f"({source_states_str})."
 
         # The syntax for op is: (READS => WRITES) (<source_states>).<stmt_name>| op(<description>)
+        label = tasklet.label.replace("(", "{").replace(")", "}")
         self._add_line(
-            f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}| op({tasklet.label})"
+            f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}| op({label})"
         )
 
         # After the statement, update the _array_state for all arrays written by this tasklet
         for array_name, _ in current_write_accesses:
             self._array_state[array_name] = stmt_name
+            self._statement_writes[stmt_name].add(array_name)
 
         self._current_scope_stmt_name = stmt_name
 
@@ -449,13 +798,13 @@ class SDFGToPseudocodeConverter:
 
         stmt_name = self._get_next_stmt_name("M")
 
-        # Construct source_states string for pseudocode
-        unique_source_stmts = sorted(list(set(source_states.values())))
-        # Filter out "." which represents the initial state and should be indicated by "()"
+        # Resolve conflicts
+        resolved_source_states = self._resolve_source_conflicts(source_states)
+        unique_source_stmts = sorted(list(set(resolved_source_states.values())))
         filtered_source_stmts = [s for s in unique_source_stmts if s != "."]
 
         if not filtered_source_stmts:
-            dataflow_prefix = "()."  # Explicit empty source states
+            dataflow_prefix = "()."
         else:
             source_states_str = ", ".join(filtered_source_stmts)
             dataflow_prefix = f"({source_states_str})."
@@ -498,6 +847,7 @@ class SDFGToPseudocodeConverter:
         self._current_scope_stmt_name = self._current_array_state_stack.pop()
         for array_name, _ in writes_map_boundary:
             old_array_state[array_name] = stmt_name
+            self._statement_writes[stmt_name].add(array_name)
         self._array_state = old_array_state
 
     def convert_body(self):
@@ -548,9 +898,9 @@ class SDFGToPseudocodeConverter:
 
         stmt_name = self._get_next_stmt_name("NS")  # Define stmt_name here
 
-        # Construct source_states string for pseudocode
-        unique_source_stmts = sorted(list(set(source_states.values())))
-        # Filter out "." which represents the initial state and should be indicated by "()"
+        # Resolve conflicts and construct source_states string
+        resolved_source_states = self._resolve_source_conflicts(source_states)
+        unique_source_stmts = sorted(list(set(resolved_source_states.values())))
         filtered_source_stmts = [s for s in unique_source_stmts if s != "."]
 
         if not filtered_source_stmts:
@@ -569,25 +919,74 @@ class SDFGToPseudocodeConverter:
         nested_converter = SDFGToPseudocodeConverter(nested_sdfg_node.sdfg)
         # Propagate indentation level
         nested_converter._indent_level = self._indent_level
-        # Propagate array state (basic heuristic, might not map perfectly without explicit symbol mapping logic)
-        # nested_converter._array_state = self._array_state.copy() # Too risky without mapping
+        # Propagate declared symbols and arrays so nested converter knows what to filter
+        nested_converter._declared_symbols = self._declared_symbols.copy()
+        nested_converter._declared_arrays = self._declared_arrays.copy()
 
-        # We need to collect declarations from nested SDFG if we haven't already
-        # But convert_body doesn't print them. They should have been collected by the top-level
-        # _collect_all_declarations_and_outputs if traversed correctly.
+        # Synchronize Statement IDs
+        nested_converter._next_stmt_id = self._next_stmt_id
+
+        # Propagate initial array state to nested converter so it knows sources
+        # (This is a simplified mapping assuming matching names)
+        nested_converter._array_state = self._array_state.copy()
+        # Also need statement writes to check conflicts inside?
+        # Maybe safer to let it start fresh or copy?
+        # Ideally it should know about external writes to avoid ambiguity if it refers to them.
+        nested_converter._statement_writes = self._statement_writes.copy()
 
         # Run conversion of body
         nested_converter.convert_body()
 
+        # Sync back ID
+        self._next_stmt_id = nested_converter._next_stmt_id
+
         # Append lines to current lines
         self.pseudocode_lines.extend(nested_converter.pseudocode_lines)
 
-        # Update array state for all arrays written by this NestedSDFG
-        # This assumes the nested SDFG execution is atomic regarding these writes in the current scope
-        for array_name, _ in writes:
-            self._array_state[array_name] = stmt_name
+        # Update array state from the nested converter's final state
+        # This effectively exposes the internal last-writers to the parent scope
+        self._array_state.update(nested_converter._array_state)
 
-        self._current_scope_stmt_name = stmt_name
+        # Merge statement writes
+        for k, v in nested_converter._statement_writes.items():
+            self._statement_writes[k].update(v)
+
+        # self._current_scope_stmt_name = stmt_name # No wrapper statement to set as scope
+
+    def _emit_assignments_from_edge(self, edge):
+        if not isinstance(edge.data, dace.InterstateEdge):
+            return
+
+        # Assignments is a dict {var: expr}
+        for var, expr in edge.data.assignments.items():
+            expr_ast = ast.parse(expr)
+            extractor = ASTReadExtractor(self._declared_arrays)
+            extractor.visit(expr_ast)
+
+            read_str = self._convert_accesses_to_pseudocode(extractor.reads)
+            source_states = {}
+            for r_name, _ in extractor.reads:
+                source_states[r_name] = self._array_state.get(r_name, ".")
+
+            # Use resolve to be safe/consistent
+            resolved = self._resolve_source_conflicts(source_states)
+
+            unique = sorted(list(set(resolved.values())))
+            filtered = [s for s in unique if s != "."]
+            if not filtered:
+                prefix = "()."
+            else:
+                prefix = f"({', '.join(filtered)})."
+
+            stmt_name = self._get_next_stmt_name("Assign")
+
+            # Scalar write: var[0]
+            self._add_line(
+                f"({read_str} => {var}[0]) {prefix}{stmt_name}| op(assign_{var})"
+            )
+
+            self._array_state[var] = stmt_name
+            self._statement_writes[stmt_name].add(var)
 
     def _convert_cfg_node(self, node, parent_cfg_node):
         """
@@ -596,6 +995,10 @@ class SDFGToPseudocodeConverter:
         """
         if node in self._processed_cfg_nodes:
             return
+
+        # Process assignments on incoming edges
+        for edge in parent_cfg_node.in_edges(node):
+            self._emit_assignments_from_edge(edge)
 
         if isinstance(node, SDFGState):
             # Try to process as a conditional state first (if it's the entry of a conditional branch)
@@ -708,13 +1111,13 @@ class SDFGToPseudocodeConverter:
 
         stmt_name = self._get_next_stmt_name("L")
 
-        # Construct source_states string for pseudocode
-        unique_source_stmts = sorted(list(set(source_states.values())))
-        # Filter out "." which represents the initial state and should be indicated by "()"
+        # Resolve conflicts and construct source_states string
+        resolved_source_states = self._resolve_source_conflicts(source_states)
+        unique_source_stmts = sorted(list(set(resolved_source_states.values())))
         filtered_source_stmts = [s for s in unique_source_stmts if s != "."]
 
         if not filtered_source_stmts:
-            dataflow_prefix = "()."  # Explicit empty source states
+            dataflow_prefix = "()."
         else:
             source_states_str = ", ".join(filtered_source_stmts)
             dataflow_prefix = f"({source_states_str})."
@@ -753,6 +1156,7 @@ class SDFGToPseudocodeConverter:
                 array_name
             ):  # If it was written *within* this loop
                 old_array_state[array_name] = stmt_name
+                self._statement_writes[stmt_name].add(array_name)
         self._array_state = old_array_state
 
     def _convert_conditional_block(self, cond_block: ConditionalBlock, parent_cfg_node):
@@ -761,22 +1165,32 @@ class SDFGToPseudocodeConverter:
         for array_name in self._array_state:
             source_states[array_name] = self._array_state[array_name]
 
-        r_vars, w_vars = self._collect_region_accesses(cond_block)
-        reads_cond_boundary = [(r, "0") for r in r_vars]
-        writes_cond_boundary = [(w, "0") for w in w_vars]
+        # These reads/writes are for the conditional statement itself, not its body
+        # Collect reads from predicate expressions
+        reads_from_predicate = set()
+        for dace_cond_codeblock, _ in cond_block.branches:
+            if dace_cond_codeblock is not None and dace_cond_codeblock.code != "1":
+                sympy_cond_expr = self._parse_code_block_to_sympy(dace_cond_codeblock)
+                predicate_accesses = self._get_read_accesses_from_expression(
+                    sympy_cond_expr
+                )
+                for var_name, _ in predicate_accesses:
+                    reads_from_predicate.add(var_name)
 
-        read_str = self._convert_accesses_to_pseudocode(reads_cond_boundary)
-        write_str = self._convert_accesses_to_pseudocode(writes_cond_boundary)
+        final_read_str = self._convert_accesses_to_pseudocode(
+            [(v, "0") for v in sorted(list(reads_from_predicate))]
+        )
+        final_write_str = ""  # Conditional statement itself does not aggregate writes of its branches.
 
         stmt_name = self._get_next_stmt_name("B")
 
-        # Construct source_states string for pseudocode
-        unique_source_stmts = sorted(list(set(source_states.values())))
-        # Filter out "." which represents the initial state and should be indicated by "()"
+        # Resolve conflicts and construct source_states string
+        resolved_source_states = self._resolve_source_conflicts(source_states)
+        unique_source_stmts = sorted(list(set(resolved_source_states.values())))
         filtered_source_stmts = [s for s in unique_source_stmts if s != "."]
 
         if not filtered_source_stmts:
-            dataflow_prefix = "()."  # Explicit empty source states
+            dataflow_prefix = "()."
         else:
             source_states_str = ", ".join(filtered_source_stmts)
             dataflow_prefix = f"({source_states_str})."
@@ -822,7 +1236,7 @@ class SDFGToPseudocodeConverter:
 
                 if i == 0:  # First branch is 'if'
                     self._add_line(
-                        f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}| if {cond_str}:"
+                        f"({final_read_str} => {final_write_str}) {dataflow_prefix}{stmt_name}| if {cond_str}:"
                     )
                 else:  # Subsequent branches are 'else if'
                     self._add_line(f"else if {cond_str}:")
@@ -849,6 +1263,12 @@ class SDFGToPseudocodeConverter:
             merged_array_state[array_name] = (
                 stmt_name  # The conditional block is the new producer
             )
+            self._statement_writes[stmt_name].add(array_name)
+
+        # Update write_str with the determined writes from branches
+        write_str = self._convert_accesses_to_pseudocode(
+            [(v, "0") for v in sorted(list(modified_arrays_in_any_branch))]
+        )
 
         self._array_state = merged_array_state
         self._current_scope_stmt_name = self._current_array_state_stack.pop()
@@ -903,11 +1323,33 @@ class SDFGToPseudocodeConverter:
             source_states[array_name] = self._array_state[array_name]
 
         # These reads/writes are for the conditional statement itself, not its body
-        reads_cond_boundary = []
-        writes_cond_boundary = []
+        # Collect reads from conditional expressions on edges
+        reads_from_predicate = set()
+        for edge in conditional_edges_with_conditions:
+            if edge.condition is not None and str(edge.condition) != "1":
+                # edge.condition is already a sympy.Basic object
+                predicate_accesses = self._get_read_accesses_from_expression(
+                    edge.condition
+                )
+                for var_name, _ in predicate_accesses:
+                    reads_from_predicate.add(var_name)
 
-        read_str = self._convert_accesses_to_pseudocode(reads_cond_boundary)
-        write_str = self._convert_accesses_to_pseudocode(writes_cond_boundary)
+        if (
+            unconditional_else_edge
+            and unconditional_else_edge.condition is not None
+            and str(unconditional_else_edge.condition) != "1"
+        ):
+            # This should not happen for an 'else' edge, but for completeness
+            predicate_accesses = self._get_read_accesses_from_expression(
+                unconditional_else_edge.condition
+            )
+            for var_name, _ in predicate_accesses:
+                reads_from_predicate.add(var_name)
+
+        read_str = self._convert_accesses_to_pseudocode(
+            [(v, "0") for v in sorted(list(reads_from_predicate))]
+        )
+        write_str = ""  # Conditional statement itself does not aggregate writes of its branches.
 
         stmt_name = self._get_next_stmt_name("C")  # "C" for Conditional
 
@@ -937,7 +1379,7 @@ class SDFGToPseudocodeConverter:
             cond_str = self._convert_sympy_boolean_to_pseudocode(edge.condition)
             if i == 0:  # First conditional branch is 'if'
                 self._add_line(
-                    f"({read_str} => {write_str}) {dataflow_prefix}{stmt_name}| if {cond_str}:"
+                    f"({final_read_str} => {final_write_str}) {dataflow_prefix}{stmt_name}| if {cond_str}:"
                 )
             else:  # Subsequent conditional branches are 'else if'
                 self._add_line(f"else if {cond_str}:")
@@ -1018,7 +1460,7 @@ class SDFGToPseudocodeConverter:
         elif isinstance(expr, sp.Indexed):
             array_name = str(expr.base)
             self._declared_arrays.add(array_name)
-        elif hasattr(expr, "args"):
+        elif isinstance(expr, sp.Basic):
             for arg in expr.args:
                 self._extract_sympy_symbols(arg)
 
@@ -1034,6 +1476,37 @@ class SDFGToPseudocodeConverter:
         # To collect loop variables and other symbols from expressions, we need to traverse the SDFG.
         for node in dfs_topological_sort(self.sdfg):
             self._traverse_for_declarations_in_expressions(node, self.sdfg)
+
+        # Collect symbols assigned on InterstateEdges
+        assigned_symbols = set()
+        self._collect_assignments_recursive(self.sdfg, assigned_symbols)
+
+        # Treat assigned symbols as scalar arrays (variables)
+        self._declared_symbols -= assigned_symbols
+        self._declared_arrays.update(assigned_symbols)
+
+        # HACK: Post-collection cleanup
+        # Ensure symbols (0-d arrays) are not also declared as arrays
+        self._declared_arrays -= self._declared_symbols
+
+    def _collect_assignments_recursive(self, graph, assigned_set):
+        for edge in graph.edges():
+            if isinstance(edge.data, dace.InterstateEdge):
+                for k in edge.data.assignments.keys():
+                    assigned_set.add(k)
+
+        for node in graph.nodes():
+            if isinstance(node, LoopRegion):
+                self._collect_assignments_recursive(node, assigned_set)
+            elif isinstance(node, ConditionalBlock):
+                for _, body in node.branches:
+                    self._collect_assignments_recursive(body, assigned_set)
+            elif isinstance(node, NestedSDFG):
+                self._collect_assignments_recursive(node.sdfg, assigned_set)
+            elif isinstance(node, SDFGState):
+                for subnode in node.nodes():
+                    if isinstance(subnode, NestedSDFG):
+                        self._collect_assignments_recursive(subnode.sdfg, assigned_set)
 
     def _traverse_for_declarations_in_expressions(self, node, sdfg_context):
         # Collect loop variables and extract symbols from expressions.

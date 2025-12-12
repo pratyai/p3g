@@ -824,13 +824,33 @@ if __name__ == "__main__":
     # Original Heat3D SDFG (LoopRegions)
     sdfg_heat3d_loop = generate_heat3d_sdfg()
     sdfg_heat3d_loop.simplify()
-    expand_scalars(sdfg_heat3d_loop)
     _process_sdfg(
         sdfg_heat3d_loop, "heat3d", args.out_dir, "Heat3D original (LoopRegion)"
     )
 
-    # Heat3D transformed to Maps
-    sdfg_heat3d_map = deepcopy(sdfg_heat3d_loop)
+    # Heat3D Initial Map (LoopToMap on original)
+    sdfg_heat3d_initial_map = deepcopy(sdfg_heat3d_loop)
+    sdfg_heat3d_initial_map.name = "heat3d_initial_map"
+    sdfg_heat3d_initial_map.apply_transformations_repeated(LoopToMap)
+    sdfg_heat3d_initial_map.simplify()
+    _process_sdfg(
+        sdfg_heat3d_initial_map,
+        "heat3d",
+        args.out_dir,
+        "Heat3D initial map",
+        "_initial_map",
+    )
+
+    # Heat3D Expanded
+    sdfg_heat3d_expanded = deepcopy(sdfg_heat3d_loop)
+    sdfg_heat3d_expanded.name = "heat3d_expanded"
+    expand_scalars(sdfg_heat3d_expanded)
+    _process_sdfg(
+        sdfg_heat3d_expanded, "heat3d", args.out_dir, "Heat3D expanded", "_expanded"
+    )
+
+    # Heat3D transformed to Maps (from expanded)
+    sdfg_heat3d_map = deepcopy(sdfg_heat3d_expanded)
     sdfg_heat3d_map.name = "heat3d_map"
     sdfg_heat3d_map.apply_transformations_repeated(LoopToMap)
     sdfg_heat3d_map.simplify()
@@ -849,8 +869,16 @@ if __name__ == "__main__":
     # Original SpMV SDFG (LoopRegion)
     sdfg_spmv_loop = generate_spmv_sdfg()
     sdfg_spmv_loop.simplify()
-    # expand_scalars(sdfg_spmv_loop) # Keep original unexpanded
     _process_sdfg(sdfg_spmv_loop, "spmv", args.out_dir, "SpMV original (LoopRegion)")
+
+    # SpMV Initial Map (LoopToMap on original)
+    sdfg_spmv_initial_map = deepcopy(sdfg_spmv_loop)
+    sdfg_spmv_initial_map.name = "spmv_initial_map"
+    sdfg_spmv_initial_map.apply_transformations_repeated(LoopToMap)
+    sdfg_spmv_initial_map.simplify()
+    _process_sdfg(
+        sdfg_spmv_initial_map, "spmv", args.out_dir, "SpMV initial map", "_initial_map"
+    )
 
     # SpMV Expanded
     sdfg_spmv_expanded = deepcopy(sdfg_spmv_loop)
@@ -863,8 +891,7 @@ if __name__ == "__main__":
     # SpMV transformed (ScalarExpansion and LoopToMap)
     sdfg_spmv_map = deepcopy(sdfg_spmv_expanded)
     sdfg_spmv_map.name = "spmv_map"
-    # To properly parallelize the outer loop, a ScalarExpansion pass would typically
-    # be applied first to `accum`. Without it, LoopToMap will keep `accum` serial.
+
     sdfg_spmv_map.apply_transformations_repeated(LoopToMap)
     sdfg_spmv_map.simplify()
     _process_sdfg(
@@ -878,10 +905,22 @@ if __name__ == "__main__":
     # Original Gram-Schmidt SDFG (LoopRegion)
     sdfg_gs_loop = generate_gram_schmidt_sdfg()
     sdfg_gs_loop.simplify()
-    # expand_scalars(sdfg_gs_loop) # Do it explicitly to test
-    # We want to show 'nrm' being expanded
+
     _process_sdfg(
         sdfg_gs_loop, "gram_schmidt", args.out_dir, "Gram-Schmidt original (LoopRegion)"
+    )
+
+    # GS Initial Map
+    sdfg_gs_initial_map = deepcopy(sdfg_gs_loop)
+    sdfg_gs_initial_map.name = "gram_schmidt_initial_map"
+    sdfg_gs_initial_map.apply_transformations_repeated(LoopToMap)
+    sdfg_gs_initial_map.simplify()
+    _process_sdfg(
+        sdfg_gs_initial_map,
+        "gram_schmidt",
+        args.out_dir,
+        "Gram-Schmidt initial map",
+        "_initial_map",
     )
 
     # Apply expansion
@@ -917,6 +956,15 @@ if __name__ == "__main__":
     sdfg_adi_loop = generate_adi_sdfg()
     sdfg_adi_loop.simplify()
     _process_sdfg(sdfg_adi_loop, "adi", args.out_dir, "ADI original (LoopRegion)")
+
+    # ADI Initial Map
+    sdfg_adi_initial_map = deepcopy(sdfg_adi_loop)
+    sdfg_adi_initial_map.name = "adi_initial_map"
+    sdfg_adi_initial_map.apply_transformations_repeated(LoopToMap)
+    sdfg_adi_initial_map.simplify()
+    _process_sdfg(
+        sdfg_adi_initial_map, "adi", args.out_dir, "ADI initial map", "_initial_map"
+    )
 
     # ADI Expanded
     sdfg_adi_expanded = deepcopy(sdfg_adi_loop)
