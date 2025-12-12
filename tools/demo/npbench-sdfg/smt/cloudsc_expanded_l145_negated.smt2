@@ -1,0 +1,40 @@
+(declare-fun _for_it_97 () Int)
+(declare-fun kfdia () Int)
+(declare-fun kidia () Int)
+(declare-fun klev () Int)
+(declare-fun ncldtop () Int)
+
+(assert (and
+  (forall ((_for_it_98_0 Int) (_for_it_98_1 Int))
+    (or
+      (not (= _for_it_97 (+ _for_it_97 1)))
+      (not (<= 0 _for_it_98_1))
+      (not (<= _for_it_98_1 4))
+      (not (<= 0 _for_it_98_0))
+      (not (<= _for_it_98_0 4))
+    )
+  )
+  (forall ((_for_it_98_0 Int))
+    (or
+      (not (= _for_it_97 (+ _for_it_97 1)))
+      (not (<= 0 _for_it_98_0))
+      (not (<= _for_it_98_0 4))
+    )
+  )
+  (not (= _for_it_97 (+ _for_it_97 1)))
+  (and
+    (<= ncldtop (+ klev (- 1)))
+    (<= (+ _for_it_97 1) (+ kfdia (- 1)))
+    (<= (+ kidia (- 1)) _for_it_97)
+    (<= kidia (+ kfdia (- 1)))
+  )
+  (forall ((_for_it_98_1 Int))
+    (or
+      (not (= _for_it_97 (+ _for_it_97 1)))
+      (not (<= 0 _for_it_98_1))
+      (not (<= _for_it_98_1 4))
+    )
+  )
+))
+
+(check-sat)
