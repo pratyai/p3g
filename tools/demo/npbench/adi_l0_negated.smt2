@@ -3,25 +3,12 @@
 (declare-fun t () Int)
 
 (assert (and
-  (forall ((i_1 Int) (j_0 Int))
-    (or
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
-      (not (= j_0 i_1))
-      (not (<= 1 j_0))
-      (not (<= j_0 (- N 2)))
-    )
-  )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int) (j_1 Int))
     (or
       (not (<= (- N 2) j_0))
       (not (<= j_0 1))
       (not (<= 1 i_0))
       (not (<= i_0 (- N 2)))
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
-      (not (<= (- N 2) j_1))
-      (not (<= j_1 1))
       (and
         (or
           (not (= i_0 i_1))
@@ -36,6 +23,10 @@
           (not (= (+ j_0 1) j_1))
         )
       )
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
+      (not (<= (- N 2) j_1))
+      (not (<= j_1 1))
     )
   )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int))
@@ -48,8 +39,8 @@
       (not (<= i_1 (- N 2)))
       (and
         (or
-          (not (= (+ j_0 1) (- N 1)))
           (not (= i_0 i_1))
+          (not (= (+ j_0 1) (- N 1)))
         )
         (or
           (not (= i_0 i_1))
@@ -63,9 +54,9 @@
       (not (<= 1 j_1))
       (not (<= j_1 (- N 2)))
       (not (<= (- N 2) j_0))
-      (not (<= j_0 1))
       (not (<= 1 i_0))
       (not (<= i_0 (- N 2)))
+      (not (<= j_0 1))
       (not (= i_0 i_1))
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
@@ -109,13 +100,15 @@
       (not (<= 1 j_1))
       (not (<= j_1 (- N 2)))
       (not (<= (- N 2) j_0))
-      (not (<= j_0 1))
       (not (<= 1 i_0))
       (not (<= i_0 (- N 2)))
+      (not (<= j_0 1))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
       (and
         (or
-          (not (= j_0 (- j_1 1)))
           (not (= i_0 i_1))
+          (not (= j_0 (- j_1 1)))
         )
         (or
           (not (= i_0 i_1))
@@ -126,24 +119,22 @@
           (not (= j_0 (+ j_1 1)))
         )
       )
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
     )
   )
   (forall ((i_0 Int) (i_1 Int) (j_1 Int))
     (or
+      (not (<= 1 i_0))
+      (not (<= i_0 (- N 2)))
       (and
         (or
-          (not (= (- N 1) j_1))
           (not (= i_0 i_1))
+          (not (= (- N 1) j_1))
         )
         (or
           (not (= i_0 i_1))
           (not (= (- N 1) (+ j_1 1)))
         )
       )
-      (not (<= 1 i_0))
-      (not (<= i_0 (- N 2)))
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
       (not (<= (- N 2) j_1))
@@ -159,14 +150,13 @@
       (not (<= i_1 (- N 2)))
     )
   )
-  (forall ((i_0 Int) (i_1 Int))
+  (forall ((i_1 Int) (j_0 Int))
     (or
-      (not (<= 1 i_0))
-      (not (<= i_0 (- N 2)))
-      (not (= i_0 i_1))
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
-      (not (= (- N 1) 0))
+      (not (= j_0 i_1))
+      (not (<= 1 j_0))
+      (not (<= j_0 (- N 2)))
     )
   )
   (forall ((i_0 Int) (i_1 Int) (j_1 Int))
@@ -179,8 +169,8 @@
       (not (<= i_1 (- N 2)))
       (and
         (or
-          (not (= (- N 1) j_1))
           (not (= i_0 i_1))
+          (not (= (- N 1) j_1))
         )
         (or
           (not (= i_0 i_1))
@@ -191,6 +181,16 @@
           (not (= (- N 1) (- j_1 1)))
         )
       )
+    )
+  )
+  (forall ((i_0 Int) (i_1 Int))
+    (or
+      (not (<= 1 i_0))
+      (not (<= i_0 (- N 2)))
+      (not (= i_0 i_1))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
+      (not (= (- N 1) 0))
     )
   )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int) (j_1 Int))
@@ -211,14 +211,10 @@
     (or
       (not (<= 1 j_1))
       (not (<= j_1 (- N 2)))
-      (not (<= 1 i_0))
-      (not (<= i_0 (- N 2)))
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
       (and
         (or
-          (not (= j_0 (- j_1 1)))
           (not (= i_0 i_1))
+          (not (= j_0 (- j_1 1)))
         )
         (or
           (not (= i_0 i_1))
@@ -229,6 +225,10 @@
           (not (= (- j_0 1) j_1))
         )
       )
+      (not (<= 1 i_0))
+      (not (<= i_0 (- N 2)))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
       (not (<= 1 j_0))
       (not (<= j_0 (- N 2)))
     )
@@ -249,6 +249,10 @@
   )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int))
     (or
+      (not (<= 1 i_0))
+      (not (<= i_0 (- N 2)))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
       (and
         (or
           (not (= i_0 i_1))
@@ -259,10 +263,6 @@
           (not (= (- j_0 1) 0))
         )
       )
-      (not (<= 1 i_0))
-      (not (<= i_0 (- N 2)))
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
       (not (<= 1 j_0))
       (not (<= j_0 (- N 2)))
     )
@@ -281,11 +281,11 @@
   )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int) (j_1 Int))
     (or
+      (not (<= 1 i_0))
+      (not (<= i_0 (- N 2)))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
       (and
-        (or
-          (not (= j_0 j_1))
-          (not (= (+ i_0 1) i_1))
-        )
         (or
           (not (= (- i_0 1) i_1))
           (not (= j_0 j_1))
@@ -294,16 +294,23 @@
           (not (= i_0 i_1))
           (not (= j_0 j_1))
         )
+        (or
+          (not (= j_0 j_1))
+          (not (= (+ i_0 1) i_1))
+        )
       )
-      (not (<= 1 i_0))
-      (not (<= i_0 (- N 2)))
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
       (not (<= (- N 2) j_1))
       (not (<= j_1 1))
       (not (<= 1 j_0))
       (not (<= j_0 (- N 2)))
     )
+  )
+  (and
+    (<= 2 (- N 2))
+    (<= (- (+ N 1) 2) 1)
+    (<= 2 TSTEPS)
+    (<= 1 t)
+    (<= (+ t 1) TSTEPS)
   )
   (forall ((i_0 Int) (j_0 Int) (j_1 Int))
     (or
@@ -359,8 +366,8 @@
       (not (<= j_1 (- N 2)))
       (not (<= 1 i_0))
       (not (<= i_0 (- N 2)))
-      (not (= j_0 (- j_1 1)))
       (not (= i_0 i_1))
+      (not (= j_0 (- j_1 1)))
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
       (not (<= 1 j_0))
@@ -378,13 +385,6 @@
       (not (<= (- N 2) j_1))
       (not (<= j_1 1))
     )
-  )
-  (and
-    (<= 2 (- N 2))
-    (<= (- (+ N 1) 2) 1)
-    (<= 2 TSTEPS)
-    (<= 1 t)
-    (<= (+ t 1) TSTEPS)
   )
   (forall ((i_0 Int) (i_1 Int))
     (or
@@ -406,8 +406,8 @@
       (not (<= i_1 (- N 2)))
       (and
         (or
-          (not (= 0 j_1))
           (not (= i_0 i_1))
+          (not (= 0 j_1))
         )
         (or
           (not (= i_0 i_1))
@@ -430,20 +430,20 @@
   )
   (forall ((i_0 Int) (i_1 Int) (j_1 Int))
     (or
-      (and
-        (or
-          (not (= 0 (+ j_1 1)))
-          (not (= i_0 i_1))
-        )
-        (or
-          (not (= 0 j_1))
-          (not (= i_0 i_1))
-        )
-      )
       (not (<= 1 i_0))
       (not (<= i_0 (- N 2)))
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
+      (and
+        (or
+          (not (= i_0 i_1))
+          (not (= 0 j_1))
+        )
+        (or
+          (not (= i_0 i_1))
+          (not (= 0 (+ j_1 1)))
+        )
+      )
       (not (<= (- N 2) j_1))
       (not (<= j_1 1))
     )
@@ -458,12 +458,12 @@
       (not (<= i_1 (- N 2)))
       (and
         (or
-          (not (= 0 (+ j_1 1)))
           (not (= i_0 i_1))
+          (not (= 0 j_1))
         )
         (or
-          (not (= 0 j_1))
           (not (= i_0 i_1))
+          (not (= 0 (+ j_1 1)))
         )
         (or
           (not (= i_0 i_1))
@@ -477,9 +477,9 @@
       (not (<= 1 j_1))
       (not (<= j_1 (- N 2)))
       (not (<= (- N 2) j_0))
-      (not (<= j_0 1))
       (not (<= 1 i_0))
       (not (<= i_0 (- N 2)))
+      (not (<= j_0 1))
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
       (and
@@ -498,16 +498,6 @@
       )
     )
   )
-  (forall ((i_1 Int) (j_0 Int))
-    (or
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
-      (not (= j_0 i_1))
-      (not (= (- N 1) 0))
-      (not (<= 1 j_0))
-      (not (<= j_0 (- N 2)))
-    )
-  )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int) (j_1 Int))
     (or
       (not (<= (- N 2) j_0))
@@ -516,13 +506,7 @@
       (not (<= i_0 (- N 2)))
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
-      (not (<= (- N 2) j_1))
-      (not (<= j_1 1))
       (and
-        (or
-          (not (= j_0 j_1))
-          (not (= (+ i_0 1) i_1))
-        )
         (or
           (not (= i_0 (+ i_1 1)))
           (not (= j_0 j_1))
@@ -531,7 +515,13 @@
           (not (= i_0 i_1))
           (not (= j_0 j_1))
         )
+        (or
+          (not (= j_0 j_1))
+          (not (= (+ i_0 1) i_1))
+        )
       )
+      (not (<= (- N 2) j_1))
+      (not (<= j_1 1))
     )
   )
   (forall ((i_0 Int) (j_0 Int) (j_1 Int))
@@ -539,9 +529,9 @@
       (not (<= 1 j_1))
       (not (<= j_1 (- N 2)))
       (not (<= (- N 2) j_0))
-      (not (<= j_0 1))
       (not (<= 1 i_0))
       (not (<= i_0 (- N 2)))
+      (not (<= j_0 1))
       (and
         (or
           (not (= i_0 (- N 1)))
@@ -554,34 +544,20 @@
       )
     )
   )
-  (forall ((i_0 Int) (i_1 Int) (j_0 Int))
+  (forall ((i_1 Int) (j_0 Int))
     (or
-      (and
-        (or
-          (not (= i_0 0))
-          (not (= j_0 i_1))
-        )
-        (or
-          (not (= i_0 i_1))
-          (not (= j_0 0))
-        )
-      )
-      (not (<= (- N 2) j_0))
-      (not (<= j_0 1))
-      (not (<= 1 i_0))
-      (not (<= i_0 (- N 2)))
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
+      (not (= j_0 i_1))
+      (not (= (- N 1) 0))
+      (not (<= 1 j_0))
+      (not (<= j_0 (- N 2)))
     )
   )
   (forall ((i_0 Int) (j_0 Int) (j_1 Int))
     (or
       (not (<= 1 j_1))
       (not (<= j_1 (- N 2)))
-      (not (<= (- N 2) j_0))
-      (not (<= j_0 1))
-      (not (<= 1 i_0))
-      (not (<= i_0 (- N 2)))
       (and
         (or
           (not (= i_0 0))
@@ -592,13 +568,43 @@
           (not (= j_0 j_1))
         )
       )
+      (not (<= 1 i_0))
+      (not (<= i_0 (- N 2)))
+      (not (<= (- N 2) j_0))
+      (not (<= j_0 1))
+    )
+  )
+  (forall ((i_0 Int) (i_1 Int) (j_0 Int))
+    (or
+      (not (<= (- N 2) j_0))
+      (not (<= j_0 1))
+      (not (<= 1 i_0))
+      (not (<= i_0 (- N 2)))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
+      (and
+        (or
+          (not (= i_0 0))
+          (not (= j_0 i_1))
+        )
+        (or
+          (not (= i_0 i_1))
+          (not (= j_0 0))
+        )
+      )
     )
   )
   (forall ((i_1 Int) (j_0 Int) (j_1 Int))
     (or
       (not (<= 1 j_1))
       (not (<= j_1 (- N 2)))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
       (and
+        (or
+          (not (= j_0 j_1))
+          (not (= (- N 1) i_1))
+        )
         (or
           (not (= (- N 1) (- i_1 1)))
           (not (= j_0 j_1))
@@ -607,31 +613,25 @@
           (not (= (- N 1) (+ i_1 1)))
           (not (= j_0 j_1))
         )
-        (or
-          (not (= j_0 j_1))
-          (not (= (- N 1) i_1))
-        )
       )
-      (not (<= i_1 (- N 2)))
-      (not (<= 1 i_1))
       (not (<= 1 j_0))
       (not (<= j_0 (- N 2)))
     )
   )
   (forall ((i_1 Int) (j_0 Int) (j_1 Int))
     (or
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
       (and
-        (or
-          (not (= (- N 1) (+ i_1 1)))
-          (not (= j_0 j_1))
-        )
         (or
           (not (= j_0 j_1))
           (not (= (- N 1) i_1))
         )
+        (or
+          (not (= (- N 1) (+ i_1 1)))
+          (not (= j_0 j_1))
+        )
       )
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
       (not (<= (- N 2) j_1))
       (not (<= j_1 1))
       (not (<= 1 j_0))
@@ -661,6 +661,10 @@
     (or
       (not (<= 1 i_0))
       (not (<= i_0 (- N 2)))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
+      (not (<= (- N 2) j_1))
+      (not (<= j_1 1))
       (and
         (or
           (not (= i_0 i_1))
@@ -675,44 +679,36 @@
           (not (= (- j_0 1) j_1))
         )
       )
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
-      (not (<= (- N 2) j_1))
-      (not (<= j_1 1))
       (not (<= 1 j_0))
       (not (<= j_0 (- N 2)))
     )
   )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int))
     (or
+      (not (<= 1 i_0))
+      (not (<= i_0 (- N 2)))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
       (and
         (or
           (not (= i_0 i_1))
-          (not (= (- j_0 1) (- N 1)))
+          (not (= (+ j_0 1) (- N 1)))
         )
         (or
-          (not (= (+ j_0 1) (- N 1)))
           (not (= i_0 i_1))
+          (not (= (- j_0 1) (- N 1)))
         )
         (or
           (not (= i_0 i_1))
           (not (= j_0 (- N 1)))
         )
       )
-      (not (<= 1 i_0))
-      (not (<= i_0 (- N 2)))
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
       (not (<= 1 j_0))
       (not (<= j_0 (- N 2)))
     )
   )
   (forall ((i_0 Int) (i_1 Int) (j_0 Int))
     (or
-      (not (<= 1 i_0))
-      (not (<= i_0 (- N 2)))
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
       (and
         (or
           (not (= i_0 i_1))
@@ -727,6 +723,10 @@
           (not (= (+ j_0 1) 0))
         )
       )
+      (not (<= 1 i_0))
+      (not (<= i_0 (- N 2)))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
       (not (<= 1 j_0))
       (not (<= j_0 (- N 2)))
     )
@@ -737,18 +737,18 @@
       (not (<= i_0 (- N 2)))
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
-      (not (<= (- N 2) j_1))
-      (not (<= j_1 1))
       (and
         (or
-          (not (= 0 j_1))
           (not (= i_0 i_1))
+          (not (= 0 j_1))
         )
         (or
-          (not (= i_0 j_1))
           (not (= 0 i_1))
+          (not (= i_0 j_1))
         )
       )
+      (not (<= (- N 2) j_1))
+      (not (<= j_1 1))
     )
   )
   (forall ((i_0 Int) (j_1 Int))
@@ -772,24 +772,24 @@
   )
   (forall ((i_1 Int) (j_0 Int) (j_1 Int))
     (or
+      (not (<= 1 j_1))
+      (not (<= j_1 (- N 2)))
+      (not (<= 1 i_1))
+      (not (<= i_1 (- N 2)))
       (and
         (or
           (not (= 0 (- i_1 1)))
           (not (= j_0 j_1))
         )
         (or
-          (not (= 0 (+ i_1 1)))
-          (not (= j_0 j_1))
-        )
-        (or
           (not (= 0 i_1))
           (not (= j_0 j_1))
         )
+        (or
+          (not (= j_0 j_1))
+          (not (= 0 (+ i_1 1)))
+        )
       )
-      (not (<= 1 j_1))
-      (not (<= j_1 (- N 2)))
-      (not (<= 1 i_1))
-      (not (<= i_1 (- N 2)))
       (not (<= 1 j_0))
       (not (<= j_0 (- N 2)))
     )
@@ -798,17 +798,17 @@
     (or
       (not (<= 1 i_1))
       (not (<= i_1 (- N 2)))
-      (not (<= (- N 2) j_1))
       (and
-        (or
-          (not (= 0 (+ i_1 1)))
-          (not (= j_0 j_1))
-        )
         (or
           (not (= 0 i_1))
           (not (= j_0 j_1))
         )
+        (or
+          (not (= j_0 j_1))
+          (not (= 0 (+ i_1 1)))
+        )
       )
+      (not (<= (- N 2) j_1))
       (not (<= j_1 1))
       (not (<= 1 j_0))
       (not (<= j_0 (- N 2)))
