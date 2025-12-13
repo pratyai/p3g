@@ -1,0 +1,30 @@
+(declare-fun klev () Int)
+(declare-fun klon () Int)
+(declare-fun ncldtop () Int)
+(declare-fun tmp_parfor_35 () Int)
+
+(assert (and
+  (and
+    (<= ncldtop (+ klev (- 1)))
+    (<= 0 tmp_parfor_35)
+    (<= 1 (+ klon (- 1)))
+    (<= (+ tmp_parfor_35 1) 4)
+  )
+  (forall ((tmp_parfor_33_0 Int) (tmp_parfor_33_1 Int) (tmp_parfor_34_0 Int) (tmp_parfor_34_1 Int))
+    (or
+      (not (= tmp_parfor_33_0 tmp_parfor_33_1))
+      (not (= tmp_parfor_34_0 tmp_parfor_34_1))
+      (not (= tmp_parfor_35 (+ tmp_parfor_35 1)))
+      (not (<= tmp_parfor_33_1 (+ klon (- 1))))
+      (not (<= 0 tmp_parfor_34_0))
+      (not (<= tmp_parfor_34_0 4))
+      (not (<= tmp_parfor_33_0 (+ klon (- 1))))
+      (not (<= 0 tmp_parfor_33_0))
+      (not (<= 0 tmp_parfor_34_1))
+      (not (<= tmp_parfor_34_1 4))
+      (not (<= 0 tmp_parfor_33_1))
+    )
+  )
+))
+
+(check-sat)

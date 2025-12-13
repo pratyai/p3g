@@ -1,6 +1,6 @@
 
 
-(assert (forall ((M Int) (i Int) (start Int) (stop Int))
+(assert (forall ((M Int) (i Int))
   (=>
     false
     false

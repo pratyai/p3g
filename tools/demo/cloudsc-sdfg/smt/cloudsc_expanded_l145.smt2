@@ -1,0 +1,16 @@
+
+
+(assert (forall ((_for_it_97 Int) (kfdia Int) (kidia Int) (klev Int) (klon Int) (ncldtop Int))
+  (=>
+    (and
+      (<= ncldtop (+ klev (- 1)))
+      (<= (+ _for_it_97 1) (+ kfdia (- 1)))
+      (<= (+ kidia (- 1)) _for_it_97)
+      (not (or (exists ((_for_it_98_1 Int)) (and (= _for_it_97 (+ _for_it_97 1)) (<= 0 _for_it_98_1) (<= _for_it_98_1 4))) (= _for_it_97 (+ _for_it_97 1)) (exists ((_for_it_98_0 Int)(_for_it_98_1 Int)) (and (= _for_it_97 (+ _for_it_97 1)) (<= 0 _for_it_98_1) (<= _for_it_98_1 4) (<= 0 _for_it_98_0) (<= _for_it_98_0 4))) (exists ((_for_it_98_0 Int)) (and (= _for_it_97 (+ _for_it_97 1)) (<= 0 _for_it_98_0) (<= _for_it_98_0 4)))))
+      (<= kidia (+ kfdia (- 1)))
+    )
+    false
+  )
+))
+
+(check-sat)
