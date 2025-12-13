@@ -1456,7 +1456,9 @@ class SDFGToPseudocodeConverter:
         if isinstance(expr, sp.Symbol):
             sym_name = str(expr)
             if sym_name not in P3G_KEYWORDS:
-                self._declared_symbols.add(sym_name)
+                if sym_name not in self._declared_arrays:
+                    # Only add if not already an array
+                    self._declared_symbols.add(sym_name)
         elif isinstance(expr, sp.Indexed):
             array_name = str(expr.base)
             self._declared_arrays.add(array_name)
@@ -1467,10 +1469,7 @@ class SDFGToPseudocodeConverter:
     def _collect_all_declarations_and_outputs(self):
         # Collect arrays and symbols which are available from sdfg.arrays and sdfg.symbols
         for name, array_desc in self.sdfg.arrays.items():
-            if array_desc.shape == ():  # 0-dimensional array, treat as scalar
-                self._declared_symbols.add(name)
-            else:
-                self._declared_arrays.add(name)
+            self._declared_arrays.add(name)  # All SDFG arrays go to declared_arrays
         self._declared_symbols.update(str(s) for s in self.sdfg.symbols.keys())
 
         # To collect loop variables and other symbols from expressions, we need to traverse the SDFG.
@@ -1482,12 +1481,12 @@ class SDFGToPseudocodeConverter:
         self._collect_assignments_recursive(self.sdfg, assigned_symbols)
 
         # Treat assigned symbols as scalar arrays (variables)
+        # Ensure they are removed from _declared_symbols if present, and added to _declared_arrays
         self._declared_symbols -= assigned_symbols
         self._declared_arrays.update(assigned_symbols)
 
-        # HACK: Post-collection cleanup
-        # Ensure symbols (0-d arrays) are not also declared as arrays
-        self._declared_arrays -= self._declared_symbols
+        # Final cleanup: ensure no overlap between declared_symbols and declared_arrays
+        self._declared_symbols -= self._declared_arrays
 
     def _collect_assignments_recursive(self, graph, assigned_set):
         for edge in graph.edges():

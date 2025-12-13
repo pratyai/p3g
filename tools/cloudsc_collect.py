@@ -10,47 +10,78 @@ project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
 
 # Paths relative to project root
 generate_smt_path = os.path.join(project_root, "tools", "generate_smt.py")
-input_pcode_path = os.path.join(project_root, "tools", "demo", "cloudsc.pcode")
+input_dir = os.path.join(project_root, "tools", "demo", "cloudsc-sdfg")
+output_dir = os.path.join(project_root, "tools", "demo", "cloudsc-sdfg", "smt")
+db_path = os.path.join(output_dir, "cloudsc-results.sqlite")
 
-CMD = [
-    sys.executable,
-    generate_smt_path,
-    "-i",
-    input_pcode_path,
-    "-q",
-    "D-FS/B",
-    "-l",
-    None,
-]  # placeholder
+# Ensure output directory exists
+os.makedirs(output_dir, exist_ok=True)
+
+
+def count_loops(filepath):
+    """Counts the number of loop/map statements in a pcode file."""
+    count = 0
+    with open(filepath, "r") as f:
+        for line in f:
+            if "| for " in line or "| map " in line:
+                count += 1
+    return count
+
 
 RESULT_RE = re.compile(r"Primary Query Result:\s*(.*)")
 
 results = {}
 
-for num in range(0, 146):
-    print(f"Running NUM={num} ...", flush=True)
+# Process all .pcode files in the input directory
+pcode_files = [f for f in os.listdir(input_dir) if f.endswith(".pcode")]
 
-    cmd = CMD.copy()
-    cmd[cmd.index(None)] = str(num)
+for filename in pcode_files:
+    input_path = os.path.join(input_dir, filename)
+    loop_count = count_loops(input_path)
+    print(f"File {filename} has {loop_count} loops.", flush=True)
 
-    try:
-        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
-    except subprocess.CalledProcessError as e:
-        out = e.output  # still read output even if return code != 0
+    for loop_idx in range(loop_count):
+        print(f"Running {filename} (Loop {loop_idx}) ...", flush=True)
 
-    match = RESULT_RE.search(out)
-    if match:
-        result = match.group(1).strip()
-    else:
-        result = "<NO RESULT FOUND>"
+        output_smt_path = os.path.join(
+            output_dir, f"{filename.replace('.pcode', '')}_l{loop_idx}.smt2"
+        )
 
-    results[num] = result
+        cmd = [
+            sys.executable,
+            generate_smt_path,
+            "-i",
+            input_path,
+            "-o",
+            output_smt_path,
+            "-q",
+            "D-FS/B",
+            "-l",
+            str(loop_idx),
+            "-t",
+            "60",
+            "-db",
+            db_path,
+        ]
 
-# Print in a simple map form
+        try:
+            out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+            match = RESULT_RE.search(out)
+            if match:
+                result = match.group(1).strip()
+            else:
+                result = "<NO RESULT FOUND>"
+        except subprocess.CalledProcessError as e:
+            result = f"ERROR (Code {e.returncode})"
+            # print(e.output)
+
+        results[f"{filename} Loop {loop_idx}"] = result
+
+# Print results
 output_filename = os.path.join(project_root, "cloudsc_results.txt")
 with open(output_filename, "w") as f:
-    for k in sorted(results):
+    for k in results:
         line = f"{k}: {results[k]}"
-        print(line)  # Also print to console
+        print(line)
         f.write(line + "\n")
 print(f"\nResults written to {output_filename}")

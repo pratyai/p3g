@@ -12,6 +12,7 @@ project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
 generate_smt_path = os.path.join(project_root, "tools", "generate_smt.py")
 input_dir = os.path.join(project_root, "tools", "demo", "npbench-sdfg")
 output_dir = os.path.join(project_root, "tools", "demo", "npbench-sdfg", "smt")
+db_path = os.path.join(output_dir, "npbench-results.sqlite")
 
 # Ensure output directory exists
 os.makedirs(output_dir, exist_ok=True)
@@ -34,7 +35,7 @@ results = {}
 # Process all .pcode files in the input directory
 pcode_files = [f for f in os.listdir(input_dir) if f.endswith(".pcode")]
 
-for filename in sorted(pcode_files):
+for filename in pcode_files:
     input_path = os.path.join(input_dir, filename)
     loop_count = count_loops(input_path)
     print(f"File {filename} has {loop_count} loops.", flush=True)
@@ -59,6 +60,8 @@ for filename in sorted(pcode_files):
             str(loop_idx),
             "-t",
             "60",
+            "-db",
+            db_path,
         ]
 
         try:
@@ -77,7 +80,7 @@ for filename in sorted(pcode_files):
 # Print results
 output_filename = os.path.join(project_root, "npbench_sdfg_results.txt")
 with open(output_filename, "w") as f:
-    for k in sorted(results):
+    for k in results:
         line = f"{k}: {results[k]}"
         print(line)
         f.write(line + "\n")
