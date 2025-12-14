@@ -4,20 +4,20 @@ var i, j, t
 out p, q, u, v
 
 (p[0], q[0], u[0], v[0] => p[0], q[0], u[0], v[0]) ().L1| for t = 1 to TSTEPS:
-    (v[0], p[0], q[0] => p[0], q[0], v[0]) ().M2| map i = 1 to (-2 + N):
+    (v[0], q[0], p[0] => v[0], q[0], p[0]) ().M2| map i = 1 to (-2 + N):
         (v[0, i] => v[0, i]) ().T4| op(init_v)
         (v[0, i], q[i, 0] => q[i, 0]) (T4).T5| op(init_q)
         (p[i, 0] => p[i, 0]) ().T6| op(init_p)
     (p[0], q[0], u[0] => p[0], q[0]) (M2).L7| for j = 1 to (-2 + N):
-        (q[0], p[0], u[0] => p[0], q[0]) (M2).M8| map i = 1 to (-2 + N):
-            (q[i, (-1 + j)], p[i, (-1 + j)], u[j, i], u[j, (1 + i)], u[j, (-1 + i)], q[i, j] => q[i, j]) (M2).T9| op(calc_q)
-            (p[i, (-1 + j)], p[i, j] => p[i, j]) (M2).T10| op(calc_p)
+        (p[0], q[0], u[0] => p[0], q[0]) (M2).M8| map i = 1 to (-2 + N):
+            (p[i, (-1 + j)], p[i, j] => p[i, j]) (M2).T9| op(calc_p)
+            (p[i, (-1 + j)], q[i, (-1 + j)], u[j, i], u[j, (1 + i)], u[j, (-1 + i)], q[i, j] => q[i, j]) (M2, T9).T10| op(calc_q)
     (v[0] => v[0]) (M2).M11| map i = 1 to (-2 + N):
         (v[(-1 + N), i] => v[(-1 + N), i]) (M2).T12| op(init_v_bound)
-    (p[0], q[0], v[0] => v[0]) (L7, M11).L13| for j = (-2 + N) to 1:
+    (p[0], q[0], v[0] => v[0]) (L7, M11).L13| for j = 1 to (-2 + N):
         (p[0], q[0], v[0] => v[0]) (L7, M11).M14| map i = 1 to (-2 + N):
-            (p[i, j], q[i, j], v[(1 + j), i], v[j, i] => v[j, i]) (L7, M11).T15| op(calc_v)
-    (u[0], p[0], q[0] => u[0], p[0], q[0]) (L7).M16| map i = 1 to (-2 + N):
+            (p[i, (-2 + (-1 * j) + N)], q[i, (-2 + (-1 * j) + N)], v[(-1 + (-1 * j) + N), i], v[(-2 + (-1 * j) + N), i] => v[(-2 + (-1 * j) + N), i]) (L7, M11).T15| op(calc_v)
+    (u[0], q[0], p[0] => u[0], q[0], p[0]) (L7).M16| map i = 1 to (-2 + N):
         (u[i, 0] => u[i, 0]) ().T18| op(init_u)
         (u[i, 0], q[i, 0] => q[i, 0]) (L7, T18).T19| op(init_q_2)
         (p[i, 0] => p[i, 0]) (L7).T20| op(init_p_2)
@@ -27,6 +27,6 @@ out p, q, u, v
             (p[i, (-1 + j)], q[i, (-1 + j)], v[i, j], v[(1 + i), j], v[(-1 + i), j], q[i, j] => q[i, j]) (L13, M16, T23).T24| op(calc_q_2)
     (u[0] => u[0]) (M16).M25| map i = 1 to (-2 + N):
         (u[i, (-1 + N)] => u[i, (-1 + N)]) (M16).T26| op(init_u_bound)
-    (p[0], q[0], u[0] => u[0]) (L13, L21, M25).L27| for j = (-2 + N) to 1:
-        (u[0], p[0], q[0] => u[0]) (L21, M25).M28| map i = 1 to (-2 + N):
-            (u[i, (1 + j)], p[i, j], q[i, j], u[i, j] => u[i, j]) (L21, M25).T29| op(calc_u)
+    (p[0], q[0], u[0] => u[0]) (L13, L21, M25).L27| for j = 1 to (-2 + N):
+        (p[0], q[0], u[0] => u[0]) (L21, M25).M28| map i = 1 to (-2 + N):
+            (p[i, (-2 + (-1 * j) + N)], q[i, (-2 + (-1 * j) + N)], u[i, (-1 + (-1 * j) + N)], u[i, (-2 + (-1 * j) + N)] => u[i, (-2 + (-1 * j) + N)]) (L21, M25).T29| op(calc_u)

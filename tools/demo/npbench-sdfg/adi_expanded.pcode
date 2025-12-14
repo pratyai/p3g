@@ -14,9 +14,9 @@ out p, q, u, v
             (p[i, (-1 + j)], q[i, (-1 + j)], u[j, i], u[j, (1 + i)], u[j, (-1 + i)], q[i, j] => q[i, j]) (L2, T8).T9| op(calc_q)
     ( => v[0]) (L2, L6).L10| for i = 1 to (-2 + N):
         (v[(-1 + N), i] => v[(-1 + N), i]) (L2).T11| op(init_v_bound)
-    (p[0], q[0], v[0] => v[0]) (L10, L6).L12| for j = (-2 + N) to 1:
+    (p[0], q[0], v[0] => v[0]) (L10, L6).L12| for j = 1 to (-2 + N):
         (p[0], q[0], v[0] => v[0]) (L10, L6).L13| for i = 1 to (-2 + N):
-            (p[i, j], q[i, j], v[(1 + j), i], v[j, i] => v[j, i]) (L10, L6).T14| op(calc_v)
+            (p[i, (-2 + (-1 * j) + N)], q[i, (-2 + (-1 * j) + N)], v[(-1 + (-1 * j) + N), i], v[(-2 + (-1 * j) + N), i] => v[(-2 + (-1 * j) + N), i]) (L10, L6).T14| op(calc_v)
     (u[0] => p[0], q[0], u[0]) (L12, L6).L15| for i = 1 to (-2 + N):
         (u[i, 0] => u[i, 0]) ().T16| op(init_u)
         (u[i, 0], q[i, 0] => q[i, 0]) (L6, T16).T17| op(init_q_2)
@@ -27,6 +27,6 @@ out p, q, u, v
             (p[i, (-1 + j)], q[i, (-1 + j)], v[i, j], v[(1 + i), j], v[(-1 + i), j], q[i, j] => q[i, j]) (L12, L15, T21).T22| op(calc_q_2)
     ( => u[0]) (L12, L15, L19).L23| for i = 1 to (-2 + N):
         (u[i, (-1 + N)] => u[i, (-1 + N)]) (L15).T24| op(init_u_bound)
-    (p[0], q[0], u[0] => u[0]) (L12, L19, L23).L25| for j = (-2 + N) to 1:
+    (p[0], q[0], u[0] => u[0]) (L12, L19, L23).L25| for j = 1 to (-2 + N):
         (p[0], q[0], u[0] => u[0]) (L12, L19, L23).L26| for i = 1 to (-2 + N):
-            (p[i, j], q[i, j], u[i, (1 + j)], u[i, j] => u[i, j]) (L19, L23).T27| op(calc_u)
+            (p[i, (-2 + (-1 * j) + N)], q[i, (-2 + (-1 * j) + N)], u[i, (-1 + (-1 * j) + N)], u[i, (-2 + (-1 * j) + N)] => u[i, (-2 + (-1 * j) + N)]) (L19, L23).T27| op(calc_u)

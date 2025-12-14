@@ -10,10 +10,10 @@ out A, Q, R
     (nrm[k], R[k, k] => R[k, k]) (L3).T5| op(rkk)
     (A[0], R[0], Q[0] => Q[0]) (T5).M6| map i_q = 0 to (-1 + M):
         (A[i_q, k], R[k, k], Q[i_q, k] => Q[i_q, k]) (T5).T7| op(calc_q)
-    (A[0], R[0], Q[0], tmp_dot[0] => A[0], R[0], tmp_dot[0]) (M6, T5).M8| map j = (1 + k) to (-1 + N):
+    (A[0], tmp_dot[0], Q[0], R[0] => A[0], tmp_dot[0], R[0]) (M6, T5).M8| map j = (1 + k) to (-1 + N):
         (tmp_dot[j] => tmp_dot[j]) ().T10| op(zero_dot)
         (A[0], Q[0], tmp_dot[0] => tmp_dot[0]) (M6, T10, T5).L11| for i_dot = 0 to (-1 + M):
             (A[i_dot, j], tmp_dot[j], Q[i_dot, k] => tmp_dot[j]) (M6, T10).T12| op(dot_acc)
         (tmp_dot[j], R[k, j] => R[k, j]) (L11, T5).T13| op(save)
-        (A[0], R[0], Q[0] => A[0]) (M6, T13).M14| map i_sub = 0 to (-1 + M):
-            (A[i_sub, j], R[k, j], Q[i_sub, k] => A[i_sub, j]) (M6, T13).T15| op(sub)
+        (A[0], Q[0], R[0] => A[0]) (M6, T13).M14| map i_sub = 0 to (-1 + M):
+            (A[i_sub, j], Q[i_sub, k], R[k, j] => A[i_sub, j]) (M6, T13).T15| op(sub)
