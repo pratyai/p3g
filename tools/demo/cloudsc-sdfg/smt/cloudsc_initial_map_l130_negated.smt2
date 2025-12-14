@@ -5,21 +5,21 @@
 (declare-fun ncldtop () Int)
 
 (assert (and
-  (and
-    (<= 0 _for_it_83)
-    (<= ncldtop (+ klev (- 1)))
-    (<= (+ _for_it_83 1) 4)
-    (<= kidia (+ kfdia (- 1)))
-  )
   (forall ((_for_it_84_0 Int) (_for_it_84_1 Int))
     (or
-      (not (= _for_it_84_0 _for_it_84_1))
-      (not (= _for_it_83 (+ _for_it_83 1)))
-      (not (<= _for_it_84_1 (+ kfdia (- 1))))
       (not (<= (+ kidia (- 1)) _for_it_84_1))
       (not (<= _for_it_84_0 (+ kfdia (- 1))))
       (not (<= (+ kidia (- 1)) _for_it_84_0))
+      (not (= _for_it_84_0 _for_it_84_1))
+      (not (= _for_it_83 (+ _for_it_83 1)))
+      (not (<= _for_it_84_1 (+ kfdia (- 1))))
     )
+  )
+  (and
+    (<= (+ _for_it_83 1) 4)
+    (<= kidia (+ kfdia (- 1)))
+    (<= 0 _for_it_83)
+    (<= ncldtop (+ klev (- 1)))
   )
 ))
 

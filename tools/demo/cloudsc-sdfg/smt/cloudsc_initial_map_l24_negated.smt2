@@ -27,10 +27,10 @@
     )
     (not (= (- (+ _for_it_12 (* _for_it_11 (- kfdia kidia)) 1) kidia) (- (+ _for_it_12 (* _for_it_11 (- kfdia kidia)) 2) kidia)))
     (and
-      (<= 1 (+ klev (- 1)))
-      (<= (+ _for_it_12 1) (+ kfdia (- 1)))
       (<= (+ kidia (- 1)) _for_it_12)
       (<= kidia (+ kfdia (- 1)))
+      (<= 1 (+ klev (- 1)))
+      (<= (+ _for_it_12 1) (+ kfdia (- 1)))
     )
   )
 ))

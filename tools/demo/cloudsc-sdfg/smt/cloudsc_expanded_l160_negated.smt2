@@ -10,19 +10,41 @@
     (forall ((_for_it_108_0 Int) (_for_it_108_1 Int))
       (or
         (not (<= _for_it_108_1 (+ kfdia (- 1))))
-        (not (= (- (+ _for_it_108_0 1) 1) _for_it_108_1))
-        (not (= (- (+ _for_it_107 1) 1) 4))
+        (not (= 4 (- (+ _for_it_107 2) 1)))
         (not (<= (+ kidia (- 1)) _for_it_108_1))
+        (not (<= _for_it_108_0 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) _for_it_108_0))
+        (not (= (select _if_cond_79_val (- (+ (* _for_it_107 (- kfdia kidia)) _for_it_108_0 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 3) (* kidia 3))) 1) kidia)) 1))
+        (not (= _for_it_108_0 (- (+ _for_it_108_1 1) 1)))
+      )
+    )
+    (forall ((_for_it_108_0 Int) (_for_it_108_1 Int))
+      (or
+        (not (<= _for_it_108_1 (+ kfdia (- 1))))
+        (not (= (- (+ _for_it_108_0 1) 1) _for_it_108_1))
+        (not (<= (+ kidia (- 1)) _for_it_108_1))
+        (not (= (select _if_cond_79_val (- (+ (* (+ _for_it_107 1) (- kfdia kidia)) _for_it_108_1 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 3) (* kidia 3))) 1) kidia)) 1))
+        (not (<= _for_it_108_0 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) _for_it_108_0))
+        (not (= (- (+ _for_it_107 1) 1) (+ _for_it_107 1)))
+      )
+    )
+    (forall ((_for_it_108_0 Int) (_for_it_108_1 Int))
+      (or
+        (not (<= _for_it_108_1 (+ kfdia (- 1))))
+        (not (= (- (+ _for_it_108_0 1) 1) _for_it_108_1))
+        (not (<= (+ kidia (- 1)) _for_it_108_1))
+        (not (= (- (+ _for_it_107 1) 1) 4))
         (not (= (select _if_cond_79_val (- (+ (* (+ _for_it_107 1) (- kfdia kidia)) _for_it_108_1 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 3) (* kidia 3))) 1) kidia)) 1))
         (not (<= _for_it_108_0 (+ kfdia (- 1))))
         (not (<= (+ kidia (- 1)) _for_it_108_0))
       )
     )
     (and
-      (<= 0 _for_it_107)
       (<= (+ _for_it_107 1) 3)
       (<= kidia (+ kfdia (- 1)))
       (<= ncldtop (+ klev (- 1)))
+      (<= 0 _for_it_107)
     )
     (forall ((_for_it_108_0 Int) (_for_it_108_1 Int))
       (or
@@ -55,8 +77,8 @@
         (not (= (select _if_cond_79_val (- (+ (* _for_it_107 (- kfdia kidia)) _for_it_108_0 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 3) (* kidia 3))) 1) kidia)) 1))
         (and
           (or
-            (not (= _for_it_107 (+ _for_it_107 1)))
             (not (= _for_it_108_0 _for_it_108_1))
+            (not (= _for_it_107 (+ _for_it_107 1)))
           )
           (or
             (not (= _for_it_108_0 _for_it_108_1))
@@ -80,12 +102,12 @@
       (or
         (and
           (or
-            (not (= 4 (+ _for_it_107 1)))
             (not (= _for_it_108_0 _for_it_108_1))
+            (not (= 4 (+ _for_it_107 1)))
           )
           (or
-            (not (= _for_it_107 (+ _for_it_107 1)))
             (not (= _for_it_108_0 _for_it_108_1))
+            (not (= _for_it_107 (+ _for_it_107 1)))
           )
         )
         (not (<= _for_it_108_1 (+ kfdia (- 1))))
@@ -98,16 +120,10 @@
     )
     (forall ((_for_it_108_0 Int) (_for_it_108_1 Int))
       (or
-        (not (<= _for_it_108_1 (+ kfdia (- 1))))
-        (not (<= (+ kidia (- 1)) _for_it_108_1))
-        (not (= (select _if_cond_79_val (- (+ (* (+ _for_it_107 1) (- kfdia kidia)) _for_it_108_1 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 3) (* kidia 3))) 1) kidia)) 1))
-        (not (<= _for_it_108_0 (+ kfdia (- 1))))
-        (not (<= (+ kidia (- 1)) _for_it_108_0))
-        (not (= (select _if_cond_79_val (- (+ (* _for_it_107 (- kfdia kidia)) _for_it_108_0 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 3) (* kidia 3))) 1) kidia)) 1))
         (and
           (or
-            (not (= 4 (+ _for_it_107 1)))
             (not (= _for_it_108_0 _for_it_108_1))
+            (not (= 4 (+ _for_it_107 1)))
           )
           (not (= _for_it_108_0 _for_it_108_1))
           (or
@@ -115,28 +131,12 @@
             (not (= _for_it_107 4))
           )
         )
-      )
-    )
-    (forall ((_for_it_108_0 Int) (_for_it_108_1 Int))
-      (or
         (not (<= _for_it_108_1 (+ kfdia (- 1))))
-        (not (= 4 (- (+ _for_it_107 2) 1)))
-        (not (<= (+ kidia (- 1)) _for_it_108_1))
-        (not (<= _for_it_108_0 (+ kfdia (- 1))))
-        (not (<= (+ kidia (- 1)) _for_it_108_0))
-        (not (= (select _if_cond_79_val (- (+ (* _for_it_107 (- kfdia kidia)) _for_it_108_0 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 3) (* kidia 3))) 1) kidia)) 1))
-        (not (= _for_it_108_0 (- (+ _for_it_108_1 1) 1)))
-      )
-    )
-    (forall ((_for_it_108_0 Int) (_for_it_108_1 Int))
-      (or
-        (not (<= _for_it_108_1 (+ kfdia (- 1))))
-        (not (= (- (+ _for_it_108_0 1) 1) _for_it_108_1))
         (not (<= (+ kidia (- 1)) _for_it_108_1))
         (not (= (select _if_cond_79_val (- (+ (* (+ _for_it_107 1) (- kfdia kidia)) _for_it_108_1 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 3) (* kidia 3))) 1) kidia)) 1))
         (not (<= _for_it_108_0 (+ kfdia (- 1))))
         (not (<= (+ kidia (- 1)) _for_it_108_0))
-        (not (= (- (+ _for_it_107 1) 1) (+ _for_it_107 1)))
+        (not (= (select _if_cond_79_val (- (+ (* _for_it_107 (- kfdia kidia)) _for_it_108_0 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 3) (* kidia 3))) 1) kidia)) 1))
       )
     )
   )

@@ -3,12 +3,6 @@
 (declare-fun tmp_parfor_3 () Int)
 
 (assert (and
-  (and
-    (<= (+ tmp_parfor_3 1) 4)
-    (<= 1 klev)
-    (<= 0 tmp_parfor_3)
-    (<= 1 (+ klon (- 1)))
-  )
   (forall ((tmp_parfor_1_0 Int) (tmp_parfor_1_1 Int) (tmp_parfor_2_0 Int) (tmp_parfor_2_1 Int))
     (or
       (not (<= tmp_parfor_1_1 (+ klon (- 1))))
@@ -23,6 +17,12 @@
       (not (= tmp_parfor_2_0 tmp_parfor_2_1))
       (not (= tmp_parfor_3 (+ tmp_parfor_3 1)))
     )
+  )
+  (and
+    (<= 1 klev)
+    (<= 0 tmp_parfor_3)
+    (<= 1 (+ klon (- 1)))
+    (<= (+ tmp_parfor_3 1) 4)
   )
 ))
 

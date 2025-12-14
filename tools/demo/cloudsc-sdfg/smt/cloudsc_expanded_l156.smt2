@@ -1,8 +1,15 @@
-
+(declare-fun _for_it_105_norm_val () (Array Int Int))
+(declare-fun _for_it_23 () Int)
 
 (assert (forall ((_for_it_105 Int) (kfdia Int) (kidia Int) (klev Int) (klon Int) (ncldtop Int))
   (=>
-    false
+    (and
+      (<= 0 _for_it_105)
+      (not (or (exists ((_for_it_106_0 Int)(tmp_parfor_55_0 Int)(tmp_parfor_56_1 Int)) (and (<= (+ (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 3) (* ncldtop 3))) 1) _for_it_106_0) (<= tmp_parfor_56_1 (+ kfdia (- 1))) (<= (+ kidia (- 1)) tmp_parfor_56_1) (<= _for_it_106_0 4) (<= tmp_parfor_55_0 (+ kfdia (- 1))) (<= (+ kidia (- 1)) tmp_parfor_55_0) (or (and (= tmp_parfor_55_0 tmp_parfor_56_1) (= _for_it_106_0 (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 4) (* ncldtop 3))))) (and (= tmp_parfor_55_0 tmp_parfor_56_1) (= (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 3) (* ncldtop 3))) (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 4) (* ncldtop 3)))))))) (exists ((tmp_parfor_56_0 Int)(tmp_parfor_55_1 Int)(_for_it_106_1 Int)) (and (or (and (= (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 3) (* ncldtop 3))) (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 4) (* ncldtop 3)))) (= tmp_parfor_56_0 tmp_parfor_55_1)) (and (= tmp_parfor_56_0 tmp_parfor_55_1) (= (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 3) (* ncldtop 3))) _for_it_106_1))) (<= tmp_parfor_56_0 (+ kfdia (- 1))) (<= (+ (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 4) (* ncldtop 3))) 1) _for_it_106_1) (<= (+ kidia (- 1)) tmp_parfor_56_0) (<= _for_it_106_1 4) (<= tmp_parfor_55_1 (+ kfdia (- 1))) (<= (+ kidia (- 1)) tmp_parfor_55_1))) (= (- (+ (* 3 _for_it_23) _for_it_105 3) (* ncldtop 3)) (- (+ (* 3 _for_it_23) _for_it_105 4) (* ncldtop 3))) (exists ((_for_it_106_0 Int)(tmp_parfor_55_0 Int)(tmp_parfor_55_1 Int)(_for_it_106_1 Int)) (and (<= _for_it_106_1 4) (<= (+ (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 4) (* ncldtop 3))) 1) _for_it_106_1) (<= (+ (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 3) (* ncldtop 3))) 1) _for_it_106_0) (<= tmp_parfor_55_1 (+ kfdia (- 1))) (<= (+ kidia (- 1)) tmp_parfor_55_1) (or (and (= tmp_parfor_55_0 tmp_parfor_55_1) (= (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 3) (* ncldtop 3))) (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 4) (* ncldtop 3))))) (and (= tmp_parfor_55_0 tmp_parfor_55_1) (= _for_it_106_0 (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 4) (* ncldtop 3))))) (and (= tmp_parfor_55_0 tmp_parfor_55_1) (= (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 3) (* ncldtop 3))) _for_it_106_1))) (<= _for_it_106_0 4) (<= tmp_parfor_55_0 (+ kfdia (- 1))) (<= (+ kidia (- 1)) tmp_parfor_55_0))) (exists ((tmp_parfor_56_0 Int)(tmp_parfor_56_1 Int)) (and (<= tmp_parfor_56_0 (+ kfdia (- 1))) (<= (+ kidia (- 1)) tmp_parfor_56_0) (= tmp_parfor_56_0 tmp_parfor_56_1) (<= tmp_parfor_56_1 (+ kfdia (- 1))) (<= (+ kidia (- 1)) tmp_parfor_56_1) (= (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 3) (* ncldtop 3))) (select _for_it_105_norm_val (- (+ (* 3 _for_it_23) _for_it_105 4) (* ncldtop 3))))))))
+      (<= (+ _for_it_105 1) 3)
+      (<= kidia (+ kfdia (- 1)))
+      (<= ncldtop (+ klev (- 1)))
+    )
     false
   )
 ))

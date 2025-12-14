@@ -7,10 +7,10 @@
 (assert (and
   (not (= _for_it_95 (+ _for_it_95 1)))
   (and
-    (<= kidia (+ kfdia (- 1)))
     (<= ncldtop (+ klev (- 1)))
     (<= (+ _for_it_95 1) (+ kfdia (- 1)))
     (<= (+ kidia (- 1)) _for_it_95)
+    (<= kidia (+ kfdia (- 1)))
   )
 ))
 

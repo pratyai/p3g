@@ -5,20 +5,11 @@
 (declare-fun ncldtop () Int)
 
 (assert (and
-  (forall ((_for_it_66_0 Int) (_for_it_66_1 Int) (_for_it_67_0 Int) (_for_it_67_1 Int))
-    (or
-      (not (<= 0 _for_it_66_0))
-      (not (<= _for_it_66_0 4))
-      (not (<= 0 _for_it_66_1))
-      (not (<= _for_it_66_1 4))
-      (not (<= _for_it_67_1 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_67_1))
-      (not (= _for_it_67_0 _for_it_67_1))
-      (not (= _for_it_66_0 _for_it_66_1))
-      (not (<= _for_it_67_0 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_67_0))
-      (not (= _for_it_65 (+ _for_it_65 1)))
-    )
+  (and
+    (<= (+ _for_it_65 1) 4)
+    (<= ncldtop (+ klev (- 1)))
+    (<= 0 _for_it_65)
+    (<= kidia (+ kfdia (- 1)))
   )
   (forall ((_for_it_68_0 Int) (_for_it_68_1 Int))
     (or
@@ -30,11 +21,20 @@
       (not (= _for_it_65 (+ _for_it_65 1)))
     )
   )
-  (and
-    (<= 0 _for_it_65)
-    (<= kidia (+ kfdia (- 1)))
-    (<= (+ _for_it_65 1) 4)
-    (<= ncldtop (+ klev (- 1)))
+  (forall ((_for_it_66_0 Int) (_for_it_66_1 Int) (_for_it_67_0 Int) (_for_it_67_1 Int))
+    (or
+      (not (<= 0 _for_it_66_0))
+      (not (<= _for_it_66_0 4))
+      (not (<= _for_it_67_0 (+ kfdia (- 1))))
+      (not (<= 0 _for_it_66_1))
+      (not (<= _for_it_66_1 4))
+      (not (<= _for_it_67_1 (+ kfdia (- 1))))
+      (not (<= (+ kidia (- 1)) _for_it_67_1))
+      (not (= _for_it_67_0 _for_it_67_1))
+      (not (= _for_it_66_0 _for_it_66_1))
+      (not (= _for_it_65 (+ _for_it_65 1)))
+      (not (<= (+ kidia (- 1)) _for_it_67_0))
+    )
   )
 ))
 

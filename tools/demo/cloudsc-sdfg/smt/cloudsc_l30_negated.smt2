@@ -6,10 +6,10 @@
 (assert (forall ((_if_cond_5_val (Array Int Int)))
   (and
     (and
-      (<= 1 (+ klev (- 1)))
-      (<= (+ _for_it_18 1) (+ klev (- 1)))
-      (<= 0 _for_it_18)
       (<= kidia (+ kfdia (- 1)))
+      (<= (+ _for_it_18 1) (+ klev (- 1)))
+      (<= 1 (+ klev (- 1)))
+      (<= 0 _for_it_18)
     )
     (forall ((_for_it_19_0 Int) (_for_it_19_1 Int))
       (or
@@ -24,21 +24,21 @@
     )
     (forall ((_for_it_19_0 Int) (_for_it_19_1 Int))
       (or
+        (not (= (select _if_cond_5_val 0) 1))
         (not (<= _for_it_19_1 (+ kfdia (- 1))))
         (not (<= (+ kidia (- 1)) _for_it_19_1))
         (not (<= _for_it_19_0 (+ kfdia (- 1))))
         (not (<= (+ kidia (- 1)) _for_it_19_0))
         (not (= _for_it_19_0 _for_it_19_1))
         (not (= _for_it_18 (+ _for_it_18 1)))
-        (not (= (select _if_cond_5_val 0) 1))
       )
     )
     (forall ((_for_it_19_0 Int) (_for_it_19_1 Int))
       (or
-        (not (<= _for_it_19_0 (+ kfdia (- 1))))
-        (not (<= (+ kidia (- 1)) _for_it_19_0))
         (not (<= _for_it_19_1 (+ kfdia (- 1))))
         (not (<= (+ kidia (- 1)) _for_it_19_1))
+        (not (<= _for_it_19_0 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) _for_it_19_0))
       )
     )
     (forall ((_for_it_19_0 Int) (_for_it_19_1 Int))

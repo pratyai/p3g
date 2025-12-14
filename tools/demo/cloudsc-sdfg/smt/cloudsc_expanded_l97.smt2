@@ -9,7 +9,7 @@
       (<= ncldtop (+ klev (- 1)))
       (<= (+ _for_it_50 1) (+ kfdia (- 1)))
       (<= (+ kidia (- 1)) _for_it_50)
-      (not (or (and (= (select _if_cond_47_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) _for_it_50 (* _for_it_49 (- kfdia kidia)) 2) kidia)) 1) (= _for_it_50 (+ _for_it_50 1)) (= (select _if_cond_47_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) _for_it_50 (* _for_it_49 (- kfdia kidia)) 1) kidia)) 1)) (= (- (+ (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) _for_it_50 (* _for_it_49 (- kfdia kidia)) 1) kidia) (- (+ (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) _for_it_50 (* _for_it_49 (- kfdia kidia)) 2) kidia)) (= _for_it_50 (+ _for_it_50 1))))
+      (not (or (= (- (+ (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) _for_it_50 (* _for_it_49 (- kfdia kidia)) 1) kidia) (- (+ (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) _for_it_50 (* _for_it_49 (- kfdia kidia)) 2) kidia)) (= _for_it_50 (+ _for_it_50 1)) (and (= (select _if_cond_47_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) _for_it_50 (* _for_it_49 (- kfdia kidia)) 2) kidia)) 1) (= (select _if_cond_47_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) _for_it_50 (* _for_it_49 (- kfdia kidia)) 1) kidia)) 1) (= _for_it_50 (+ _for_it_50 1)))))
     )
     false
   )

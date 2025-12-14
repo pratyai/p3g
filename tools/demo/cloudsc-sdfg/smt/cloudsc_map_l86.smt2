@@ -4,7 +4,7 @@
 (assert (forall ((_for_it_39 Int) (kfdia Int) (kidia Int) (klev Int) (klon Int) (ncldtop Int))
   (=>
     (and
-      (not (or (and (= _for_it_39 (+ _for_it_39 1)) (= (select _if_cond_24_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 2) kidia)) 1) (= (select _if_cond_24_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 1) kidia)) 1)) (= _for_it_39 (+ _for_it_39 1)) (= (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 1) kidia) (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 2) kidia)) (and (= _for_it_39 (+ _for_it_39 1)) (= (select _if_cond_24_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 2) kidia)) 1)) (and (= _for_it_39 (+ _for_it_39 1)) (= (select _if_cond_24_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 1) kidia)) 1))))
+      (not (or (and (= (select _if_cond_24_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 2) kidia)) 1) (= _for_it_39 (+ _for_it_39 1))) (and (= (select _if_cond_24_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 1) kidia)) 1) (= _for_it_39 (+ _for_it_39 1))) (and (= (select _if_cond_24_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 2) kidia)) 1) (= (select _if_cond_24_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 1) kidia)) 1) (= _for_it_39 (+ _for_it_39 1))) (= _for_it_39 (+ _for_it_39 1)) (= (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 1) kidia) (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_39 2) kidia))))
       (<= kidia (+ kfdia (- 1)))
       (<= ncldtop (+ klev (- 1)))
       (<= (+ _for_it_39 1) (+ kfdia (- 1)))

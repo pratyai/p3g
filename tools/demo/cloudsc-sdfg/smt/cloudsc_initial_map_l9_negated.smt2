@@ -6,6 +6,7 @@
 (assert (and
   (forall ((_for_it_10_0 Int) (_for_it_10_1 Int) (_for_it_9_0 Int) (_for_it_9_1 Int))
     (or
+      (not (<= _for_it_9_0 (+ klev (- 1))))
       (not (<= _for_it_10_1 (+ kfdia (- 1))))
       (not (<= 0 _for_it_9_0))
       (not (<= (+ kidia (- 1)) _for_it_10_1))
@@ -13,17 +14,16 @@
       (not (<= 0 _for_it_9_1))
       (not (<= _for_it_10_0 (+ kfdia (- 1))))
       (not (<= (+ kidia (- 1)) _for_it_10_0))
-      (not (<= _for_it_9_0 (+ klev (- 1))))
       (not (= _for_it_10_0 _for_it_10_1))
       (not (= _for_it_9_0 _for_it_9_1))
       (not (= _for_it_8 (+ _for_it_8 1)))
     )
   )
   (and
-    (<= (+ _for_it_8 1) 3)
     (<= kidia (+ kfdia (- 1)))
     (<= 1 (+ klev (- 1)))
     (<= 0 _for_it_8)
+    (<= (+ _for_it_8 1) 3)
   )
 ))
 

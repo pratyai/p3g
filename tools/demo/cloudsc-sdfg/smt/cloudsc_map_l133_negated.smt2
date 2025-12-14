@@ -8,6 +8,13 @@
 
 (assert (forall ((jo_val (Array Int Int)))
   (and
+    (forall ((tmp_parfor_0_1 Int))
+      (or
+        (not (= _for_it_86 (+ _for_it_86 1)))
+        (not (<= 0 tmp_parfor_0_1))
+        (not (<= tmp_parfor_0_1 4))
+      )
+    )
     (forall ((tmp_parfor_0_0 Int))
       (or
         (not (<= 0 tmp_parfor_0_0))
@@ -17,16 +24,16 @@
     )
     (forall ((tmp_parfor_0_0 Int) (tmp_parfor_0_1 Int))
       (or
+        (not (<= 0 tmp_parfor_0_1))
         (not (<= tmp_parfor_0_1 4))
         (not (<= 0 tmp_parfor_0_0))
         (not (<= tmp_parfor_0_0 4))
         (not (= _for_it_86 (+ _for_it_86 1)))
-        (not (<= 0 tmp_parfor_0_1))
       )
     )
     (or
-      (not (= (+ (select jo_val (- (+ (* _for_it_85 (- kfdia kidia)) _for_it_86 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) 1) kidia)) (- 1)) (+ (select jo_val (- (+ (* _for_it_85 (- kfdia kidia)) _for_it_86 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) 2) kidia)) (- 1))))
       (not (= _for_it_86 (+ _for_it_86 1)))
+      (not (= (+ (select jo_val (- (+ (* _for_it_85 (- kfdia kidia)) _for_it_86 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) 1) kidia)) (- 1)) (+ (select jo_val (- (+ (* _for_it_85 (- kfdia kidia)) _for_it_86 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) 2) kidia)) (- 1))))
     )
     (forall ((_for_it_87_0 Int) (_for_it_87_1 Int))
       (or
@@ -41,19 +48,12 @@
     )
     (not (= (- (+ (* _for_it_85 (- kfdia kidia)) _for_it_86 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) 1) kidia) (- (+ (* _for_it_85 (- kfdia kidia)) _for_it_86 (* (- (+ _for_it_23 1) ncldtop) (- (* kfdia 4) (* kidia 4))) 2) kidia)))
     (and
-      (<= (+ _for_it_86 1) (+ kfdia (- 1)))
-      (<= (+ kidia (- 1)) _for_it_86)
       (<= kidia (+ kfdia (- 1)))
       (<= ncldtop (+ klev (- 1)))
+      (<= (+ _for_it_86 1) (+ kfdia (- 1)))
+      (<= (+ kidia (- 1)) _for_it_86)
     )
     (not (= _for_it_86 (+ _for_it_86 1)))
-    (forall ((tmp_parfor_0_1 Int))
-      (or
-        (not (<= tmp_parfor_0_1 4))
-        (not (= _for_it_86 (+ _for_it_86 1)))
-        (not (<= 0 tmp_parfor_0_1))
-      )
-    )
   )
 ))
 

@@ -4,13 +4,13 @@
 (declare-fun tmp_parfor_18 () Int)
 
 (assert (and
-  (not (= tmp_parfor_18 (+ tmp_parfor_18 1)))
   (and
     (<= 1 (+ klon (- 1)))
     (<= ncldtop (+ klev (- 1)))
     (<= (+ tmp_parfor_18 1) (+ klon (- 1)))
     (<= 0 tmp_parfor_18)
   )
+  (not (= tmp_parfor_18 (+ tmp_parfor_18 1)))
 ))
 
 (check-sat)

@@ -19,10 +19,10 @@
     )
   )
   (and
-    (<= (+ tmp_parfor_6 1) 4)
     (<= 1 (+ klon (- 1)))
     (<= 1 (+ klev (- 1)))
     (<= 0 tmp_parfor_6)
+    (<= (+ tmp_parfor_6 1) 4)
   )
 ))
 

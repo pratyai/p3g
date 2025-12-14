@@ -7,10 +7,6 @@
 (declare-fun tmp_parfor_53 () Int)
 
 (assert (and
-  (or
-    (not (= _for_it_103 _for_it_104))
-    (not (= tmp_parfor_53 (+ tmp_parfor_53 1)))
-  )
   (not (= tmp_parfor_53 (+ tmp_parfor_53 1)))
   (and
     (<= kidia (+ kfdia (- 1)))
@@ -21,6 +17,10 @@
   (or
     (not (= tmp_parfor_53 (+ tmp_parfor_53 1)))
     (not (= _for_it_104 _for_it_103))
+  )
+  (or
+    (not (= _for_it_103 _for_it_104))
+    (not (= tmp_parfor_53 (+ tmp_parfor_53 1)))
   )
 ))
 

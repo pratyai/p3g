@@ -17,10 +17,10 @@
     (not (= _for_it_99 _for_it_100))
   )
   (and
-    (<= (+ tmp_parfor_52 1) (+ kfdia (- 1)))
-    (<= (+ kidia (- 1)) tmp_parfor_52)
     (<= kidia (+ kfdia (- 1)))
     (<= ncldtop (+ klev (- 1)))
+    (<= (+ tmp_parfor_52 1) (+ kfdia (- 1)))
+    (<= (+ kidia (- 1)) tmp_parfor_52)
   )
 ))
 

@@ -6,6 +6,24 @@
 (assert (and
   (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
     (or
+      (not (= _for_it_126_0 _for_it_126_1))
+      (not (<= _for_it_126_1 (+ kfdia (- 1))))
+      (not (<= (+ kidia (- 1)) _for_it_126_1))
+      (not (<= _for_it_126_0 (+ kfdia (- 1))))
+      (not (<= (+ kidia (- 1)) _for_it_126_0))
+      (not (= (+ _for_it_125 1) (+ _for_it_125 2)))
+    )
+  )
+  (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
+    (or
+      (not (<= (+ kidia (- 1)) _for_it_126_1))
+      (not (<= _for_it_126_0 (+ kfdia (- 1))))
+      (not (<= (+ kidia (- 1)) _for_it_126_0))
+      (not (<= _for_it_126_1 (+ kfdia (- 1))))
+    )
+  )
+  (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
+    (or
       (not (<= _for_it_126_1 (+ kfdia (- 1))))
       (and
         (or
@@ -14,6 +32,33 @@
         )
         (not (= _for_it_126_0 _for_it_126_1))
       )
+      (not (<= (+ kidia (- 1)) _for_it_126_1))
+      (not (<= _for_it_126_0 (+ kfdia (- 1))))
+      (not (<= (+ kidia (- 1)) _for_it_126_0))
+    )
+  )
+  (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
+    (or
+      (not (= _for_it_126_0 _for_it_126_1))
+      (not (<= _for_it_126_1 (+ kfdia (- 1))))
+      (not (<= (+ kidia (- 1)) _for_it_126_1))
+      (not (<= _for_it_126_0 (+ kfdia (- 1))))
+      (not (<= (+ kidia (- 1)) _for_it_126_0))
+    )
+  )
+  (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
+    (or
+      (and
+        (or
+          (not (= _for_it_126_0 _for_it_126_1))
+          (not (= (+ _for_it_125 1) (+ _for_it_125 2)))
+        )
+        (or
+          (not (= _for_it_125 (+ _for_it_125 2)))
+          (not (= _for_it_126_0 _for_it_126_1))
+        )
+      )
+      (not (<= _for_it_126_1 (+ kfdia (- 1))))
       (not (<= (+ kidia (- 1)) _for_it_126_1))
       (not (<= _for_it_126_0 (+ kfdia (- 1))))
       (not (<= (+ kidia (- 1)) _for_it_126_0))
@@ -40,18 +85,13 @@
   )
   (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
     (or
+      (not (= _for_it_125 (+ _for_it_125 2)))
+      (not (= _for_it_126_0 _for_it_126_1))
       (not (<= _for_it_126_1 (+ kfdia (- 1))))
       (not (<= (+ kidia (- 1)) _for_it_126_1))
       (not (<= _for_it_126_0 (+ kfdia (- 1))))
       (not (<= (+ kidia (- 1)) _for_it_126_0))
-      (not (= _for_it_126_0 _for_it_126_1))
     )
-  )
-  (and
-    (<= 0 _for_it_125)
-    (<= kidia (+ kfdia (- 1)))
-    (<= 1 (+ klev (- 1)))
-    (<= (+ _for_it_125 1) (+ klev (- 1)))
   )
   (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
     (or
@@ -62,51 +102,11 @@
       (not (= (- (+ _for_it_126_0 (* _for_it_125 (- kfdia kidia)) 1) kidia) (- (+ _for_it_126_1 (* (+ _for_it_125 1) (- kfdia kidia)) 1) kidia)))
     )
   )
-  (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
-    (or
-      (and
-        (or
-          (not (= _for_it_126_0 _for_it_126_1))
-          (not (= (+ _for_it_125 1) (+ _for_it_125 2)))
-        )
-        (or
-          (not (= _for_it_125 (+ _for_it_125 2)))
-          (not (= _for_it_126_0 _for_it_126_1))
-        )
-      )
-      (not (<= _for_it_126_1 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_126_1))
-      (not (<= _for_it_126_0 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_126_0))
-    )
-  )
-  (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
-    (or
-      (not (<= (+ kidia (- 1)) _for_it_126_0))
-      (not (<= _for_it_126_1 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_126_1))
-      (not (<= _for_it_126_0 (+ kfdia (- 1))))
-    )
-  )
-  (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
-    (or
-      (not (<= _for_it_126_1 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_126_1))
-      (not (<= _for_it_126_0 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_126_0))
-      (not (= _for_it_125 (+ _for_it_125 2)))
-      (not (= _for_it_126_0 _for_it_126_1))
-    )
-  )
-  (forall ((_for_it_126_0 Int) (_for_it_126_1 Int))
-    (or
-      (not (<= _for_it_126_1 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_126_1))
-      (not (<= _for_it_126_0 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_126_0))
-      (not (= (+ _for_it_125 1) (+ _for_it_125 2)))
-      (not (= _for_it_126_0 _for_it_126_1))
-    )
+  (and
+    (<= 0 _for_it_125)
+    (<= kidia (+ kfdia (- 1)))
+    (<= 1 (+ klev (- 1)))
+    (<= (+ _for_it_125 1) (+ klev (- 1)))
   )
 ))
 

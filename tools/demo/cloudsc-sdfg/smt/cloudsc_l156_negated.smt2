@@ -1,5 +1,96 @@
+(declare-fun _for_it_105 () Int)
+(declare-fun _for_it_23 () Int)
+(declare-fun kfdia () Int)
+(declare-fun kidia () Int)
+(declare-fun klev () Int)
+(declare-fun ncldtop () Int)
 
-
-(assert false)
+(assert (forall ((_for_it_105_norm_val (Array Int Int)))
+  (and
+    (forall ((_for_it_106_0 Int) (tmp_parfor_55_0 Int) (tmp_parfor_56_1 Int))
+      (or
+        (not (<= tmp_parfor_56_1 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) tmp_parfor_56_1))
+        (not (<= _for_it_106_0 4))
+        (and
+          (or
+            (not (= tmp_parfor_55_0 tmp_parfor_56_1))
+            (not (= (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 3) (* ncldtop 3))) (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 4) (* ncldtop 3)))))
+          )
+          (or
+            (not (= tmp_parfor_55_0 tmp_parfor_56_1))
+            (not (= _for_it_106_0 (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 4) (* ncldtop 3)))))
+          )
+        )
+        (not (<= (+ (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 3) (* ncldtop 3))) 1) _for_it_106_0))
+        (not (<= tmp_parfor_55_0 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) tmp_parfor_55_0))
+      )
+    )
+    (forall ((tmp_parfor_56_0 Int) (tmp_parfor_56_1 Int))
+      (or
+        (not (= (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 3) (* ncldtop 3))) (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 4) (* ncldtop 3)))))
+        (not (<= tmp_parfor_56_0 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) tmp_parfor_56_0))
+        (not (= tmp_parfor_56_0 tmp_parfor_56_1))
+        (not (<= tmp_parfor_56_1 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) tmp_parfor_56_1))
+      )
+    )
+    (forall ((_for_it_106_0 Int) (_for_it_106_1 Int) (tmp_parfor_55_0 Int) (tmp_parfor_55_1 Int))
+      (or
+        (not (<= _for_it_106_1 4))
+        (and
+          (or
+            (not (= tmp_parfor_55_0 tmp_parfor_55_1))
+            (not (= (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 3) (* ncldtop 3))) (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 4) (* ncldtop 3)))))
+          )
+          (or
+            (not (= tmp_parfor_55_0 tmp_parfor_55_1))
+            (not (= (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 3) (* ncldtop 3))) _for_it_106_1))
+          )
+          (or
+            (not (= tmp_parfor_55_0 tmp_parfor_55_1))
+            (not (= _for_it_106_0 (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 4) (* ncldtop 3)))))
+          )
+        )
+        (not (<= (+ (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 4) (* ncldtop 3))) 1) _for_it_106_1))
+        (not (<= tmp_parfor_55_1 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) tmp_parfor_55_1))
+        (not (<= _for_it_106_0 4))
+        (not (<= (+ (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 3) (* ncldtop 3))) 1) _for_it_106_0))
+        (not (<= tmp_parfor_55_0 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) tmp_parfor_55_0))
+      )
+    )
+    (not (= (- (+ _for_it_105 (* 3 _for_it_23) 3) (* ncldtop 3)) (- (+ _for_it_105 (* 3 _for_it_23) 4) (* ncldtop 3))))
+    (and
+      (<= 0 _for_it_105)
+      (<= (+ _for_it_105 1) 3)
+      (<= kidia (+ kfdia (- 1)))
+      (<= ncldtop (+ klev (- 1)))
+    )
+    (forall ((_for_it_106_1 Int) (tmp_parfor_55_1 Int) (tmp_parfor_56_0 Int))
+      (or
+        (not (<= tmp_parfor_56_0 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) tmp_parfor_56_0))
+        (not (<= _for_it_106_1 4))
+        (not (<= (+ (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 4) (* ncldtop 3))) 1) _for_it_106_1))
+        (and
+          (or
+            (not (= (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 3) (* ncldtop 3))) _for_it_106_1))
+            (not (= tmp_parfor_56_0 tmp_parfor_55_1))
+          )
+          (or
+            (not (= (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 3) (* ncldtop 3))) (select _for_it_105_norm_val (- (+ _for_it_105 (* 3 _for_it_23) 4) (* ncldtop 3)))))
+            (not (= tmp_parfor_56_0 tmp_parfor_55_1))
+          )
+        )
+        (not (<= tmp_parfor_55_1 (+ kfdia (- 1))))
+        (not (<= (+ kidia (- 1)) tmp_parfor_55_1))
+      )
+    )
+  )
+))
 
 (check-sat)

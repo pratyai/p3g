@@ -4,13 +4,13 @@
 (declare-fun klev () Int)
 
 (assert (and
-  (not (= _for_it_128 (+ _for_it_128 1)))
   (and
     (<= kidia (+ kfdia (- 1)))
     (<= 1 klev)
     (<= (+ _for_it_128 1) (+ kfdia (- 1)))
     (<= (+ kidia (- 1)) _for_it_128)
   )
+  (not (= _for_it_128 (+ _for_it_128 1)))
 ))
 
 (check-sat)
