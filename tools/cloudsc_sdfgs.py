@@ -5,6 +5,8 @@ import sys
 from copy import deepcopy
 import dace
 from dace.sdfg import SDFG
+from dace.sdfg.state import LoopRegion
+from dace.properties import CodeProperty
 from dace.transformation.interstate import LoopToMap
 from dace.transformation.passes import find_promotable_scalars, ScalarToSymbolPromotion
 
@@ -47,6 +49,16 @@ if __name__ == "__main__":
     sdfg_initial.name = "cloudsc"
 
     # 1. Initial
+    for x, _ in sdfg_initial.all_nodes_recursive():
+        if isinstance(x, LoopRegion):
+            if "- 1" in x.update_statement.as_string:
+                print(x.update_statement.as_string)
+                print(x.normalize())
+                print(x.update_statement.as_string)
+                if x.loop_condition.as_string == "(_for_it_105 < (((3 - 0) / 1) + 1))":
+                    x.loop_condition = CodeProperty.from_string(
+                        "(_for_it_105 < 3)", language=dace.dtypes.Language.Python
+                    )
     brrr = find_promotable_scalars(sdfg_initial, transients_only=False)
     print(brrr)
     huck = ScalarToSymbolPromotion()

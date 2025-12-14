@@ -1,5 +1,6 @@
 import io
 import time
+import queue
 from dataclasses import dataclass
 from multiprocessing import Process, Queue
 from typing import Optional
@@ -289,7 +290,7 @@ def get_smt_metrics_from_string(smt_string: str) -> MetricsWalker:
     return walker
 
 
-def _clean_with_z3(smt_string: str, aggressive: bool = False):
+def _clean_with_z3(smt_string: str, tactic_names: list[str]):
     from z3 import Solver, Goal, Then, Tactic
 
     s = Solver()
@@ -298,18 +299,11 @@ def _clean_with_z3(smt_string: str, aggressive: bool = False):
     g = Goal()
     g.add(s.assertions())
 
-    if aggressive:
-        tactic = Then(
-            Tactic("simplify"),
-            Tactic("propagate-values"),
-            Tactic("ctx-solver-simplify"),
-            Tactic("qe-light"),
-        )
+    tactics = [Tactic(name) for name in tactic_names]
+    if len(tactics) == 1:
+        (tactic,) = tactics
     else:
-        tactic = Then(
-            Tactic("simplify"),
-            Tactic("propagate-values"),
-        )
+        tactic = Then(*tactics)
 
     result = tactic(g)
     output = Solver()
@@ -320,14 +314,14 @@ def _clean_with_z3(smt_string: str, aggressive: bool = False):
 
 
 def _solve_smt_string_internal(
-    smt_string: str, result_queue: Queue, aggressive: bool = False
+    smt_string: str, result_queue: Queue, tactic_names: list[str]
 ):
     """
     Internal function to solve the SMT query. Designed to be run in a separate process.
     Puts (result, model_str) or (exception,) into the queue.
     """
     walker = get_smt_metrics_from_string(smt_string)
-    smt_string = _clean_with_z3(smt_string, aggressive=aggressive)
+    smt_string = _clean_with_z3(smt_string, tactic_names=tactic_names)
     # 2. Parse the SMT-LIB string into pysmt formulas
     parser = SmtLibParser()
     script = parser.get_script(io.StringIO(smt_string))
@@ -390,45 +384,64 @@ def _solve_smt_string_internal(
         result_queue.put((e,))
 
 
-def solve_smt_string(
-    smt_string: str, timeout_seconds: int = 30, aggressive: bool = False
-) -> SmtResult:
+# --- Tactic Strategies ---
+TACTIC_STRATEGIES = [
+    ["qe"],
+    ["simplify", "propagate-values"],
+    ["simplify", "propagate-values", "ctx-solver-simplify", "qe-light"],
+]
+
+
+def solve_smt_string(smt_string: str, timeout_seconds: int = 30) -> SmtResult:
     """
-    Saves the SMT query to a file and runs an in-memory pysmt solver
-    (e.g., z3, cvc5) on the parsed string within a separate process with a timeout.
-    Returns SmtResult.
-    Raises TimeoutError if the solver exceeds the timeout.
-    Raises other Exceptions for 'unknown' or solver failures.
+    Runs multiple SMT solver strategies concurrently in separate processes.
+    Returns the result from the first strategy that finishes with SAT or UNSAT.
+    Cancels pending strategies once a result is obtained.
     """
-    start_time = time.time()
+    processes = []
     result_queue = Queue()
-    process = Process(
-        target=_solve_smt_string_internal, args=(smt_string, result_queue, aggressive)
-    )
-    process.start()
-    process.join(timeout=timeout_seconds)
-    end_time = time.time()
-    elapsed_time = end_time - start_time
 
-    if process.is_alive():
-        process.terminate()
-        process.join()
-        raise TimeoutError(f"SMT solver timed out after {timeout_seconds} seconds")
+    # Start all strategy processes
+    for tactic_names in TACTIC_STRATEGIES:
+        p = Process(
+            target=_solve_smt_string_internal,
+            args=(smt_string, result_queue, tactic_names),
+        )
+        p.start()
+        processes.append(p)
 
-    if not result_queue.empty():
-        result_tuple = result_queue.get()
-        if isinstance(result_tuple[0], Exception):
-            # An exception occurred in the child process
-            exc = result_tuple[0]
-            if isinstance(exc, SolverReturnedUnknownResultError):
-                raise exc
-            else:
-                print(f"Error: Solver '{SOLVER_NAME}' failed or is not installed.")
-                print(f"Full error: {exc}")
-                # Do not sys.exit(1) here, let pytest handle the failure
-                raise exc
-        else:
-            # Normal SAT/UNSAT result
+    start_time = time.time()
+    final_result = None
+    last_exception = None
+
+    try:
+        while True:
+            # Check for overall timeout
+            elapsed = time.time() - start_time
+            if timeout_seconds and elapsed > timeout_seconds:
+                raise TimeoutError(
+                    f"All SMT strategies timed out after {timeout_seconds}s"
+                )
+
+            # Check if all processes are dead
+            if not any(p.is_alive() for p in processes) and result_queue.empty():
+                break
+
+            try:
+                # Poll queue with a short timeout to allow checking overall timeout
+                # effectively busy-wait but with sleep
+                result_tuple = result_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+
+            # Process result
+            if isinstance(result_tuple[0], Exception):
+                # Strategy failed with error (e.g. unknown result)
+                # Just record it and keep waiting for others
+                last_exception = result_tuple[0]
+                continue
+
+            # Success! (SAT or UNSAT)
             (
                 result,
                 model_str,
@@ -441,20 +454,14 @@ def solve_smt_string(
                 num_arrays,
             ) = result_tuple
 
+            # Construct SmtResult
             if result:
                 print(f"Solver result: sat")
-                print("--- Model ---")
                 if model_str:
-                    print(model_str)
-                print(
-                    "Note: The model only displays concrete values for symbols it could determine. "
-                    "For arrays or other symbols without a concrete assignment, their values are not shown here. "
-                    "You can query specific symbols by name if needed."
-                )
-                print("-------------")
-                return SmtResult(
+                    print(f"--- Model ---\n{model_str}\n-------------")
+                final_result = SmtResult(
                     is_sat=True,
-                    time_elapsed=elapsed_time,
+                    time_elapsed=elapsed,  # Approximation
                     model_str=model_str,
                     num_quantifiers=num_quantifiers,
                     num_atoms=num_atoms,
@@ -466,9 +473,9 @@ def solve_smt_string(
                 )
             else:
                 print(f"Solver result: unsat")
-                return SmtResult(
+                final_result = SmtResult(
                     is_sat=False,
-                    time_elapsed=elapsed_time,
+                    time_elapsed=elapsed,
                     num_quantifiers=num_quantifiers,
                     num_atoms=num_atoms,
                     num_and=num_and,
@@ -477,7 +484,28 @@ def solve_smt_string(
                     num_variables=num_variables,
                     num_arrays=num_arrays,
                 )
-    else:
-        # This case should ideally not be reached if the process finished without timeout
-        # and put something in the queue.
-        raise Exception("SMT solver process finished without returning a result.")
+
+            # We found a valid result, break loop
+            break
+
+    finally:
+        # Cleanup: Terminate all processes
+        for p in processes:
+            if p.is_alive():
+                p.terminate()
+                p.join()
+
+    if final_result:
+        return final_result
+
+    if last_exception:
+        if isinstance(last_exception, SolverReturnedUnknownResultError):
+            raise last_exception
+        else:
+            print(f"Error: Solver '{SOLVER_NAME}' failed.")
+            print(f"Full error: {last_exception}")
+            raise last_exception
+
+    raise Exception(
+        "SMT solver failed to produce a result with any tactic (all failed or timed out)."
+    )

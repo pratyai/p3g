@@ -79,9 +79,21 @@ def _expand_scalars_in_loop(loop: states.LoopRegion, sdfg: SDFG):
                         full_w.add(dnode.data)
 
         elif isinstance(graph_node, states.LoopRegion):
-            # For simplicity, treat nested region as opaque read/write.
-            # TODO: Proper recursive analysis
-            pass
+            for sub_node in graph_node.nodes():
+                sr, sw, sfw = get_accesses(sub_node)
+                r.update(sr)
+                w.update(sw)
+                # Conservatively, we don't propagate full writes from nested loops
+                # as we don't know if the loop executes > 0 times.
+
+        elif isinstance(graph_node, states.ConditionalBlock):
+            for _, branch_body in graph_node.branches:
+                # branch_body is a ControlFlowRegion (Graph)
+                for sub_node in branch_body.nodes():
+                    sr, sw, sfw = get_accesses(sub_node)
+                    r.update(sr)
+                    w.update(sw)
+            # Conservatively no full writes from conditional
 
         return r, w, full_w
 

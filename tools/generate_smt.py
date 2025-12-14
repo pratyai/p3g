@@ -46,7 +46,7 @@ def log_to_db(db_path, data):
     """
     Logs the run details to a SQLite database.
     """
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=30.0)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -74,36 +74,81 @@ def log_to_db(db_path, data):
         )
     """)
 
+    # Check if a record exists
     cursor.execute(
         """
-        INSERT INTO runs (
-            input_file, loop_index, query_type,
-            main_result, main_time, main_quantifiers, main_atoms, main_size, main_variables, main_arrays,
-            negated_result, negated_time, negated_quantifiers, negated_atoms, negated_size, negated_variables, negated_arrays,
-            conclusion
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-        (
-            data.get("input_file"),
-            data.get("loop_index"),
-            data.get("query_type"),
-            data.get("main_result"),
-            data.get("main_time"),
-            data.get("main_quantifiers"),
-            data.get("main_atoms"),
-            data.get("main_size"),
-            data.get("main_variables"),
-            data.get("main_arrays"),
-            data.get("negated_result"),
-            data.get("negated_time"),
-            data.get("negated_quantifiers"),
-            data.get("negated_atoms"),
-            data.get("negated_size"),
-            data.get("negated_variables"),
-            data.get("negated_arrays"),
-            data.get("conclusion"),
-        ),
+        SELECT id FROM runs 
+        WHERE input_file = ? AND loop_index = ? AND query_type = ?
+        """,
+        (data.get("input_file"), data.get("loop_index"), data.get("query_type")),
     )
+    existing_row = cursor.fetchone()
+
+    if existing_row:
+        # Update existing record
+        row_id = existing_row[0]
+        cursor.execute(
+            """
+            UPDATE runs SET
+                timestamp = CURRENT_TIMESTAMP,
+                main_result = ?, main_time = ?, main_quantifiers = ?, main_atoms = ?, 
+                main_size = ?, main_variables = ?, main_arrays = ?,
+                negated_result = ?, negated_time = ?, negated_quantifiers = ?, negated_atoms = ?, 
+                negated_size = ?, negated_variables = ?, negated_arrays = ?,
+                conclusion = ?
+            WHERE id = ?
+            """,
+            (
+                data.get("main_result"),
+                data.get("main_time"),
+                data.get("main_quantifiers"),
+                data.get("main_atoms"),
+                data.get("main_size"),
+                data.get("main_variables"),
+                data.get("main_arrays"),
+                data.get("negated_result"),
+                data.get("negated_time"),
+                data.get("negated_quantifiers"),
+                data.get("negated_atoms"),
+                data.get("negated_size"),
+                data.get("negated_variables"),
+                data.get("negated_arrays"),
+                data.get("conclusion"),
+                row_id,
+            ),
+        )
+    else:
+        # Insert new record
+        cursor.execute(
+            """
+            INSERT INTO runs (
+                input_file, loop_index, query_type,
+                main_result, main_time, main_quantifiers, main_atoms, main_size, main_variables, main_arrays,
+                negated_result, negated_time, negated_quantifiers, negated_atoms, negated_size, negated_variables, negated_arrays,
+                conclusion
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                data.get("input_file"),
+                data.get("loop_index"),
+                data.get("query_type"),
+                data.get("main_result"),
+                data.get("main_time"),
+                data.get("main_quantifiers"),
+                data.get("main_atoms"),
+                data.get("main_size"),
+                data.get("main_variables"),
+                data.get("main_arrays"),
+                data.get("negated_result"),
+                data.get("negated_time"),
+                data.get("negated_quantifiers"),
+                data.get("negated_atoms"),
+                data.get("negated_size"),
+                data.get("negated_variables"),
+                data.get("negated_arrays"),
+                data.get("conclusion"),
+            ),
+        )
 
     conn.commit()
     conn.close()
@@ -229,11 +274,10 @@ Defaults to '?'.""",
         else:
             choices = []
             for i, loop in enumerate(loop_nodes):
+                loop_type = "For Loop" if isinstance(loop, Loop) else "Map Loop"
                 # Assuming Loop object has properties like .iterator_var, .lower_bound, .upper_bound
                 # Adjust this formatting if Loop object has different attributes
-                summary = (
-                    f"Loop {i}: var={loop.loop_var}, bounds=[{loop.start}, {loop.end}]"
-                )
+                summary = f"{loop_type} {i}: var={loop.loop_var}, bounds=[{loop.start}, {loop.end}]"
                 choices.append(summary)
 
             selected_description = questionary.select(
@@ -245,8 +289,9 @@ Defaults to '?'.""",
                 print("No loop selected. Exiting.")
                 sys.exit(1)
 
-            # Extract the index from the selected description (e.g., "Loop 0: ...")
-            selected_index = int(selected_description.split(":")[0].split(" ")[1])
+            # Extract the index from the selected description (e.g., "For Loop 0: ...")
+            # We take the part before ":", split by space, and take the last element which is the index
+            selected_index = int(selected_description.split(":")[0].split(" ")[-1])
             selected_loop_node = loop_nodes[selected_index]
             final_loop_index = selected_index
     else:
@@ -372,7 +417,7 @@ Defaults to '?'.""",
         # Retry with aggressive=True
         print("Primary Query Result: UNKNOWN/TIMEOUT. Retrying with aggressive=True...")
         try:
-            main_result = solve_smt_string(smt_query, args.timeout, aggressive=True)
+            main_result = solve_smt_string(smt_query, args.timeout)
             main_is_sat = main_result.is_sat
             main_result_str = "SAT" if main_is_sat else "UNSAT"
 
@@ -429,45 +474,14 @@ Defaults to '?'.""",
                 f"Quantifiers: {negated_result.num_quantifiers}, Atoms: {negated_result.num_atoms}, "
                 f"Size: {negated_result.formula_size}, Vars: {negated_result.num_variables}, Arrays: {negated_result.num_arrays})"
             )
-        except (SolverReturnedUnknownResultError, TimeoutError):
-            # Retry with aggressive=True
-            print(
-                "Negated Query Result: UNKNOWN/TIMEOUT. Retrying with aggressive=True..."
-            )
-            try:
-                negated_result = solve_smt_string(
-                    negated_query, args.timeout, aggressive=True
-                )
-                negated_is_sat = negated_result.is_sat
-                negated_result_str = "SAT" if negated_is_sat else "UNSAT"
-
-                run_data["negated_result"] = negated_result_str
-                run_data["negated_time"] = negated_result.time_elapsed
-                run_data["negated_quantifiers"] = negated_result.num_quantifiers
-                run_data["negated_atoms"] = negated_result.num_atoms
-                run_data["negated_size"] = negated_result.formula_size
-                run_data["negated_variables"] = negated_result.num_variables
-                run_data["negated_arrays"] = negated_result.num_arrays
-
-                print(
-                    f"Negated Query Result (aggressive retry): {negated_result_str} (Time: {negated_result.time_elapsed:.4f}s, "
-                    f"Quantifiers: {negated_result.num_quantifiers}, Atoms: {negated_result.num_atoms}, "
-                    f"Size: {negated_result.formula_size}, Vars: {negated_result.num_variables}, Arrays: {negated_result.num_arrays})"
-                )
-            except SolverReturnedUnknownResultError:
-                print(
-                    "Negated Query Result (aggressive retry): UNKNOWN (Solver returned unknown)"
-                )
-                negated_result_str = "UNKNOWN"
-                run_data["negated_result"] = "UNKNOWN"
-            except TimeoutError:
-                print("Negated Query Result (aggressive retry): UNKNOWN (Timeout)")
-                negated_result_str = "TIMEOUT"
-                run_data["negated_result"] = "TIMEOUT"
-            except Exception as e:
-                print(f"Negated Query Result (aggressive retry): ERROR - {e}")
-                negated_result_str = f"ERROR: {str(e)}"
-                run_data["negated_result"] = negated_result_str
+        except SolverReturnedUnknownResultError:
+            print("Negated Query Result: UNKNOWN (Solver returned unknown)")
+            negated_result_str = "UNKNOWN"
+            run_data["negated_result"] = "UNKNOWN"
+        except TimeoutError:
+            print("Negated Query Result: UNKNOWN (Timeout)")
+            negated_result_str = "TIMEOUT"
+            run_data["negated_result"] = "TIMEOUT"
         except Exception as e:
             print(f"Negated Query Result: ERROR - {e}")
             negated_result_str = f"ERROR: {str(e)}"

@@ -610,7 +610,8 @@ def generate_adi_sdfg(name: str = "adi") -> SDFG:
     )
 
     # 4. Backward Sweep Loop (j=N-2..0)
-    col_sweep_2 = LoopRegion("col_sweep_2", "j > 0", "j", "j=N-2", "j=j-1")
+    # Refactored to use incrementing j (0..N-2), where the original conceptual j is (N - 2 - current_j_loop_var)
+    col_sweep_2 = LoopRegion("col_sweep_2", "j < N-1", "j", "j=1", "j=j+1")
     time_loop.add_node(col_sweep_2)
     time_loop.add_edge(v_bound_loop, col_sweep_2, InterstateEdge())
 
@@ -619,7 +620,8 @@ def generate_adi_sdfg(name: str = "adi") -> SDFG:
 
     comp_state_2 = row_loop_2.add_state("comp_2", is_start_block=True)
 
-    # v[j, i] = p[i, j] * v[j+1, i] + q[i, j]
+    # v[original_j, i] = p[i, original_j] * v[original_j+1, i] + q[i, original_j]
+    # substituting original_j = N - 2 - j (where j is the new incrementing loop variable)
     t_v = comp_state_2.add_tasklet(
         "calc_v",
         {"p_val", "v_next", "q_val"},
@@ -628,16 +630,19 @@ def generate_adi_sdfg(name: str = "adi") -> SDFG:
     )
 
     comp_state_2.add_memlet_path(
-        comp_state_2.add_read("p"), t_v, dst_conn="p_val", memlet=Memlet("p[i, j]")
+        comp_state_2.add_read("p"), t_v, dst_conn="p_val", memlet=Memlet("p[i, N-2-j]")
     )
     comp_state_2.add_memlet_path(
-        comp_state_2.add_read("v"), t_v, dst_conn="v_next", memlet=Memlet("v[j+1, i]")
+        comp_state_2.add_read("v"),
+        t_v,
+        dst_conn="v_next",
+        memlet=Memlet("v[N-1-j, i]"),  # (N-2-j)+1 = N-1-j
     )
     comp_state_2.add_memlet_path(
-        comp_state_2.add_read("q"), t_v, dst_conn="q_val", memlet=Memlet("q[i, j]")
+        comp_state_2.add_read("q"), t_v, dst_conn="q_val", memlet=Memlet("q[i, N-2-j]")
     )
     comp_state_2.add_memlet_path(
-        t_v, comp_state_2.add_write("v"), src_conn="v_out", memlet=Memlet("v[j, i]")
+        t_v, comp_state_2.add_write("v"), src_conn="v_out", memlet=Memlet("v[N-2-j, i]")
     )
 
     # =========================================================================
@@ -759,7 +764,8 @@ def generate_adi_sdfg(name: str = "adi") -> SDFG:
     )
 
     # 8. Backward Sweep Loop (j=N-2..0)
-    row_sweep_2 = LoopRegion("row_sweep_2", "j > 0", "j", "j=N-2", "j=j-1")
+    # Refactored to use incrementing j (0..N-2), where the original conceptual j is (N - 2 - current_j_loop_var)
+    row_sweep_2 = LoopRegion("row_sweep_2", "j < N-1", "j", "j=1", "j=j+1")
     time_loop.add_node(row_sweep_2)
     time_loop.add_edge(u_bound_loop, row_sweep_2, InterstateEdge())
 
@@ -768,7 +774,8 @@ def generate_adi_sdfg(name: str = "adi") -> SDFG:
 
     comp_state_4 = row_loop_4.add_state("comp_4", is_start_block=True)
 
-    # u[i, j] = p[i, j] * u[i, j+1] + q[i, j]
+    # u[i, original_j] = p[i, original_j] * u[i, original_j+1] + q[i, original_j]
+    # substituting original_j = N - 2 - j (where j is the new incrementing loop variable)
     t_u = comp_state_4.add_tasklet(
         "calc_u",
         {"p_val", "u_next", "q_val"},
@@ -777,16 +784,19 @@ def generate_adi_sdfg(name: str = "adi") -> SDFG:
     )
 
     comp_state_4.add_memlet_path(
-        comp_state_4.add_read("p"), t_u, dst_conn="p_val", memlet=Memlet("p[i, j]")
+        comp_state_4.add_read("p"), t_u, dst_conn="p_val", memlet=Memlet("p[i, N-2-j]")
     )
     comp_state_4.add_memlet_path(
-        comp_state_4.add_read("u"), t_u, dst_conn="u_next", memlet=Memlet("u[i, j+1]")
+        comp_state_4.add_read("u"),
+        t_u,
+        dst_conn="u_next",
+        memlet=Memlet("u[i, N-1-j]"),  # (N-2-j)+1 = N-1-j
     )
     comp_state_4.add_memlet_path(
-        comp_state_4.add_read("q"), t_u, dst_conn="q_val", memlet=Memlet("q[i, j]")
+        comp_state_4.add_read("q"), t_u, dst_conn="q_val", memlet=Memlet("q[i, N-2-j]")
     )
     comp_state_4.add_memlet_path(
-        t_u, comp_state_4.add_write("u"), src_conn="u_out", memlet=Memlet("u[i, j]")
+        t_u, comp_state_4.add_write("u"), src_conn="u_out", memlet=Memlet("u[i, N-2-j]")
     )
 
     final_state = sdfg.add_state("final")

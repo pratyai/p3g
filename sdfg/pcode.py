@@ -58,9 +58,18 @@ P3G_KEYWORDS = {
 
 
 class ASTReadExtractor(ast.NodeVisitor):
-    def __init__(self, declared_arrays: set[str]):
+    def __init__(
+        self,
+        declared_arrays: set[str],
+        promoted_symbols: set[str],
+        current_indices: str,
+        symbol_definition_indices: dict[str, str],
+    ):
         self.reads = []
         self.declared_arrays = declared_arrays
+        self.promoted_symbols = promoted_symbols
+        self.current_indices = current_indices
+        self.symbol_definition_indices = symbol_definition_indices
 
     def visit_Subscript(self, node):
         array_name = None
@@ -131,10 +140,14 @@ class ASTReadExtractor(ast.NodeVisitor):
             return str(ast_expr_node.value)
         elif isinstance(ast_expr_node, ast.Name):
             # If a name refers to a declared array, it is considered a scalar array access
-            # in P3G, so we should append '[0]' and record the read.
+            # in P3G, so we should append '[0]' or '[indices]' and record the read.
             if ast_expr_node.id in self.declared_arrays:
-                self.reads.append((ast_expr_node.id, "0"))
-                return f"{ast_expr_node.id}[0]"
+                indices = "0"
+                if ast_expr_node.id in self.promoted_symbols:
+                    indices = self.symbol_definition_indices.get(ast_expr_node.id, "0")
+
+                self.reads.append((ast_expr_node.id, indices))
+                return f"{ast_expr_node.id}[{indices}]"
             return ast_expr_node.id
         elif isinstance(ast_expr_node, ast.BinOp):
             left = self._convert_ast_expr_to_pseudocode(ast_expr_node.left)
@@ -291,6 +304,14 @@ class SDFGToPseudocodeConverter:
         self._declared_arrays: set[str] = set()
         self._declared_symbols: set[str] = set()
         self._declared_loop_vars: set[str] = set()
+        self._promoted_symbols: set[str] = set()
+
+        # Stack to track loop variables for determining indices of promoted symbols
+        # Stores (var_name, start_expr, stop_expr, step_expr)
+        self._loop_var_stack: list[tuple[str, sp.Expr, sp.Expr, sp.Expr]] = []
+
+        # Map promoted symbol names to their definition indices string (e.g. "i, j")
+        self._symbol_definition_indices: dict[str, str] = {}
 
         # Dataflow tracking
         # Maps array_name to the name of the statement that last wrote to it in the current scope
@@ -345,6 +366,36 @@ class SDFGToPseudocodeConverter:
         self._next_stmt_id += 1
         return name
 
+    def _get_current_indices(self) -> str:
+        """Returns the current linearized index string based on loop nesting, or '0' if top-level."""
+        if not self._loop_var_stack:
+            return "0"
+
+        # Calculate linearized index: Sum((var - start) * stride)
+        # Stride_k = Product(size_j) for j > k
+
+        linear_index_expr = sp.Integer(0)
+        current_stride = sp.Integer(1)
+
+        # Iterate in reverse (innermost to outermost) to build strides
+        for var_name, start, stop, step in reversed(self._loop_var_stack):
+            # Assuming exclusive stop for size calculation: size = ceiling((stop - start) / step)
+            # For simplicity using exact division assuming divisibility, or just (stop-start)/step
+            size = (stop - start) / step
+
+            # Index contribution: (var - start) / step * stride
+            # Normalized index: (var - start) / step
+            var_sym = sp.Symbol(var_name)
+            normalized_index = (var_sym - start) / step
+
+            linear_index_expr += normalized_index * current_stride
+
+            current_stride *= size
+
+        return self._convert_sympy_to_pseudocode_expr(
+            linear_index_expr, wrap_if_complex=False
+        )
+
     def _convert_sympy_to_pseudocode_expr(
         self, expr: sp.Expr, wrap_if_complex: bool = False
     ) -> str:
@@ -371,11 +422,17 @@ class SDFGToPseudocodeConverter:
         elif isinstance(expr, sp.Symbol):
             expr_str = str(expr)
             if expr_str in self._declared_arrays:
-                expr_str = f"{expr_str}[0]"
+                indices = "0"
+                if expr_str in self._promoted_symbols:
+                    indices = self._symbol_definition_indices.get(expr_str, "0")
+                expr_str = f"{expr_str}[{indices}]"
         elif isinstance(expr, sp.IndexedBase):  # Added handling for IndexedBase
             expr_str = str(expr)
             if expr_str in self._declared_arrays:  # If it's a scalar array (decl)
-                expr_str = f"{expr_str}[0]"
+                indices = "0"
+                if expr_str in self._promoted_symbols:
+                    indices = self._symbol_definition_indices.get(expr_str, "0")
+                expr_str = f"{expr_str}[{indices}]"
             # else: expr_str = str(expr) # Already covered by the default str(expr) below for non-declared IndexedBases
 
         elif isinstance(expr, sp.Add):
@@ -420,10 +477,13 @@ class SDFGToPseudocodeConverter:
             expr_str = f"{self._convert_sympy_to_pseudocode_expr(expr.lhs, wrap_if_complex=True)} < {self._convert_sympy_to_pseudocode_expr(expr.rhs, wrap_if_complex=True)}"
         elif isinstance(expr, sp.Indexed):
             base = str(expr.base)
-            indices = ", ".join(
-                self._convert_sympy_to_pseudocode_expr(idx, wrap_if_complex=False)
-                for idx in expr.indices
-            )
+            if base in self._promoted_symbols:
+                indices = self._symbol_definition_indices.get(base, "0")
+            else:
+                indices = ", ".join(
+                    self._convert_sympy_to_pseudocode_expr(idx, wrap_if_complex=False)
+                    for idx in expr.indices
+                )
             expr_str = f"{base}[{indices}]"
 
         # Basic support for some functions (e.g., floor, sqrt used in examples)
@@ -471,10 +531,13 @@ class SDFGToPseudocodeConverter:
 
         if isinstance(sympy_expr, sp.Indexed):
             base_name = str(sympy_expr.base)
-            indices_str = ", ".join(
-                self._convert_sympy_to_pseudocode_expr(idx, wrap_if_complex=False)
-                for idx in sympy_expr.indices
-            )
+            if base_name in self._promoted_symbols:
+                indices_str = self._symbol_definition_indices.get(base_name, "0")
+            else:
+                indices_str = ", ".join(
+                    self._convert_sympy_to_pseudocode_expr(idx, wrap_if_complex=False)
+                    for idx in sympy_expr.indices
+                )
             # Only consider it a read if the base is a declared array
             if base_name in self._declared_arrays:
                 accesses.append((base_name, indices_str))
@@ -483,7 +546,10 @@ class SDFGToPseudocodeConverter:
         if isinstance(sympy_expr, sp.Symbol):
             # If it's a symbol that was declared as an array (scalar array in P3G)
             if str(sympy_expr) in self._declared_arrays:
-                accesses.append((str(sympy_expr), "0"))
+                indices = "0"
+                if str(sympy_expr) in self._promoted_symbols:
+                    indices = self._symbol_definition_indices.get(str(sympy_expr), "0")
+                accesses.append((str(sympy_expr), indices))
             # P3G Symbols (declared via 'sym') are not included in read/write lists.
             return accesses
 
@@ -764,6 +830,10 @@ class SDFGToPseudocodeConverter:
         self._declared_loop_vars.add(param)
 
         map_range = map_.range[0]  # Assuming single range
+        # Map range in DaCe is (start, stop, step)
+        # Pushing raw SymPy expressions to stack
+        self._loop_var_stack.append((param, map_range[0], map_range[1], map_range[2]))
+
         start_expr = self._convert_sympy_to_pseudocode_expr(
             map_range[0], wrap_if_complex=True
         )
@@ -841,6 +911,7 @@ class SDFGToPseudocodeConverter:
             self._convert_node(node, state)
 
         self._indent_level -= 1
+        self._loop_var_stack.pop()
 
         # Pop scope and restore array state.
         # For arrays written by the map, their state in the outer scope is now this map's statement.
@@ -922,6 +993,16 @@ class SDFGToPseudocodeConverter:
         # Propagate declared symbols and arrays so nested converter knows what to filter
         nested_converter._declared_symbols = self._declared_symbols.copy()
         nested_converter._declared_arrays = self._declared_arrays.copy()
+        nested_converter._declared_loop_vars = self._declared_loop_vars.copy()
+        nested_converter._promoted_symbols = self._promoted_symbols.copy()
+
+        # Propagate loop stack and definition indices for consistent flattening
+        nested_converter._loop_var_stack = list(
+            self._loop_var_stack
+        )  # Shallow copy of list
+        nested_converter._symbol_definition_indices = (
+            self._symbol_definition_indices.copy()
+        )
 
         # Synchronize Statement IDs
         nested_converter._next_stmt_id = self._next_stmt_id
@@ -947,6 +1028,11 @@ class SDFGToPseudocodeConverter:
         # This effectively exposes the internal last-writers to the parent scope
         self._array_state.update(nested_converter._array_state)
 
+        # Merge back symbol definitions
+        self._symbol_definition_indices.update(
+            nested_converter._symbol_definition_indices
+        )
+
         # Merge statement writes
         for k, v in nested_converter._statement_writes.items():
             self._statement_writes[k].update(v)
@@ -959,8 +1045,15 @@ class SDFGToPseudocodeConverter:
 
         # Assignments is a dict {var: expr}
         for var, expr in edge.data.assignments.items():
+            current_indices = self._get_current_indices()
+
             expr_ast = ast.parse(expr)
-            extractor = ASTReadExtractor(self._declared_arrays)
+            extractor = ASTReadExtractor(
+                self._declared_arrays,
+                self._promoted_symbols,
+                current_indices,
+                self._symbol_definition_indices,
+            )
             extractor.visit(expr_ast)
 
             read_str = self._convert_accesses_to_pseudocode(extractor.reads)
@@ -980,9 +1073,27 @@ class SDFGToPseudocodeConverter:
 
             stmt_name = self._get_next_stmt_name("Assign")
 
-            # Scalar write: var[0]
+            write_indices = "0"
+            if var in self._promoted_symbols:
+                # The write itself always uses the current loop indices
+                write_indices = current_indices
+
+                # Check for conflicts with previously seen definitions, and warn if different
+                if var in self._symbol_definition_indices:
+                    if self._symbol_definition_indices[var] != current_indices:
+                        print(
+                            f"WARNING: Symbol '{var}' assigned multiple times with different indices: "
+                            f"Previous: '{self._symbol_definition_indices[var]}', Current: '{current_indices}'. "
+                            "Updating definition for subsequent usages."
+                        )
+
+                # ALWAYS update the definition indices to the current context for this symbol
+                # This ensures "latest wins" for subsequent reads
+                self._symbol_definition_indices[var] = current_indices
+
+            # Scalar write: var[indices]
             self._add_line(
-                f"({read_str} => {var}[0]) {prefix}{stmt_name}| op(assign_{var})"
+                f"({read_str} => {var}[{write_indices}]) {prefix}{stmt_name}| op(assign_{var})"
             )
 
             self._array_state[var] = stmt_name
@@ -1090,11 +1201,22 @@ class SDFGToPseudocodeConverter:
         loop_var_str = loop_region.loop_variable
         self._declared_loop_vars.add(loop_var_str)
 
+        # Extract bounds as SymPy expressions
+        start_sym = get_init_assignment(loop_region)
+        stop_sym = get_loop_end(loop_region)
+        step_sym = sp.Integer(1)  # Assuming step of 1 as get_loop_step is unavailable
+
+        # LoopRegion bounds: semantics need care.
+        # get_loop_end usually returns the comparison value. e.g. i < N -> N.
+        # Assuming exclusive upper bound for consistency with Maps and typical size calc.
+
+        self._loop_var_stack.append((loop_var_str, start_sym, stop_sym, step_sym))
+
         start_expr = self._convert_sympy_to_pseudocode_expr(
-            get_init_assignment(loop_region), wrap_if_complex=True
+            start_sym, wrap_if_complex=True
         )
         end_expr = self._convert_sympy_to_pseudocode_expr(
-            get_loop_end(loop_region), wrap_if_complex=True
+            stop_sym, wrap_if_complex=True
         )
 
         r_vars, w_vars = self._collect_region_accesses(loop_region)
@@ -1144,6 +1266,7 @@ class SDFGToPseudocodeConverter:
             self._convert_cfg_node(node, loop_region)
 
         self._indent_level -= 1
+        self._loop_var_stack.pop()
 
         # Pop scope and restore array state.
         # For arrays written by the loop, their state in the outer scope is now this loop's statement.
@@ -1484,6 +1607,7 @@ class SDFGToPseudocodeConverter:
         # Ensure they are removed from _declared_symbols if present, and added to _declared_arrays
         self._declared_symbols -= assigned_symbols
         self._declared_arrays.update(assigned_symbols)
+        self._promoted_symbols.update(assigned_symbols)
 
         # Final cleanup: ensure no overlap between declared_symbols and declared_arrays
         self._declared_symbols -= self._declared_arrays
