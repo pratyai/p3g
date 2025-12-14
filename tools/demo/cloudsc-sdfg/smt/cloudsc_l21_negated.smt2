@@ -3,9 +3,9 @@
 
 (assert (and
   (and
-    (<= 0 tmp_parfor_10)
     (<= 1 (+ klon (- 1)))
     (<= (+ tmp_parfor_10 1) (+ klon (- 1)))
+    (<= 0 tmp_parfor_10)
   )
   (not (= tmp_parfor_10 (+ tmp_parfor_10 1)))
 ))

@@ -6,10 +6,10 @@
 (assert (and
   (not (= tmp_parfor_41 (+ tmp_parfor_41 1)))
   (and
-    (<= 1 (+ klon (- 1)))
-    (<= 0 tmp_parfor_41)
     (<= ncldtop (+ klev (- 1)))
     (<= (+ tmp_parfor_41 1) (+ klon (- 1)))
+    (<= 1 (+ klon (- 1)))
+    (<= 0 tmp_parfor_41)
   )
 ))
 

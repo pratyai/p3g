@@ -6,9 +6,9 @@
 
 (assert (and
   (and
+    (<= 0 _for_it_87)
     (<= (+ _for_it_87 1) 4)
     (<= ncldtop (+ klev (- 1)))
-    (<= 0 _for_it_87)
     (<= kidia (+ kfdia (- 1)))
   )
   (not (= _for_it_87 (+ _for_it_87 1)))

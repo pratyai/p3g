@@ -5,13 +5,13 @@
 (declare-fun ncldtop () Int)
 
 (assert (and
+  (not (= _for_it_43 (+ _for_it_43 1)))
   (and
     (<= kidia (+ kfdia (- 1)))
     (<= ncldtop (+ klev (- 1)))
     (<= (+ _for_it_43 1) (+ kfdia (- 1)))
     (<= (+ kidia (- 1)) _for_it_43)
   )
-  (not (= _for_it_43 (+ _for_it_43 1)))
 ))
 
 (check-sat)

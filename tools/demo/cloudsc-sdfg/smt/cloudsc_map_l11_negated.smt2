@@ -6,10 +6,10 @@
 (assert (and
   (not (= _for_it_10 (+ _for_it_10 1)))
   (and
+    (<= (+ kidia (- 1)) _for_it_10)
     (<= kidia (+ kfdia (- 1)))
     (<= 1 (+ klev (- 1)))
     (<= (+ _for_it_10 1) (+ kfdia (- 1)))
-    (<= (+ kidia (- 1)) _for_it_10)
   )
 ))
 

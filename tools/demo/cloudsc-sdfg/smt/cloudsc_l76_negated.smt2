@@ -1,5 +1,266 @@
+(declare-fun _for_it_23 () Int)
+(declare-fun _for_it_29 () Int)
+(declare-fun kfdia () Int)
+(declare-fun kidia () Int)
+(declare-fun klev () Int)
+(declare-fun ncldtop () Int)
 
-
-(assert false)
+(assert (forall ((_if_cond_10_val (Array Int Int)) (_if_cond_11_val (Array Int Int)) (_if_cond_12_val (Array Int Int)) (_if_cond_13_val (Array Int Int)) (_if_cond_14_val (Array Int Int)) (_if_cond_15_val (Array Int Int)))
+  (and
+    (or
+      (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (= (select _if_cond_15_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_15_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (not (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia) (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)))
+    )
+    (or
+      (not (= (- (+ _for_it_29 1) 1) (+ _for_it_29 1)))
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (not (= (- (+ _for_it_29 1) 1) (+ _for_it_29 1)))
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+    )
+    (or
+      (not (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+    )
+    (or
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (not (= _for_it_29 (- (+ _for_it_29 2) 1)))
+    )
+    (or
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+    )
+    (or
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= _for_it_29 (- (+ _for_it_29 2) 1)))
+    )
+    (or
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_11_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+    )
+    (or
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+    (or
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (not (= (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia) (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)))
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia) (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)))
+    )
+    (or
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+      (not (= (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia) (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)))
+    )
+    (or
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia) (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)))
+    )
+    (or
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+    (or
+      (= (select _if_cond_15_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (= (select _if_cond_15_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (= (select _if_cond_15_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1)
+      (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (or
+      (not (= (select _if_cond_15_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_15_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (and
+      (<= kidia (+ kfdia (- 1)))
+      (<= ncldtop (+ klev (- 1)))
+      (<= (+ _for_it_29 1) (+ kfdia (- 1)))
+      (<= (+ kidia (- 1)) _for_it_29)
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+      (not (= (select _if_cond_15_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_13_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+    )
+    (not (= (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia) (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)))
+    (or
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia) (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)))
+    )
+    (or
+      (not (= (select _if_cond_14_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= _for_it_29 (+ _for_it_29 1)))
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1)
+    )
+    (or
+      (not (= (select _if_cond_12_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 1) kidia)) 1))
+      (not (= (select _if_cond_10_val (- (+ _for_it_29 (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) 2) kidia)) 1))
+    )
+  )
+))
 
 (check-sat)

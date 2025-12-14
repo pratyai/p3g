@@ -5,10 +5,10 @@
 
 (assert (and
   (and
+    (<= 1 (+ klev (- 1)))
     (<= (+ _for_it_6 1) (+ klev (- 1)))
     (<= 0 _for_it_6)
     (<= kidia (+ kfdia (- 1)))
-    (<= 1 (+ klev (- 1)))
   )
   (forall ((_for_it_7_0 Int) (_for_it_7_1 Int))
     (or

@@ -1,8 +1,16 @@
-
+(declare-fun _for_it_23 () Int)
+(declare-fun _if_cond_44_val () (Array Int Int))
+(declare-fun _if_cond_45_val () (Array Int Int))
 
 (assert (forall ((_for_it_47 Int) (kfdia Int) (kidia Int) (klev Int) (klon Int) (ncldtop Int))
   (=>
-    false
+    (and
+      (<= kidia (+ kfdia (- 1)))
+      (not (or (and (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1) (= _for_it_47 (+ _for_it_47 1)) (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1)) (and (= _for_it_47 (+ _for_it_47 1)) (not (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1)) (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1)) (and (= _for_it_47 (- (+ _for_it_47 2) 1)) (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1)) (and (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1) (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1)) (and (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1) (= _for_it_47 (+ _for_it_47 1)) (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1)) (and (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1) (= _for_it_47 (+ _for_it_47 1)) (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1)) (and (= _for_it_47 (+ _for_it_47 1)) (not (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1)) (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1)) (and (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1) (= _for_it_47 (+ _for_it_47 1)) (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1)) (and (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1) (= _for_it_47 (+ _for_it_47 1)) (not (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1))) (and (not (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1)) (= _for_it_47 (+ _for_it_47 1)) (not (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1))) (and (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1) (= _for_it_47 (+ _for_it_47 1)) (not (= (select _if_cond_44_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia)) 1))) (= (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 1) kidia) (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) (and (= (- (+ _for_it_47 1) 1) (+ _for_it_47 1)) (= (select _if_cond_45_val (- (+ (* (- (+ _for_it_23 1) ncldtop) (- kfdia kidia)) _for_it_47 2) kidia)) 1))))
+      (<= ncldtop (+ klev (- 1)))
+      (<= (+ kidia (- 1)) _for_it_47)
+      (<= (+ _for_it_47 1) (+ kfdia (- 1)))
+    )
     false
   )
 ))

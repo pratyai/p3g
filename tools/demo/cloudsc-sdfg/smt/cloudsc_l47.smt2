@@ -3,11 +3,11 @@
 (assert (forall ((kfdia Int) (kidia Int) (klev Int) (klon Int) (ncldtop Int) (tmp_parfor_24 Int))
   (=>
     (and
-      (<= 0 tmp_parfor_24)
       (not (= tmp_parfor_24 (+ tmp_parfor_24 1)))
       (<= 1 (+ klon (- 1)))
       (<= ncldtop (+ klev (- 1)))
       (<= (+ tmp_parfor_24 1) (+ klon (- 1)))
+      (<= 0 tmp_parfor_24)
     )
     false
   )

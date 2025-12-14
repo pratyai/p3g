@@ -7,7 +7,7 @@
       (<= ncldtop (+ klev (- 1)))
       (<= (+ _for_it_41 1) (+ kfdia (- 1)))
       (<= (+ kidia (- 1)) _for_it_41)
-      (not (or (= _for_it_41 (+ _for_it_41 1)) (and (< (+ _for_it_23 1) klev) (= 0 (+ _for_it_41 1))) (and (< (+ _for_it_23 1) klev) (= _for_it_41 0)) (< (+ _for_it_23 1) klev)))
+      (not (or (< (+ _for_it_23 1) klev) (= _for_it_41 (+ _for_it_41 1)) (and (< (+ _for_it_23 1) klev) (= 0 (+ _for_it_41 1))) (and (< (+ _for_it_23 1) klev) (= _for_it_41 0))))
     )
     false
   )

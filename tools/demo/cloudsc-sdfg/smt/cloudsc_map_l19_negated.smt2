@@ -5,19 +5,19 @@
 (assert (and
   (forall ((tmp_parfor_7_0 Int) (tmp_parfor_7_1 Int))
     (or
-      (not (<= tmp_parfor_7_1 (+ klon (- 1))))
-      (not (<= tmp_parfor_7_0 (+ klon (- 1))))
       (not (<= 0 tmp_parfor_7_0))
       (not (<= 0 tmp_parfor_7_1))
       (not (= tmp_parfor_7_0 tmp_parfor_7_1))
       (not (= tmp_parfor_8 (+ tmp_parfor_8 1)))
+      (not (<= tmp_parfor_7_1 (+ klon (- 1))))
+      (not (<= tmp_parfor_7_0 (+ klon (- 1))))
     )
   )
   (and
     (<= (+ tmp_parfor_8 1) (+ klev (- 1)))
+    (<= 1 (+ klon (- 1)))
     (<= 1 (+ klev (- 1)))
     (<= 0 tmp_parfor_8)
-    (<= 1 (+ klon (- 1)))
   )
 ))
 

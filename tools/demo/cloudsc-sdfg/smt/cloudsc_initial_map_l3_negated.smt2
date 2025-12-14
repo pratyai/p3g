@@ -5,19 +5,19 @@
 
 (assert (and
   (and
-    (<= (+ _for_it_3 1) (+ klev (- 1)))
     (<= kidia (+ kfdia (- 1)))
-    (<= 0 _for_it_3)
     (<= 1 (+ klev (- 1)))
+    (<= (+ _for_it_3 1) (+ klev (- 1)))
+    (<= 0 _for_it_3)
   )
   (forall ((_for_it_4_0 Int) (_for_it_4_1 Int))
     (or
-      (not (<= _for_it_4_1 (+ kfdia (- 1))))
-      (not (<= (+ kidia (- 1)) _for_it_4_1))
-      (not (<= _for_it_4_0 (+ kfdia (- 1))))
       (not (<= (+ kidia (- 1)) _for_it_4_0))
       (not (= _for_it_4_0 _for_it_4_1))
       (not (= _for_it_3 (+ _for_it_3 1)))
+      (not (<= _for_it_4_1 (+ kfdia (- 1))))
+      (not (<= (+ kidia (- 1)) _for_it_4_1))
+      (not (<= _for_it_4_0 (+ kfdia (- 1))))
     )
   )
 ))

@@ -6,21 +6,21 @@
 (declare-fun ncldtop () Int)
 
 (assert (and
-  (not (< (+ _for_it_23 1) klev))
-  (and
-    (<= ncldtop (+ klev (- 1)))
-    (<= (+ _for_it_41 1) (+ kfdia (- 1)))
-    (<= (+ kidia (- 1)) _for_it_41)
-    (<= kidia (+ kfdia (- 1)))
-  )
-  (or
-    (not (< (+ _for_it_23 1) klev))
-    (not (= _for_it_41 0))
-  )
   (not (= _for_it_41 (+ _for_it_41 1)))
   (or
     (not (< (+ _for_it_23 1) klev))
     (not (= 0 (+ _for_it_41 1)))
+  )
+  (not (< (+ _for_it_23 1) klev))
+  (and
+    (<= kidia (+ kfdia (- 1)))
+    (<= ncldtop (+ klev (- 1)))
+    (<= (+ _for_it_41 1) (+ kfdia (- 1)))
+    (<= (+ kidia (- 1)) _for_it_41)
+  )
+  (or
+    (not (< (+ _for_it_23 1) klev))
+    (not (= _for_it_41 0))
   )
 ))
 
