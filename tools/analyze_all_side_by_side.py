@@ -18,9 +18,11 @@ def get_structural_types(pcode_path):
     with open(pcode_path, "r") as f:
         for line in f:
             if "| for" in line:
-                types.append("For")
+                loop_var = line.split("| for ")[1].split(" =")[0]
+                types.append(("For", loop_var))
             elif "| map" in line:
-                types.append("Map")
+                loop_var = line.split("| map ")[1].split(" =")[0]
+                types.append(("Map", loop_var))
 
     print(f"DEBUG: Found {len(types)} structural loops in {pcode_path}")
     return types
@@ -67,6 +69,8 @@ def analyze_all_side_by_side():
 
         final_map_file = os.path.join(prob_dir, f"{prob}_map.pcode")
         structural_types = get_structural_types(final_map_file)
+        loop_vars = [v for u, v in structural_types]
+        structural_types = [u for u, v in structural_types]
 
         results = collections.defaultdict(dict)
 
@@ -98,10 +102,10 @@ def analyze_all_side_by_side():
         # Header
         header_str = f"{'Idx':<5}"
         for col in existing_phases_for_problem:
-            header_str += f" | {col:<18}"
-        header_str += f" | {'Structural':<10}"
+            header_str += f" | {col:<15}"
+        header_str += f" | {'Structural':<10} | {'Loop Var':<20}"
         print(header_str)
-        print("-" * (5 + len(existing_phases_for_problem) * 21 + 13))
+        print("-" * len(header_str))
 
         # Rows
         for i in range(max_loop_idx + 1):
@@ -111,11 +115,24 @@ def analyze_all_side_by_side():
                 val = results[i].get(ph, "")
                 if val:
                     has_data_in_row = True
-                row_str += f" | {val:<18}"
+                row_str += f" | {val:<15}"
 
             # Structural info
             struct_val = structural_types[i] if i < len(structural_types) else "N/A"
-            row_str += f" | {struct_val:<10}"
+            loop_var_val = loop_vars[i] if i < len(loop_vars) else "N/A"
+
+            final_map_res = results[i].get("Final Map", "")
+            marker = ""
+            if final_map_res and struct_val in ["For", "Map"]:
+                # Consistent: (SAT -> For) or (UNSAT -> Map)
+                is_consistent = (final_map_res == "SAT" and struct_val == "For") or (
+                    final_map_res == "UNSAT" and struct_val == "Map"
+                )
+                if not is_consistent:
+                    marker = " (*)"
+
+            struct_display = f"{struct_val}{marker}"
+            row_str += f" | {struct_display:<10} | {loop_var_val:<20}"
 
             if has_data_in_row:  # Only print rows that actually have data
                 print(row_str)

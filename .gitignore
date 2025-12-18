@@ -133,6 +133,9 @@ venv.bak/
 .vscode/
 
 # Temporary files
+.DS_Store
+_dacegraphs
+.dacecache
 tmp/
 .tmp/
 *.tmp
